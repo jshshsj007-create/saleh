@@ -1,0 +1,486 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>صالح</title>
+<meta name="theme-color" content="#0f1115">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="صالح">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="apple-touch-icon" href="icon.png">
+<link rel="icon" href="icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0f1115;--card:#181b22;--card2:#1f232c;--line:#2a2f3a;--text:#eef0f4;--mute:#8b93a3;
+  --up:#4f8cff;--low:#ff8a3d;--off:#6b7280;--ok:#2fbf71;--danger:#ef5350;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:var(--bg);color:var(--text)}
+body{font-family:"IBM Plex Sans Arabic",system-ui,sans-serif;font-size:15px;line-height:1.5;padding-bottom:calc(84px + env(safe-area-inset-bottom));-webkit-tap-highlight-color:transparent}
+header{padding:calc(20px + env(safe-area-inset-top)) 16px 8px;max-width:560px;margin:0 auto}
+h1{font-size:22px;font-weight:700}
+.sub{color:var(--mute);font-size:13px}
+main{padding:8px 16px;display:flex;flex-direction:column;gap:12px;max-width:560px;margin:0 auto}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px}
+.row{display:flex;align-items:center;gap:8px}
+.between{justify-content:space-between}
+.name{font-weight:600;font-size:16px}
+.muscle{color:var(--mute);font-size:12px}
+.last{margin-top:8px;font-size:13px;color:var(--mute)}
+.last b{color:var(--text);font-weight:500}
+.q{margin-top:12px;font-weight:600}
+.btns{display:flex;gap:8px;margin-top:10px}
+button{font:inherit;border-radius:10px;padding:10px 14px;cursor:pointer;color:var(--text);background:var(--card2);border:1px solid var(--line)}
+button.pri{background:var(--up);border-color:var(--up);color:#fff;font-weight:600}
+button.okb{background:var(--ok);border-color:var(--ok);color:#fff;font-weight:600}
+button.ghost{background:transparent}
+button.sm{padding:6px 10px;font-size:13px}
+button.x{padding:4px 10px;color:var(--danger);background:transparent;border-color:transparent}
+button:disabled{opacity:.6}
+.grow{flex:1}
+.pill{display:inline-block;padding:2px 10px;border-radius:999px;font-size:12px;font-weight:600}
+.p-upper{background:color-mix(in srgb,var(--up) 20%,transparent);color:var(--up)}
+.p-lower{background:color-mix(in srgb,var(--low) 20%,transparent);color:var(--low)}
+.p-off{background:color-mix(in srgb,var(--off) 25%,transparent);color:#aab}
+.fields{display:flex;gap:8px;margin-top:10px}
+.field{flex:1;display:flex;flex-direction:column;gap:4px;min-width:0}
+.field span{font-size:12px;color:var(--mute)}
+input,select{font:inherit;font-size:16px;width:100%;background:var(--bg);color:var(--text);border:1px solid var(--line);border-radius:10px;padding:9px 10px;text-align:center}
+input:focus{outline:2px solid var(--up);border-color:transparent}
+.target{margin-top:10px;padding:10px 12px;border-radius:10px;background:color-mix(in srgb,var(--up) 12%,transparent);border:1px solid color-mix(in srgb,var(--up) 35%,transparent)}
+.target.saved{background:color-mix(in srgb,var(--ok) 12%,transparent);border-color:color-mix(in srgb,var(--ok) 40%,transparent)}
+.target small{color:var(--mute);display:block;font-size:12px}
+.seg{display:flex;background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:3px;gap:3px;margin-top:12px}
+.seg button{flex:1;border:0;background:transparent;padding:7px 6px;font-size:13px;color:var(--mute)}
+.seg button.on{background:var(--card2);color:var(--text);font-weight:600}
+.seg button.on.upper{background:var(--up);color:#fff}
+.seg button.on.lower{background:var(--low);color:#fff}
+.seg button.on.off{background:var(--off);color:#fff}
+.setrow{display:flex;align-items:center;gap:8px;margin-top:8px}
+.no{width:22px;flex:none;color:var(--mute);font-size:13px;text-align:center}
+.done{border-color:color-mix(in srgb,var(--ok) 50%,transparent)}
+.check{color:var(--ok);font-weight:600}
+.hero{text-align:center;padding:26px 14px}
+.hero .big{font-size:40px}
+.progress{height:6px;background:var(--card2);border-radius:99px;overflow:hidden;margin-top:8px}
+.progress i{display:block;height:100%;background:var(--ok)}
+.daychips{display:flex;gap:6px;flex-wrap:wrap}
+.daychips button{padding:4px 12px;font-size:13px;border-radius:999px}
+.daychips button.on{background:var(--text);color:var(--bg);border-color:var(--text)}
+h2{font-size:15px;font-weight:600;margin:4px 2px -4px;color:var(--mute)}
+.list .item{display:flex;align-items:center;gap:8px;padding:10px 0;border-top:1px solid var(--line)}
+.list .item:first-child{border-top:0}
+.hist .ex{display:flex;justify-content:space-between;gap:10px;padding:6px 0;font-size:14px;border-top:1px solid var(--line)}
+.hist .ex span:last-child{color:var(--mute);text-align:left}
+nav{position:fixed;bottom:0;inset-inline:0;background:#12151b;border-top:1px solid var(--line);display:flex;padding:6px 6px calc(6px + env(safe-area-inset-bottom))}
+nav button{flex:1;background:transparent;border:0;color:var(--mute);font-size:12px;display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px}
+nav button .i{font-size:20px;line-height:1}
+nav button.on{color:var(--text);font-weight:600}
+.empty{color:var(--mute);text-align:center;padding:20px}
+.login{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:24px 16px;text-align:center}
+.login .logo{font-size:64px;line-height:1}
+.login h1{font-size:30px}
+.login p{color:var(--mute);max-width:320px}
+.gbtn{display:flex;align-items:center;gap:10px;background:#fff;color:#1f1f1f;border:0;font-weight:600;padding:12px 20px;border-radius:999px;margin-top:8px}
+.gbtn svg{width:20px;height:20px}
+.err{color:var(--danger);font-size:13px;max-width:340px}
+.toast{position:fixed;top:calc(12px + env(safe-area-inset-top));inset-inline:16px;max-width:528px;margin:0 auto;background:#3a1f22;border:1px solid var(--danger);color:#ffd7d7;border-radius:12px;padding:10px 14px;font-size:13px;z-index:9}
+.avatar{width:36px;height:36px;border-radius:50%;flex:none;background:var(--card2)}
+</style>
+</head>
+<body>
+<div id="app"><div class="login"><div class="sub">جاري التحميل…</div></div></div>
+<script type="module">
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js';
+import { getAuth, GoogleAuthProvider, onAuthStateChanged, signInWithPopup, signInWithRedirect, signOut } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js';
+import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, doc, collection, onSnapshot, setDoc } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js';
+
+// إعدادات Firebase ليست سرًّا: هي عنوان المشروع، وكل موقع Firebase يكشفها.
+// الحماية في قواعد Firestore: كل حساب لا يقرأ ولا يكتب إلا تحت users/<حسابه>
+const fb = initializeApp({
+  apiKey: 'AIzaSyA5r6_WfSII1hp5LSqWnTmMrqm28RjTySE',
+  authDomain: 'saleh-285a6.firebaseapp.com',
+  projectId: 'saleh-285a6',
+  storageBucket: 'saleh-285a6.firebasestorage.app',
+  messagingSenderId: '669710052588',
+  appId: '1:669710052588:web:8acc0f4ca4ac09dd68c9c9',
+});
+const auth = getAuth(fb);
+let db;
+// النسخة المحلية تخلّي التسجيل يشتغل في الجيم لو ضعفت الشبكة، ويرفع لما ترجع
+try { db = initializeFirestore(fb, { localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }) }); }
+catch (e) { db = initializeFirestore(fb, {}); }
+
+// تاريخ اليوم بتوقيت الجهاز، لأن «اليوم» عند المتمرّن هو يومه هو لا يوم UTC
+const iso = d => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+let TODAY = iso(new Date());
+const DAYS = ['الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
+const WEEK = [6, 0, 1, 2, 3, 4, 5]; // الأسبوع يبدأ بالسبت
+const PART = { upper: 'علوي', lower: 'سفلي', off: 'أوف' };
+const n = x => Number(x || 0).toLocaleString('ar-SA', { maximumFractionDigits: 2 });
+// تمييز العدد: ١ جولة، ٢ جولتين، ٣–١٠ جولات، ١١+ جولة
+const say = (k, one, two, few) => k == 1 ? one : k == 2 ? two : k >= 3 && k <= 10 ? few : one;
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+function seed() {
+  const ex = [
+    ['بنش برس', 'صدر', 'upper'], ['تفتيح صدر بالجهاز', 'صدر', 'upper'], ['سحب أمامي', 'ظهر', 'upper'],
+    ['تجديف بالكيبل', 'ظهر', 'upper'], ['ضغط أكتاف', 'أكتاف', 'upper'], ['رفرفة جانبية', 'أكتاف', 'upper'],
+    ['بايسبس بالبار', 'باي', 'upper'], ['ترايسبس بالكيبل', 'تراي', 'upper'],
+    ['ليق برس', 'أرجل', 'lower'], ['رفرفة أمامية', 'أمامي الفخذ', 'lower'], ['رفرفة خلفية', 'خلفي الفخذ', 'lower'],
+    ['جهاز المؤخرة', 'مؤخرة', 'lower'], ['سمانة', 'سمانة', 'lower'],
+  ].map(([name, muscle, part], i) => ({ id: 'e' + i, name, muscle, part, mode: 'one' }));
+  return { ex, sched: { 6: 'upper', 0: 'lower', 1: 'off', 2: 'upper', 3: 'lower', 4: 'off', 5: 'off' } };
+}
+
+// ما في الحساب: التمارين والجدول (users/<uid>) والسجل يومًا بيوم (users/<uid>/logs/<تاريخ>).
+// وما في الجهاز: التبويب وخطوات تمرين اليوم الجارية، لأنها لحظية ولا تستحق السحابة
+let USER = null, S = null, logsByDate = {}, unsubs = [];
+let L = { tab: 'today', sess: null };
+try { L = Object.assign(L, JSON.parse(localStorage.getItem('saleh.local')) || {}); } catch (e) { }
+const saveLocal = () => { try { localStorage.setItem('saleh.local', JSON.stringify({ tab: L.tab, sess: L.sess, uid: L.uid })); } catch (e) { } };
+
+function toast(msg) {
+  document.querySelector('.toast')?.remove();
+  const t = document.createElement('div');
+  t.className = 'toast'; t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 5000);
+}
+const fail = e => { console.error(e); toast('ما انحفظ: ' + (e.code || e.message)); };
+const saveProfile = () => setDoc(doc(db, 'users', USER.uid), { ex: S.ex, sched: S.sched }).catch(fail);
+// merge يكتب تمرينًا واحدًا داخل يومه ولا يمسح تمارين اليوم الأخرى
+const saveLog = (id, sets) => setDoc(doc(db, 'users', USER.uid, 'logs', TODAY), { items: { [id]: sets } }, { merge: true }).catch(fail);
+
+function buildLogs() {
+  const out = {};
+  for (const d of Object.keys(logsByDate).sort()) {
+    const items = logsByDate[d].items || {};
+    for (const id in items) (out[id] = out[id] || []).push({ date: d, sets: items[id] });
+  }
+  return out;
+}
+
+const exById = id => S.ex.find(e => e.id === id);
+// آخر تسجيلٍ قبل اليوم: تسجيل اليوم نفسه لا يصلح مرجعًا لسؤال الزيادة
+const lastLog = id => (S.logs[id] || []).filter(l => l.date < TODAY).slice(-1)[0] || null;
+const todayLog = id => (S.logs[id] || []).find(l => l.date === TODAY) || null;
+const copy = sets => sets.map(s => ({ reps: +s.reps || 0, weight: +s.weight || 0 }));
+
+function summary(sets) {
+  if (!sets || !sets.length) return '';
+  const same = sets.every(s => s.reps == sets[0].reps && s.weight == sets[0].weight);
+  if (same) {
+    const k = sets.length, r = sets[0].reps;
+    return `${n(k)} ${say(k, 'جولة', 'جولتين', 'جولات')} × ${n(r)} ${say(r, 'عدّة', 'عدّتين', 'عدّات')} × ${n(sets[0].weight)} كجم`;
+  }
+  return sets.map(s => `${n(s.reps)}×${n(s.weight)}`).join(' ، ') + ' كجم';
+}
+
+function session() {
+  TODAY = iso(new Date());
+  if (!L.sess || L.sess.date !== TODAY) L.sess = { date: TODAY, part: S.sched[new Date().getDay()] || 'off', items: {} };
+  return L.sess;
+}
+function item(id) {
+  const it = session().items[id] || (session().items[id] = {});
+  if (!it.step) {
+    const l = lastLog(id), t = todayLog(id);
+    it.mode = exById(id).mode || 'one';
+    if (t) { it.step = 'done'; it.sets = copy(t.sets); }
+    else if (l) { it.step = 'ask'; it.sets = copy(l.sets); }
+    // أول مرة: ما فيه شي نسأل عن زيادته، فيكتب من الصفر
+    else { it.step = 'log'; it.sets = [{ reps: 10, weight: 0 }, { reps: 10, weight: 0 }, { reps: 10, weight: 0 }]; }
+  }
+  return it;
+}
+function nextTraining() {
+  const d = new Date();
+  for (let i = 1; i <= 7; i++) {
+    d.setDate(d.getDate() + 1);
+    const p = S.sched[d.getDay()];
+    if (p && p !== 'off') return { day: i === 1 ? 'بكرة' : DAYS[d.getDay()], part: p };
+  }
+  return null;
+}
+function fmtDate(d) {
+  const diff = Math.round((new Date(TODAY) - new Date(d)) / 864e5);
+  if (diff === 1) return 'أمس';
+  if (diff === 2) return 'قبل أمس';
+  return DAYS[new Date(d + 'T12:00').getDay()] + ' ' + n(+d.slice(8)) + '/' + n(+d.slice(5, 7));
+}
+
+const numInput = (f, v, extra = '') => `<input type="number" inputmode="decimal" step="any" min="0" data-f="${f}" value="${esc(v)}" ${extra}>`;
+
+function exCard(e) {
+  const it = item(e.id), l = lastLog(e.id);
+  let h = `<div class="card ${it.step === 'done' ? 'done' : ''}">
+    <div class="row between"><div><div class="name">${esc(e.name)}</div><div class="muscle">${esc(e.muscle)}</div></div>
+    ${it.step === 'done' ? '<span class="check">✓ خلص</span>' : ''}</div>`;
+  h += l ? `<div class="last">آخر مرة (${fmtDate(l.date)}): <b>${summary(l.sets)}</b></div>` : `<div class="last">أول مرة. اكتب اللي بتسويه.</div>`;
+
+  if (it.step === 'ask') {
+    h += `<div class="q">تبي تزود اليوم؟</div>
+      <div class="btns"><button class="pri grow" data-act="yes" data-id="${e.id}">إيه</button>
+      <button class="grow" data-act="no" data-id="${e.id}">لا، نفس الشي</button></div>`;
+  } else if (it.step === 'inc') {
+    h += `<div class="q">كم تزود؟</div>
+      <div class="fields">
+        <label class="field"><span>العدّات (+)</span>${numInput('inc.reps', it.inc.reps, `data-id="${e.id}"`)}</label>
+        <label class="field"><span>الوزن كجم (+)</span>${numInput('inc.weight', it.inc.weight, `data-id="${e.id}"`)}</label>
+      </div>
+      <div class="btns"><button class="pri grow" data-act="applyInc" data-id="${e.id}">اعتمد</button>
+      <button class="ghost" data-act="back" data-id="${e.id}">رجوع</button></div>`;
+  } else if (it.step === 'log') {
+    if (it.target) h += `<div class="target"><small>هدف اليوم</small>${summary(it.target)}</div>`;
+    h += `<div class="seg"><button class="${it.mode === 'one' ? 'on' : ''}" data-act="mode" data-v="one" data-id="${e.id}">رقم واحد للكل</button>
+      <button class="${it.mode === 'sets' ? 'on' : ''}" data-act="mode" data-v="sets" data-id="${e.id}">كل جولة لحالها</button></div>`;
+    if (it.mode === 'one') {
+      const s = it.sets[0] || { reps: 0, weight: 0 };
+      h += `<div class="fields">
+        <label class="field"><span>الجولات</span>${numInput('one.k', it.sets.length, `data-id="${e.id}"`)}</label>
+        <label class="field"><span>العدّات</span>${numInput('one.reps', s.reps, `data-id="${e.id}"`)}</label>
+        <label class="field"><span>الوزن كجم</span>${numInput('one.weight', s.weight, `data-id="${e.id}"`)}</label></div>`;
+    } else {
+      h += `<div class="setrow" style="margin-bottom:-4px"><span class="no"></span><span class="field"><span>العدّات</span></span><span class="field"><span>الوزن كجم</span></span><span style="width:38px"></span></div>`;
+      it.sets.forEach((s, i) => {
+        h += `<div class="setrow"><span class="no">${n(i + 1)}</span>
+          ${numInput('set.reps', s.reps, `data-id="${e.id}" data-i="${i}"`)}
+          ${numInput('set.weight', s.weight, `data-id="${e.id}" data-i="${i}"`)}
+          <button class="x" data-act="delSet" data-id="${e.id}" data-i="${i}" aria-label="احذف الجولة">✕</button></div>`;
+      });
+      h += `<button class="sm ghost" style="margin-top:8px" data-act="addSet" data-id="${e.id}">+ جولة</button>`;
+    }
+    h += `<div class="btns"><button class="okb grow" data-act="saveEx" data-id="${e.id}">سجّل اللي سويته ✓</button>
+      ${l ? `<button class="ghost" data-act="back" data-id="${e.id}">رجوع</button>` : ''}</div>`;
+  } else {
+    h += `<div class="target saved"><small>سجّلت اليوم</small>${summary(it.sets)}</div>
+      <div class="btns"><button class="sm ghost" data-act="edit" data-id="${e.id}">تعديل</button></div>`;
+  }
+  return h + '</div>';
+}
+
+function viewToday() {
+  const s = session(), wd = new Date().getDay();
+  let h = `<div class="card"><div class="sub">${DAYS[wd]}</div>
+    <div class="name" style="font-size:18px">اليوم <span class="pill p-${s.part}">${PART[s.part]}</span></div>
+    <div class="sub" style="margin-top:10px">تبي تغيّر اليوم بس؟</div>
+    <div class="daychips" style="margin-top:6px">${['upper', 'lower', 'off'].map(p => `<button class="${s.part === p ? 'on' : ''}" data-act="todayPart" data-v="${p}">${PART[p]}</button>`).join('')}</div>`;
+  const list = S.ex.filter(e => e.part === s.part);
+  if (s.part !== 'off' && list.length) {
+    const done = list.filter(e => item(e.id).step === 'done').length;
+    h += `<div class="sub" style="margin-top:12px">${done ? `خلّصت ${n(done)} من ${n(list.length)}` : `${n(list.length)} تمارين اليوم`}</div>
+      <div class="progress"><i style="width:${done / list.length * 100}%"></i></div>`;
+  }
+  h += '</div>';
+  if (s.part === 'off') {
+    const nx = nextTraining();
+    h += `<div class="card hero"><div class="big">😴</div><div class="name" style="margin-top:6px">اليوم راحة</div>
+      <div class="sub">${nx ? `التمرين الجاي: ${nx.day} <span class="pill p-${nx.part}">${PART[nx.part]}</span>` : 'ما فيه تمرين في جدولك'}</div></div>`;
+  } else if (!list.length) {
+    h += `<div class="empty">ما فيه تمارين ${PART[s.part]}. أضفها من «التمارين».</div>`;
+  } else h += list.map(exCard).join('');
+  return h;
+}
+
+function viewSched() {
+  return `<div class="card"><div class="sub" style="margin-bottom:6px">اختر لكل يوم: علوي أو سفلي أو أوف</div>` +
+    WEEK.map(d => `<div style="margin-top:12px"><div class="row between"><b>${DAYS[d]}</b>${d === new Date().getDay() ? '<span class="sub">اليوم</span>' : ''}</div>
+      <div class="seg" style="margin-top:6px">${['upper', 'lower', 'off'].map(p => `<button class="${p} ${S.sched[d] === p ? 'on' : ''}" data-act="sched" data-d="${d}" data-v="${p}">${PART[p]}</button>`).join('')}</div></div>`).join('') +
+    '</div>';
+}
+
+function viewEx() {
+  let h = '';
+  for (const p of ['upper', 'lower']) {
+    const list = S.ex.filter(e => e.part === p);
+    h += `<h2>${PART[p]} · ${n(list.length)}</h2><div class="card list">` +
+      (list.map(e => `<div class="item"><div class="grow"><div class="name" style="font-size:15px">${esc(e.name)}</div><div class="muscle">${esc(e.muscle)}</div></div>
+        <button class="sm ghost" data-act="renameEx" data-id="${e.id}">تعديل</button>
+        <button class="x" data-act="delEx" data-id="${e.id}" aria-label="احذف">✕</button></div>`).join('') || '<div class="empty">ما فيه تمارين</div>') + '</div>';
+  }
+  h += `<h2>أضف تمرين</h2><div class="card">
+    <div class="fields"><label class="field"><span>الاسم</span><input id="nName" placeholder="مثلًا: ديبس" style="text-align:right"></label></div>
+    <div class="fields"><label class="field"><span>العضلة</span><input id="nMuscle" placeholder="مثلًا: صدر" style="text-align:right"></label>
+    <label class="field"><span>القسم</span><select id="nPart"><option value="upper">علوي</option><option value="lower">سفلي</option></select></label></div>
+    <div class="btns"><button class="pri grow" data-act="addEx">أضف</button></div></div>`;
+  h += `<h2>حسابي</h2><div class="card">
+    <div class="row">${USER.photoURL ? `<img class="avatar" src="${esc(USER.photoURL)}" alt="" referrerpolicy="no-referrer">` : ''}
+    <div class="grow"><div class="name" style="font-size:15px">${esc(USER.displayName || '')}</div><div class="muscle">${esc(USER.email || '')}</div></div></div>
+    <div class="btns"><button class="grow" data-act="export">نزّل نسخة من بياناتي</button></div>
+    <div class="btns"><button class="ghost grow" data-act="logout">تسجيل خروج</button></div></div>`;
+  return h;
+}
+
+function viewHist() {
+  const dates = Object.keys(logsByDate).filter(d => Object.keys(logsByDate[d].items || {}).length).sort().reverse();
+  if (!dates.length) return '<div class="empty">ما سجّلت شي للحين</div>';
+  return dates.map(d => {
+    const items = logsByDate[d].items;
+    const rows = Object.keys(items).map(id => ({ e: exById(id), sets: items[id] }));
+    const part = rows.find(r => r.e)?.e.part;
+    return `<div class="card hist"><div class="row between" style="margin-bottom:6px"><b>${d === TODAY ? 'اليوم' : fmtDate(d)}</b>${part ? `<span class="pill p-${part}">${PART[part]}</span>` : ''}</div>` +
+      rows.map(({ e, sets }) => `<div class="ex"><span>${e ? esc(e.name) : '<span class="sub">تمرين محذوف</span>'}</span><span>${summary(sets)}</span></div>`).join('') + '</div>';
+  }).join('');
+}
+
+const G_ICON = '<svg viewBox="0 0 48 48"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.4-.4-3.5z"/><path fill="#FF3D00" d="m6.3 14.7 6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-8l-6.5 5C9.5 39.6 16.2 44 24 44z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C37 39.2 44 34 44 24c0-1.3-.1-2.4-.4-3.5z"/></svg>';
+function renderLogin(err = '') {
+  document.getElementById('app').innerHTML = `<div class="login">
+    <div class="logo">🏋️</div><h1>صالح</h1>
+    <p>جدول تمارينك: علوي وسفلي وأوف، ويسألك قبل كل تمرين تبي تزود ولا لا.</p>
+    <button class="gbtn" data-act="login">${G_ICON}الدخول بحساب Google</button>
+    <p class="sub">تمارينك تنحفظ في حسابك، وتفتحها من أي جهاز، ومحد يشوفها غيرك.</p>
+    ${err ? `<div class="err">${esc(err)}</div>` : ''}</div>`;
+}
+const renderLoading = () => { document.getElementById('app').innerHTML = '<div class="login"><div class="logo">🏋️</div><div class="sub">جاري تحميل تمارينك…</div></div>'; };
+
+const TABS = [['today', '🏋️', 'اليوم'], ['sched', '📅', 'الجدول'], ['ex', '📋', 'التمارين'], ['hist', '📈', 'السجل']];
+let pending = false;
+function render() {
+  pending = false;
+  if (!USER) return renderLogin();
+  if (!S) return renderLoading();
+  if (!TABS.some(t => t[0] === L.tab)) L.tab = 'today';
+  const v = { today: viewToday, sched: viewSched, ex: viewEx, hist: viewHist }[L.tab]();
+  const title = L.tab === 'today' ? 'تمرين اليوم' : TABS.find(t => t[0] === L.tab)[2];
+  document.getElementById('app').innerHTML =
+    `<header><h1>${title}</h1></header><main>${v}</main>
+     <nav>${TABS.map(([k, i, t]) => `<button class="${L.tab === k ? 'on' : ''}" data-act="tab" data-v="${k}"><span class="i">${i}</span>${t}</button>`).join('')}</nav>`;
+  saveLocal();
+}
+// تحديثٌ يصل من السحابة وهو يكتب في خانة: لا نعيد الرسم فيضيع المؤشر وما كتبه،
+// بل ننتظر لين يطلع من الخانة. وإعادة الرسم مع النقر نفسه تكفي غالبًا
+const typing = () => document.activeElement && /^(INPUT|SELECT)$/.test(document.activeElement.tagName);
+function refresh() { if (typing()) pending = true; else render(); }
+setInterval(() => { if (pending && !typing()) render(); }, 1500);
+
+async function login() {
+  const provider = new GoogleAuthProvider();
+  provider.setCustomParameters({ prompt: 'select_account' });
+  try { await signInWithPopup(auth, provider); }
+  catch (e) {
+    if (e.code === 'auth/popup-closed-by-user' || e.code === 'auth/cancelled-popup-request') return;
+    // بعض المتصفّحات تمنع النافذة المنبثقة، فنكمل في نفس الصفحة
+    if (e.code === 'auth/popup-blocked' || e.code === 'auth/operation-not-supported-in-this-environment') return signInWithRedirect(auth, provider);
+    renderLogin(e.code === 'auth/unauthorized-domain' ? 'هذا الرابط غير مسموح في إعدادات Firebase (Authorized domains).' : 'ما زبط الدخول: ' + (e.code || e.message));
+  }
+}
+
+function listen(uid) {
+  let profile = null, gotLogs = false;
+  const ready = () => {
+    if (!profile || !gotLogs) return;
+    S = { ex: profile.ex || [], sched: profile.sched || {}, logs: buildLogs() };
+    refresh();
+  };
+  unsubs.push(onSnapshot(doc(db, 'users', uid), snap => {
+    if (snap.exists()) { profile = snap.data(); return ready(); }
+    // الغياب من النسخة المحلية ليس غيابًا من الحساب: لو بذرنا الآن والجهاز بلا شبكة
+    // لكتبنا القائمة الافتراضية فوق تمارينه الحقيقية لما يرجع الاتصال
+    if (snap.metadata.fromCache) return;
+    profile = seed();
+    setDoc(snap.ref, profile).catch(fail);
+    ready();
+  }, fail));
+  unsubs.push(onSnapshot(collection(db, 'users', uid, 'logs'), qs => {
+    logsByDate = {};
+    qs.forEach(d => { logsByDate[d.id] = d.data(); });
+    gotLogs = true;
+    ready();
+  }, fail));
+}
+
+onAuthStateChanged(auth, u => {
+  unsubs.forEach(f => f()); unsubs = [];
+  USER = u; S = null; logsByDate = {};
+  if (!u) return renderLogin();
+  if (L.uid !== u.uid) { L.sess = null; L.uid = u.uid; }
+  renderLoading();
+  listen(u.uid);
+});
+
+function exportData() {
+  const data = { app: 'saleh', exported: new Date().toISOString(), email: USER.email, ex: S.ex, sched: S.sched, logs: logsByDate };
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }));
+  a.download = `saleh-${TODAY}.json`;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+}
+
+document.addEventListener('click', ev => {
+  const b = ev.target.closest('[data-act]');
+  if (!b) return;
+  const { act, id, v } = b.dataset;
+  if (act === 'login') return login();
+  if (!S) return;
+  const it = id && L.sess && L.sess.items[id];
+  switch (act) {
+    case 'tab': L.tab = v; window.scrollTo(0, 0); break;
+    case 'todayPart': session().part = v; break;
+    case 'sched':
+      S.sched[b.dataset.d] = v;
+      if (+b.dataset.d === new Date().getDay() && L.sess) L.sess.part = v;
+      saveProfile(); break;
+    case 'yes': it.step = 'inc'; it.inc = it.inc || { reps: 1, weight: 0 }; break;
+    case 'no': it.target = copy(lastLog(id).sets); it.sets = copy(it.target); it.step = 'log'; break;
+    case 'applyInc': {
+      const r = +it.inc.reps || 0, w = +it.inc.weight || 0;
+      it.target = lastLog(id).sets.map(s => ({ reps: Math.max(0, +s.reps + r), weight: Math.max(0, +s.weight + w) }));
+      it.sets = copy(it.target); it.step = 'log'; break;
+    }
+    case 'back': it.step = 'ask'; it.target = null; break;
+    case 'mode': it.mode = v; exById(id).mode = v; saveProfile(); break;
+    case 'addSet': it.sets.push({ ...(it.sets[it.sets.length - 1] || { reps: 10, weight: 0 }) }); break;
+    case 'delSet': if (it.sets.length > 1) it.sets.splice(+b.dataset.i, 1); break;
+    case 'saveEx': {
+      const sets = copy(it.sets).filter(s => s.reps > 0);
+      if (!sets.length) return alert('اكتب العدّات أول');
+      // نحدّث الذاكرة قبل السحابة، فيظهر «خلص» فورًا حتى لو الشبكة بطيئة
+      (logsByDate[TODAY] = logsByDate[TODAY] || { items: {} }).items[id] = sets;
+      S.logs = buildLogs();
+      saveLog(id, sets);
+      it.sets = sets; it.step = 'done'; break;
+    }
+    case 'edit': it.step = 'log'; break;
+    case 'delEx':
+      if (!confirm('تحذف «' + exById(id).name + '»؟ سجلّه القديم يبقى.')) return;
+      S.ex = S.ex.filter(e => e.id !== id); saveProfile(); break;
+    case 'renameEx': {
+      const e = exById(id), nm = prompt('اسم التمرين', e.name);
+      if (!nm || !nm.trim()) return;
+      e.name = nm.trim();
+      const m = prompt('العضلة', e.muscle);
+      if (m !== null) e.muscle = m.trim();
+      saveProfile(); break;
+    }
+    case 'addEx': {
+      const nm = document.getElementById('nName').value.trim();
+      if (!nm) return alert('اكتب اسم التمرين');
+      S.ex.push({ id: 'e' + Date.now(), name: nm, muscle: document.getElementById('nMuscle').value.trim(), part: document.getElementById('nPart').value, mode: 'one' });
+      saveProfile(); break;
+    }
+    case 'export': return exportData();
+    case 'logout': if (confirm('تسجّل خروج؟')) signOut(auth); return;
+  }
+  render();
+});
+
+// الكتابة في الخانات تحفظ بلا إعادة رسم، وإلا ضاع المؤشر من الخانة مع كل حرف
+document.addEventListener('input', ev => {
+  const t = ev.target, f = t.dataset.f;
+  if (!f || !L.sess) return;
+  const it = L.sess.items[t.dataset.id], val = t.value;
+  if (f === 'inc.reps' || f === 'inc.weight') it.inc[f.slice(4)] = val;
+  else if (f === 'one.k') { const k = Math.max(1, Math.min(20, Math.floor(+val) || 1)), s = it.sets[0]; it.sets = Array.from({ length: k }, () => ({ ...s })); }
+  else if (f === 'one.reps' || f === 'one.weight') it.sets.forEach(s => s[f.slice(4)] = val);
+  else if (f === 'set.reps' || f === 'set.weight') it.sets[+t.dataset.i][f.slice(4)] = val;
+  saveLocal();
+});
+</script>
+</body>
+</html>
