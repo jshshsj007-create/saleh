@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>النادي</title>
-<meta name="theme-color" content="#0f1115">
+<meta name="theme-color" content="#0b0d12">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="النادي">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -14,81 +14,146 @@
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
 :root{
-  --bg:#0f1115;--card:#181b22;--card2:#1f232c;--line:#2a2f3a;--text:#eef0f4;--mute:#8b93a3;
-  --up:#4f8cff;--low:#ff8a3d;--off:#6b7280;--ok:#2fbf71;--danger:#ef5350;
+  --bg:#0b0d12;--card:#151821;--card2:#1c2030;--line:#262b38;--text:#f1f3f7;--mute:#8a93a6;
+  --up:#5b8cff;--low:#ff8f45;--off:#7b8496;--ok:#22c55e;--danger:#ef4444;--gold:#fbbf24;
+  --pc:var(--up);
 }
 *{box-sizing:border-box;margin:0;padding:0}
-html,body{background:var(--bg);color:var(--text)}
-body{font-family:"IBM Plex Sans Arabic",system-ui,sans-serif;font-size:15px;line-height:1.5;padding-bottom:calc(84px + env(safe-area-inset-bottom));-webkit-tap-highlight-color:transparent}
-header{padding:calc(20px + env(safe-area-inset-top)) 16px 8px;max-width:560px;margin:0 auto}
-h1{font-size:22px;font-weight:700}
+html{background:var(--bg)}
+body{background:radial-gradient(900px 500px at 110% -10%,#1b2445 0%,transparent 60%) no-repeat,var(--bg);color:var(--text);min-height:100vh;
+  font-family:"IBM Plex Sans Arabic",system-ui,sans-serif;font-size:15px;line-height:1.5;padding-bottom:calc(90px + env(safe-area-inset-bottom));-webkit-tap-highlight-color:transparent}
+header{padding:calc(18px + env(safe-area-inset-top)) 16px 6px;max-width:560px;margin:0 auto;display:flex;align-items:end;justify-content:space-between;gap:8px}
+h1{font-size:24px;font-weight:700}
 .sub{color:var(--mute);font-size:13px}
 main{padding:8px 16px;display:flex;flex-direction:column;gap:12px;max-width:560px;margin:0 auto}
-.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px}
-.row{display:flex;align-items:center;gap:8px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:14px}
+.row{display:flex;align-items:center;gap:10px}
 .between{justify-content:space-between}
+.grow{flex:1;min-width:0}
 .name{font-weight:600;font-size:16px}
-.muscle{color:var(--mute);font-size:12px}
-.last{margin-top:8px;font-size:13px;color:var(--mute)}
-.last b{color:var(--text);font-weight:500}
-.q{margin-top:12px;font-weight:600}
-.btns{display:flex;gap:8px;margin-top:10px}
-button{font:inherit;border-radius:10px;padding:10px 14px;cursor:pointer;color:var(--text);background:var(--card2);border:1px solid var(--line)}
-button.pri{background:var(--up);border-color:var(--up);color:#fff;font-weight:600}
-button.okb{background:var(--ok);border-color:var(--ok);color:#fff;font-weight:600}
+.meta{color:var(--mute);font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+button{font:inherit;border-radius:12px;padding:11px 14px;cursor:pointer;color:var(--text);background:var(--card2);border:1px solid var(--line);transition:transform .12s,background .2s,opacity .2s;touch-action:manipulation}
+button:active{transform:scale(.96)}
+button.pri{background:var(--pc);border-color:var(--pc);color:#fff;font-weight:600}
+button.okb{background:var(--ok);border-color:var(--ok);color:#fff;font-weight:700}
 button.ghost{background:transparent}
-button.sm{padding:6px 10px;font-size:13px}
-button.x{padding:4px 10px;color:var(--danger);background:transparent;border-color:transparent}
-button:disabled{opacity:.6}
-.grow{flex:1}
+button.sm{padding:6px 12px;font-size:13px;border-radius:10px}
+button.link{background:none;border:0;padding:0;color:var(--mute);font-size:13px;text-decoration:underline;text-underline-offset:3px}
+button.x{padding:4px 8px;color:var(--danger);background:transparent;border-color:transparent;flex:none}
+.btns{display:flex;gap:8px;margin-top:12px}
 .pill{display:inline-block;padding:2px 10px;border-radius:999px;font-size:12px;font-weight:600}
 .p-upper{background:color-mix(in srgb,var(--up) 20%,transparent);color:var(--up)}
 .p-lower{background:color-mix(in srgb,var(--low) 20%,transparent);color:var(--low)}
-.p-off{background:color-mix(in srgb,var(--off) 25%,transparent);color:#aab}
-.fields{display:flex;gap:8px;margin-top:10px}
-.field{flex:1;display:flex;flex-direction:column;gap:4px;min-width:0}
-.field span{font-size:12px;color:var(--mute)}
-input,select{font:inherit;font-size:16px;width:100%;background:var(--bg);color:var(--text);border:1px solid var(--line);border-radius:10px;padding:9px 10px;text-align:center}
-input:focus{outline:2px solid var(--up);border-color:transparent}
-.target{margin-top:10px;padding:10px 12px;border-radius:10px;background:color-mix(in srgb,var(--up) 12%,transparent);border:1px solid color-mix(in srgb,var(--up) 35%,transparent)}
-.target.saved{background:color-mix(in srgb,var(--ok) 12%,transparent);border-color:color-mix(in srgb,var(--ok) 40%,transparent)}
-.target small{color:var(--mute);display:block;font-size:12px}
-.seg{display:flex;background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:3px;gap:3px;margin-top:12px}
-.seg button{flex:1;border:0;background:transparent;padding:7px 6px;font-size:13px;color:var(--mute)}
+.p-off{background:color-mix(in srgb,var(--off) 25%,transparent);color:#c3c8d3}
+.upper{--pc:var(--up)}.lower{--pc:var(--low)}.off{--pc:var(--off)}
+
+/* البطاقة الكبيرة أعلى «اليوم» */
+.hero{position:relative;overflow:hidden;border-radius:22px;padding:18px;border:1px solid color-mix(in srgb,var(--pc) 40%,transparent);
+  background:linear-gradient(135deg,color-mix(in srgb,var(--pc) 30%,var(--card)) 0%,var(--card) 70%)}
+.hero .big{font-size:34px;font-weight:700;line-height:1.2}
+.ring{width:84px;height:84px;flex:none;position:relative}
+.ring svg{width:100%;height:100%;transform:rotate(-90deg)}
+.ring .t{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;font-weight:700;font-size:18px;line-height:1.1}
+.ring .t small{font-size:10px;color:var(--mute);font-weight:500}
+.ring circle{fill:none;stroke-width:8}
+.ring .bgc{stroke:color-mix(in srgb,var(--text) 10%,transparent)}
+.ring .fg{stroke:var(--ok);stroke-linecap:round;transition:stroke-dashoffset .6s ease}
+.chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
+.chips button{padding:5px 14px;font-size:13px;border-radius:999px;background:color-mix(in srgb,var(--card) 70%,transparent)}
+.chips button.on{background:var(--text);color:var(--bg);border-color:var(--text);font-weight:600}
+.week{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}
+.wd{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:7px 0;text-align:center;font-size:10.5px;color:var(--mute);white-space:nowrap;cursor:pointer}
+.wd b{display:block;font-size:13px;color:var(--text);font-weight:600}
+.wd i{display:block;width:8px;height:8px;border-radius:50%;margin:4px auto 0;background:var(--pc)}
+.wd.today{border-color:var(--text);background:var(--card2)}
+
+/* بطاقة التمرين: مطويّة سطرًا واحدًا، ومفتوحة واحدة فقط */
+.ex{background:var(--card);border:1px solid var(--line);border-radius:18px;transition:border-color .3s,box-shadow .3s}
+.ex .head{display:flex;align-items:center;gap:12px;padding:12px 14px;cursor:pointer}
+.ex.open{border-color:color-mix(in srgb,var(--pc) 60%,transparent);box-shadow:0 8px 30px -12px color-mix(in srgb,var(--pc) 50%,transparent)}
+.ex.isdone{border-color:color-mix(in srgb,var(--ok) 40%,transparent)}
+.ex .body{padding:0 14px 14px}
+.badge{width:42px;height:42px;border-radius:13px;flex:none;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:16px;
+  background:hsl(var(--h) 60% 50% / .18);color:hsl(var(--h) 85% 72%)}
+.st{width:28px;height:28px;border-radius:50%;flex:none;display:flex;align-items:center;justify-content:center;font-size:13px;color:var(--mute);border:1.5px solid var(--line)}
+.st.ok{background:var(--ok);border-color:var(--ok);color:#fff;font-weight:700}
+.ex.open .st{border-color:var(--pc);color:var(--pc)}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:4px}
+.stat{background:var(--card2);border-radius:14px;padding:10px 6px;text-align:center}
+.stat b{display:block;font-size:22px;font-weight:700;line-height:1.2}
+.stat span{font-size:12px;color:var(--mute)}
+.stat small{display:block;font-size:11px;color:var(--ok);font-weight:600}
+.stat.upd{background:color-mix(in srgb,var(--ok) 14%,var(--card2));outline:1px solid color-mix(in srgb,var(--ok) 45%,transparent)}
+.lbl{font-size:12px;color:var(--mute);margin:12px 2px 6px}
+.q{font-weight:700;font-size:17px;margin-top:14px;text-align:center}
+.seg{display:flex;background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:3px;gap:3px;margin-top:12px}
+.seg button{flex:1;border:0;background:transparent;padding:8px 6px;font-size:13px;color:var(--mute);border-radius:9px}
 .seg button.on{background:var(--card2);color:var(--text);font-weight:600}
-.seg button.on.upper{background:var(--up);color:#fff}
-.seg button.on.lower{background:var(--low);color:#fff}
-.seg button.on.off{background:var(--off);color:#fff}
-.setrow{display:flex;align-items:center;gap:8px;margin-top:8px}
-.no{width:22px;flex:none;color:var(--mute);font-size:13px;text-align:center}
-.done{border-color:color-mix(in srgb,var(--ok) 50%,transparent)}
-.check{color:var(--ok);font-weight:600}
-.hero{text-align:center;padding:26px 14px}
-.hero .big{font-size:40px}
-.progress{height:6px;background:var(--card2);border-radius:99px;overflow:hidden;margin-top:8px}
-.progress i{display:block;height:100%;background:var(--ok)}
-.daychips{display:flex;gap:6px;flex-wrap:wrap}
-.daychips button{padding:4px 12px;font-size:13px;border-radius:999px}
-.daychips button.on{background:var(--text);color:var(--bg);border-color:var(--text)}
-h2{font-size:15px;font-weight:600;margin:4px 2px -4px;color:var(--mute)}
-.list .item{display:flex;align-items:center;gap:8px;padding:10px 0;border-top:1px solid var(--line)}
+.seg button.on.upper{background:var(--up);color:#fff}.seg button.on.lower{background:var(--low);color:#fff}.seg button.on.off{background:var(--off);color:#fff}
+.stp{display:flex;align-items:center;background:var(--bg);border:1px solid var(--line);border-radius:12px;overflow:hidden;min-width:0;flex:1}
+.stp button{border:0;border-radius:0;background:transparent;width:38px;flex:none;padding:10px 0;font-size:20px;line-height:1;color:var(--pc)}
+.stp input{border:0;background:transparent;padding:10px 0;min-width:0}
+input,select{font:inherit;font-size:16px;width:100%;background:var(--bg);color:var(--text);border:1px solid var(--line);border-radius:12px;padding:10px;text-align:center;font-weight:600}
+input:focus{outline:none}
+.stp:focus-within{border-color:var(--pc)}
+.fgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.fgrid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.fcell span{display:block;font-size:12px;color:var(--mute);margin:0 2px 4px;text-align:center}
+.setrow{display:flex;align-items:center;gap:6px;margin-top:8px}
+.no{width:20px;flex:none;color:var(--mute);font-size:13px;text-align:center}
+.quick{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;justify-content:center}
+.quick button{padding:5px 12px;font-size:13px;border-radius:999px;color:var(--ok);border-color:color-mix(in srgb,var(--ok) 35%,transparent);background:color-mix(in srgb,var(--ok) 8%,transparent)}
+.better{display:inline-flex;align-items:center;gap:4px;margin-top:10px;padding:4px 10px;border-radius:999px;font-size:12px;font-weight:600;color:var(--ok);background:color-mix(in srgb,var(--ok) 14%,transparent)}
+.pop{animation:pop .45s ease}
+@keyframes pop{0%{transform:scale(1)}40%{transform:scale(1.03)}100%{transform:scale(1)}}
+.st.ok.pop{animation:tick .5s ease}
+@keyframes tick{0%{transform:scale(.3)}60%{transform:scale(1.25)}100%{transform:scale(1)}}
+.fade{animation:fade .3s ease}
+@keyframes fade{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
+.party{text-align:center;padding:22px 14px;border-radius:22px;background:linear-gradient(135deg,color-mix(in srgb,var(--ok) 28%,var(--card)),var(--card));border:1px solid color-mix(in srgb,var(--ok) 45%,transparent)}
+.party .big{font-size:46px;animation:bounce 1s ease 2}
+@keyframes bounce{0%,100%{transform:translateY(0)}50%{transform:translateY(-10px)}}
+.rest{text-align:center;padding:34px 16px}
+.rest .big{font-size:52px}
+h2{font-size:14px;font-weight:600;margin:6px 4px -4px;color:var(--mute);display:flex;align-items:center;gap:6px}
+h2 i{width:8px;height:8px;border-radius:50%;background:var(--pc)}
+.list .item{display:flex;align-items:center;gap:10px;padding:10px 0;border-top:1px solid var(--line)}
 .list .item:first-child{border-top:0}
-.hist .ex{display:flex;justify-content:space-between;gap:10px;padding:6px 0;font-size:14px;border-top:1px solid var(--line)}
-.hist .ex span:last-child{color:var(--mute);text-align:left}
-nav{position:fixed;bottom:0;inset-inline:0;background:#12151b;border-top:1px solid var(--line);display:flex;padding:6px 6px calc(6px + env(safe-area-inset-bottom))}
-nav button{flex:1;background:transparent;border:0;color:var(--mute);font-size:12px;display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px}
-nav button .i{font-size:20px;line-height:1}
+.day{border-inline-start:4px solid var(--pc)}
+.day .exl{display:flex;justify-content:space-between;gap:10px;padding:7px 0;font-size:14px;border-top:1px solid var(--line)}
+.day .exl span:last-child{color:var(--mute);text-align:left}
+.spark{width:90px;height:32px;flex:none}
+.spark polyline{fill:none;stroke:var(--pc);stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round}
+.spark circle{fill:var(--pc)}
+.up{color:var(--ok);font-weight:600}
+.sched .r{display:flex;align-items:center;gap:10px;padding:8px 0;border-top:1px solid var(--line)}
+.sched .r:first-child{border-top:0}
+.sched .r b{width:64px;flex:none;font-weight:600}
+.sched .seg{margin-top:0;flex:1}
+.sum{display:flex;gap:8px}
+.sum div{flex:1;text-align:center;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:10px 4px}
+.sum b{display:block;font-size:22px;color:var(--pc)}
+.sum span{font-size:12px;color:var(--mute)}
+nav{position:fixed;bottom:0;inset-inline:0;background:color-mix(in srgb,var(--bg) 85%,transparent);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border-top:1px solid var(--line);display:flex;justify-content:center;padding:6px 8px calc(6px + env(safe-area-inset-bottom));z-index:5}
+nav .in{display:flex;width:100%;max-width:560px}
+nav button{flex:1;background:transparent;border:0;color:var(--mute);font-size:11px;display:flex;flex-direction:column;align-items:center;gap:3px;padding:6px 0}
+nav svg{width:24px;height:24px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;padding:0 14px;box-sizing:content-box;border-radius:999px;transition:background .2s}
 nav button.on{color:var(--text);font-weight:600}
-.empty{color:var(--mute);text-align:center;padding:20px}
+nav button.on svg{background:color-mix(in srgb,var(--up) 25%,transparent);color:var(--up)}
+.empty{color:var(--mute);text-align:center;padding:24px}
 .login{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:24px 16px;text-align:center}
-.login .logo{font-size:64px;line-height:1}
-.login h1{font-size:30px}
+.login .logo{width:96px;height:96px;border-radius:26px}
+.login h1{font-size:32px}
 .login p{color:var(--mute);max-width:320px}
-.gbtn{display:flex;align-items:center;gap:10px;background:#fff;color:#1f1f1f;border:0;font-weight:600;padding:12px 20px;border-radius:999px;margin-top:8px}
+.gbtn{display:flex;align-items:center;gap:10px;background:#fff;color:#1f1f1f;border:0;font-weight:600;padding:13px 22px;border-radius:999px;margin-top:8px}
 .gbtn svg{width:20px;height:20px}
 .err{color:var(--danger);font-size:13px;max-width:340px}
-.toast{position:fixed;top:calc(12px + env(safe-area-inset-top));inset-inline:16px;max-width:528px;margin:0 auto;background:#3a1f22;border:1px solid var(--danger);color:#ffd7d7;border-radius:12px;padding:10px 14px;font-size:13px;z-index:9}
-.avatar{width:36px;height:36px;border-radius:50%;flex:none;background:var(--card2)}
+.toast{position:fixed;top:calc(12px + env(safe-area-inset-top));inset-inline:16px;max-width:528px;margin:0 auto;border-radius:14px;padding:12px 16px;font-size:14px;font-weight:600;z-index:9;
+  background:#11331f;border:1px solid var(--ok);color:#c9f7d8;animation:fade .25s ease;box-shadow:0 10px 30px -10px #000}
+.toast.bad{background:#3a1f22;border-color:var(--danger);color:#ffd7d7}
+.avatar{width:40px;height:40px;border-radius:50%;flex:none;background:var(--card2)}
+.addform{display:flex;flex-direction:column;gap:8px}
+.addform input{text-align:right;font-weight:500}
 </style>
 </head>
 <body>
@@ -119,11 +184,14 @@ const iso = d => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0
 let TODAY = iso(new Date());
 const DAYS = ['الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
 const WEEK = [6, 0, 1, 2, 3, 4, 5]; // الأسبوع يبدأ بالسبت
+const SHORT = ['أحد', 'اثنين', 'ثلاثاء', 'أربعاء', 'خميس', 'جمعة', 'سبت'];
 const PART = { upper: 'علوي', lower: 'سفلي', off: 'أوف' };
 const n = x => Number(x || 0).toLocaleString('ar-SA', { maximumFractionDigits: 2 });
 // تمييز العدد: ١ جولة، ٢ جولتين، ٣–١٠ جولات، ١١+ جولة
 const say = (k, one, two, few) => k == 1 ? one : k == 2 ? two : k >= 3 && k <= 10 ? few : one;
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+// لون ثابت لكل عضلة من اسمها، فتتعرّف على التمرين بعينك قبل ما تقرأ
+const hue = s => { let h = 0; for (const c of String(s)) h = (h * 31 + c.codePointAt(0)) % 360; return h; };
 
 function seed() {
   const ex = [
@@ -139,18 +207,19 @@ function seed() {
 // ما في الحساب: التمارين والجدول (users/<uid>) والسجل يومًا بيوم (users/<uid>/logs/<تاريخ>).
 // وما في الجهاز: التبويب وخطوات تمرين اليوم الجارية، لأنها لحظية ولا تستحق السحابة
 let USER = null, S = null, logsByDate = {}, unsubs = [];
-let L = { tab: 'today', sess: null };
+let L = { tab: 'today', sess: null, hist: 'days' };
 try { L = Object.assign(L, JSON.parse(localStorage.getItem('saleh.local')) || {}); } catch (e) { }
-const saveLocal = () => { try { localStorage.setItem('saleh.local', JSON.stringify({ tab: L.tab, sess: L.sess, uid: L.uid })); } catch (e) { } };
+const saveLocal = () => { try { localStorage.setItem('saleh.local', JSON.stringify({ tab: L.tab, sess: L.sess, uid: L.uid, hist: L.hist })); } catch (e) { } };
+let flash = null; // التمرين اللي انحفظ للتو، يتحرّك مرة وحدة
 
-function toast(msg) {
+function toast(msg, bad) {
   document.querySelector('.toast')?.remove();
   const t = document.createElement('div');
-  t.className = 'toast'; t.textContent = msg;
+  t.className = 'toast' + (bad ? ' bad' : ''); t.textContent = msg;
   document.body.appendChild(t);
-  setTimeout(() => t.remove(), 5000);
+  setTimeout(() => t.remove(), bad ? 5000 : 2200);
 }
-const fail = e => { console.error(e); toast('ما انحفظ: ' + (e.code || e.message)); };
+const fail = e => { console.error(e); toast('ما انحفظ: ' + (e.code || e.message), true); };
 const saveProfile = () => setDoc(doc(db, 'users', USER.uid), { ex: S.ex, sched: S.sched }).catch(fail);
 // merge يكتب تمرينًا واحدًا داخل يومه ولا يمسح تمارين اليوم الأخرى
 const saveLog = (id, sets) => setDoc(doc(db, 'users', USER.uid, 'logs', TODAY), { items: { [id]: sets } }, { merge: true }).catch(fail);
@@ -169,15 +238,26 @@ const exById = id => S.ex.find(e => e.id === id);
 const lastLog = id => (S.logs[id] || []).filter(l => l.date < TODAY).slice(-1)[0] || null;
 const todayLog = id => (S.logs[id] || []).find(l => l.date === TODAY) || null;
 const copy = sets => sets.map(s => ({ reps: +s.reps || 0, weight: +s.weight || 0 }));
+const volume = sets => sets.reduce((a, s) => a + (+s.reps || 0) * Math.max(1, +s.weight || 0), 0);
+const same = sets => sets.length && sets.every(s => s.reps == sets[0].reps && s.weight == sets[0].weight);
 
 function summary(sets) {
   if (!sets || !sets.length) return '';
-  const same = sets.every(s => s.reps == sets[0].reps && s.weight == sets[0].weight);
-  if (same) {
+  if (same(sets)) {
     const k = sets.length, r = sets[0].reps;
     return `${n(k)} ${say(k, 'جولة', 'جولتين', 'جولات')} × ${n(r)} ${say(r, 'عدّة', 'عدّتين', 'عدّات')} × ${n(sets[0].weight)} كجم`;
   }
   return sets.map(s => `${n(s.reps)}×${n(s.weight)}`).join(' ، ') + ' كجم';
+}
+// المربعات الثلاثة الكبيرة، ومع «قبل» تعلّم اللي زاد بالأخضر
+function statBoxes(sets, before) {
+  if (!same(sets)) return `<div class="stat" style="grid-column:1/-1"><b style="font-size:16px">${summary(sets)}</b><span>${n(sets.length)} ${say(sets.length, 'جولة', 'جولتين', 'جولات')}</span></div>`;
+  const b = before && same(before) ? before : null;
+  const cell = (v, old, label) => {
+    const up = b && +v > +old;
+    return `<div class="stat ${up ? 'upd' : ''}"><b>${n(v)}</b><span>${label}</span>${up ? `<small>▲ من ${n(old)}</small>` : ''}</div>`;
+  };
+  return `<div class="stats">${cell(sets.length, b?.length, say(sets.length, 'جولة', 'جولتين', 'جولات'))}${cell(sets[0].reps, b?.[0].reps, 'عدّات')}${cell(sets[0].weight, b?.[0].weight, 'كجم')}</div>`;
 }
 
 function session() {
@@ -197,6 +277,7 @@ function item(id) {
   }
   return it;
 }
+const incTarget = (id, it) => lastLog(id).sets.map(s => ({ reps: Math.max(0, +s.reps + (+it.inc.reps || 0)), weight: Math.max(0, +s.weight + (+it.inc.weight || 0)) }));
 function nextTraining() {
   const d = new Date();
   for (let i = 1; i <= 7; i++) {
@@ -208,137 +289,181 @@ function nextTraining() {
 }
 function fmtDate(d) {
   const diff = Math.round((new Date(TODAY) - new Date(d)) / 864e5);
+  if (diff === 0) return 'اليوم';
   if (diff === 1) return 'أمس';
   if (diff === 2) return 'قبل أمس';
   return DAYS[new Date(d + 'T12:00').getDay()] + ' ' + n(+d.slice(8)) + '/' + n(+d.slice(5, 7));
 }
 
-const numInput = (f, v, extra = '') => `<input type="number" inputmode="decimal" step="any" min="0" data-f="${f}" value="${esc(v)}" ${extra}>`;
+const stepper = (f, v, d, attrs) => `<div class="stp"><button data-act="step" data-f="${f}" data-d="${d}" ${attrs} aria-label="زِد">+</button>
+  <input type="number" inputmode="decimal" step="any" min="0" data-f="${f}" value="${esc(v)}" ${attrs}>
+  <button data-act="step" data-f="${f}" data-d="-${d}" ${attrs} aria-label="نقّص">−</button></div>`;
+const cell = (label, html) => `<div class="fcell"><span>${label}</span>${html}</div>`;
 
-function exCard(e) {
-  const it = item(e.id), l = lastLog(e.id);
-  let h = `<div class="card ${it.step === 'done' ? 'done' : ''}">
-    <div class="row between"><div><div class="name">${esc(e.name)}</div><div class="muscle">${esc(e.muscle)}</div></div>
-    ${it.step === 'done' ? '<span class="check">✓ خلص</span>' : ''}</div>`;
-  h += l ? `<div class="last">آخر مرة (${fmtDate(l.date)}): <b>${summary(l.sets)}</b></div>` : `<div class="last">أول مرة. اكتب اللي بتسويه.</div>`;
-
-  if (it.step === 'ask') {
-    h += `<div class="q">تبي تزود اليوم؟</div>
-      <div class="btns"><button class="pri grow" data-act="yes" data-id="${e.id}">إيه</button>
-      <button class="grow" data-act="no" data-id="${e.id}">لا، نفس الشي</button></div>`;
-  } else if (it.step === 'inc') {
-    h += `<div class="q">كم تزود؟</div>
-      <div class="fields">
-        <label class="field"><span>العدّات (+)</span>${numInput('inc.reps', it.inc.reps, `data-id="${e.id}"`)}</label>
-        <label class="field"><span>الوزن كجم (+)</span>${numInput('inc.weight', it.inc.weight, `data-id="${e.id}"`)}</label>
-      </div>
-      <div class="btns"><button class="pri grow" data-act="applyInc" data-id="${e.id}">اعتمد</button>
-      <button class="ghost" data-act="back" data-id="${e.id}">رجوع</button></div>`;
-  } else if (it.step === 'log') {
-    if (it.target) h += `<div class="target"><small>هدف اليوم</small>${summary(it.target)}</div>`;
-    h += `<div class="seg"><button class="${it.mode === 'one' ? 'on' : ''}" data-act="mode" data-v="one" data-id="${e.id}">رقم واحد للكل</button>
-      <button class="${it.mode === 'sets' ? 'on' : ''}" data-act="mode" data-v="sets" data-id="${e.id}">كل جولة لحالها</button></div>`;
+function exBody(e, it, l) {
+  const A = `data-id="${e.id}"`;
+  if (it.step === 'ask') return `<div class="lbl">آخر مرة · ${fmtDate(l.date)}</div>${statBoxes(l.sets)}
+    <div class="q">تبي تزود اليوم؟</div>
+    <div class="btns"><button class="pri grow" data-act="yes" ${A}>إيه، بزود 💪</button><button class="grow" data-act="no" ${A}>لا، نفس الشي</button></div>`;
+  if (it.step === 'inc') return `<div class="q" style="margin-top:4px">كم تزود؟</div>
+    <div class="fgrid2" style="margin-top:10px">${cell('العدّات', stepper('inc.reps', it.inc.reps, 1, A))}${cell('الوزن (كجم)', stepper('inc.weight', it.inc.weight, 0.5, A))}</div>
+    <div class="quick"><button data-act="quick" data-r="1" data-w="0" ${A}>+١ عدّة</button><button data-act="quick" data-r="0" data-w="2.5" ${A}>+٢٫٥ كجم</button><button data-act="quick" data-r="0" data-w="5" ${A}>+٥ كجم</button></div>
+    <div class="lbl">هدف اليوم</div><div id="prev-${e.id}">${statBoxes(incTarget(e.id, it), l.sets)}</div>
+    <div class="btns"><button class="pri grow" data-act="applyInc" ${A}>اعتمد الهدف</button><button class="ghost" data-act="back" ${A}>رجوع</button></div>`;
+  if (it.step === 'log') {
+    let h = it.target ? `<div class="lbl">هدف اليوم</div>${statBoxes(it.target, l?.sets)}` : `<div class="lbl">أول مرة، اكتب اللي بتسويه</div>`;
+    h += `<div class="seg"><button class="${it.mode === 'one' ? 'on' : ''}" data-act="mode" data-v="one" ${A}>رقم واحد للكل</button>
+      <button class="${it.mode === 'sets' ? 'on' : ''}" data-act="mode" data-v="sets" ${A}>كل جولة لحالها</button></div>`;
     if (it.mode === 'one') {
       const s = it.sets[0] || { reps: 0, weight: 0 };
-      h += `<div class="fields">
-        <label class="field"><span>الجولات</span>${numInput('one.k', it.sets.length, `data-id="${e.id}"`)}</label>
-        <label class="field"><span>العدّات</span>${numInput('one.reps', s.reps, `data-id="${e.id}"`)}</label>
-        <label class="field"><span>الوزن كجم</span>${numInput('one.weight', s.weight, `data-id="${e.id}"`)}</label></div>`;
+      h += `<div class="fgrid" style="margin-top:12px">${cell('الجولات', stepper('one.k', it.sets.length, 1, A))}${cell('العدّات', stepper('one.reps', s.reps, 1, A))}${cell('الوزن', stepper('one.weight', s.weight, 2.5, A))}</div>`;
     } else {
-      h += `<div class="setrow" style="margin-bottom:-4px"><span class="no"></span><span class="field"><span>العدّات</span></span><span class="field"><span>الوزن كجم</span></span><span style="width:38px"></span></div>`;
+      h += `<div class="setrow" style="margin-top:12px"><span class="no"></span><span class="grow sub" style="text-align:center">العدّات</span><span class="grow sub" style="text-align:center">الوزن (كجم)</span><span style="width:32px"></span></div>`;
       it.sets.forEach((s, i) => {
-        h += `<div class="setrow"><span class="no">${n(i + 1)}</span>
-          ${numInput('set.reps', s.reps, `data-id="${e.id}" data-i="${i}"`)}
-          ${numInput('set.weight', s.weight, `data-id="${e.id}" data-i="${i}"`)}
-          <button class="x" data-act="delSet" data-id="${e.id}" data-i="${i}" aria-label="احذف الجولة">✕</button></div>`;
+        const B = `${A} data-i="${i}"`;
+        h += `<div class="setrow"><span class="no">${n(i + 1)}</span>${stepper('set.reps', s.reps, 1, B)}${stepper('set.weight', s.weight, 2.5, B)}
+          <button class="x" data-act="delSet" ${B} aria-label="احذف الجولة">✕</button></div>`;
       });
-      h += `<button class="sm ghost" style="margin-top:8px" data-act="addSet" data-id="${e.id}">+ جولة</button>`;
+      h += `<button class="sm ghost" style="margin-top:10px" data-act="addSet" ${A}>+ جولة</button>`;
     }
-    h += `<div class="btns"><button class="okb grow" data-act="saveEx" data-id="${e.id}">سجّل اللي سويته ✓</button>
-      ${l ? `<button class="ghost" data-act="back" data-id="${e.id}">رجوع</button>` : ''}</div>`;
-  } else {
-    h += `<div class="target saved"><small>سجّلت اليوم</small>${summary(it.sets)}</div>
-      <div class="btns"><button class="sm ghost" data-act="edit" data-id="${e.id}">تعديل</button></div>`;
+    return h + `<div class="btns"><button class="okb grow" data-act="saveEx" ${A}>✓ سجّل اللي سويته</button>${l ? `<button class="ghost" data-act="back" ${A}>رجوع</button>` : ''}</div>`;
   }
-  return h + '</div>';
+  const better = l && volume(it.sets) > volume(l.sets);
+  return `<div class="lbl">سجّلت اليوم</div>${statBoxes(it.sets, l?.sets)}
+    ${better ? '<div class="better">▲ أقوى من المرة اللي فاتت</div>' : ''}
+    <div class="btns"><button class="sm ghost" data-act="edit" ${A}>تعديل</button></div>`;
+}
+
+function exCard(e, i, openId) {
+  const it = item(e.id), l = lastLog(e.id), open = e.id === openId, done = it.step === 'done';
+  const meta = done ? `<span class="up">✓ ${summary(it.sets)}</span>` : l ? `آخر مرة: ${summary(l.sets)}` : 'أول مرة';
+  return `<div class="ex ${open ? 'open' : ''} ${done ? 'isdone' : ''} ${flash === e.id ? 'pop' : ''}" id="ex-${e.id}">
+    <div class="head" data-act="open" data-id="${e.id}">
+      <div class="badge" style="--h:${hue(e.muscle || e.name)}">${esc((e.muscle || e.name).trim()[0] || '؟')}</div>
+      <div class="grow"><div class="name">${esc(e.name)}</div><div class="meta">${meta}</div></div>
+      <div class="st ${done ? 'ok' : ''} ${done && flash === e.id ? 'pop' : ''}">${done ? '✓' : n(i + 1)}</div>
+    </div>
+    ${open ? `<div class="body fade">${exBody(e, it, l)}</div>` : ''}</div>`;
+}
+
+function weekStrip() {
+  const wd = new Date().getDay();
+  return `<div class="week">${WEEK.map(d => { const p = S.sched[d] || 'off';
+    return `<div class="wd ${p} ${d === wd ? 'today' : ''}" data-act="tab" data-v="sched">${SHORT[d]}<i></i></div>`; }).join('')}</div>`;
 }
 
 function viewToday() {
   const s = session(), wd = new Date().getDay();
-  let h = `<div class="card"><div class="sub">${DAYS[wd]}</div>
-    <div class="name" style="font-size:18px">اليوم <span class="pill p-${s.part}">${PART[s.part]}</span></div>
-    <div class="sub" style="margin-top:10px">تبي تغيّر اليوم بس؟</div>
-    <div class="daychips" style="margin-top:6px">${['upper', 'lower', 'off'].map(p => `<button class="${s.part === p ? 'on' : ''}" data-act="todayPart" data-v="${p}">${PART[p]}</button>`).join('')}</div>`;
   const list = S.ex.filter(e => e.part === s.part);
-  if (s.part !== 'off' && list.length) {
-    const done = list.filter(e => item(e.id).step === 'done').length;
-    h += `<div class="sub" style="margin-top:12px">${done ? `خلّصت ${n(done)} من ${n(list.length)}` : `${n(list.length)} تمارين اليوم`}</div>
-      <div class="progress"><i style="width:${done / list.length * 100}%"></i></div>`;
-  }
-  h += '</div>';
+  const done = list.filter(e => item(e.id).step === 'done').length;
+  const C = 2 * Math.PI * 34, frac = list.length ? done / list.length : 0;
+  let h = `<div class="hero ${s.part}"><div class="row between">
+    <div class="grow"><div class="sub">${DAYS[wd]} ${n(+TODAY.slice(8))}/${n(+TODAY.slice(5, 7))}</div>
+      <div class="big">${s.part === 'off' ? 'راحة' : PART[s.part]}</div>
+      <div class="sub">${s.part === 'off' ? 'يوم أوف' : `${n(list.length)} تمارين`}</div></div>
+    ${s.part !== 'off' && list.length ? `<div class="ring"><svg viewBox="0 0 80 80"><circle class="bgc" cx="40" cy="40" r="34"/><circle class="fg" cx="40" cy="40" r="34" stroke-dasharray="${C}" stroke-dashoffset="${C * (1 - frac)}"/></svg>
+      <div class="t">${n(done)}/${n(list.length)}<small>خلّصت</small></div></div>` : ''}</div>
+    ${L.showPart ? `<div class="chips fade">${['upper', 'lower', 'off'].map(p => `<button class="${s.part === p ? 'on' : ''}" data-act="todayPart" data-v="${p}">${PART[p]}</button>`).join('')}</div>`
+      : `<div style="margin-top:8px"><button class="link" data-act="showPart">غيّر نوع اليوم</button></div>`}</div>`;
+  h += weekStrip();
   if (s.part === 'off') {
     const nx = nextTraining();
-    h += `<div class="card hero"><div class="big">😴</div><div class="name" style="margin-top:6px">اليوم راحة</div>
-      <div class="sub">${nx ? `التمرين الجاي: ${nx.day} <span class="pill p-${nx.part}">${PART[nx.part]}</span>` : 'ما فيه تمرين في جدولك'}</div></div>`;
-  } else if (!list.length) {
-    h += `<div class="empty">ما فيه تمارين ${PART[s.part]}. أضفها من «التمارين».</div>`;
-  } else h += list.map(exCard).join('');
-  return h;
+    return h + `<div class="card rest"><div class="big">😴</div><div class="name" style="margin-top:8px">اليوم راحة، العضلة تكبر وأنت مرتاح</div>
+      <div class="sub" style="margin-top:6px">${nx ? `التمرين الجاي: ${nx.day} <span class="pill p-${nx.part}">${PART[nx.part]}</span>` : 'ما فيه تمرين في جدولك'}</div></div>`;
+  }
+  if (!list.length) return h + `<div class="empty">ما فيه تمارين ${PART[s.part]}. أضفها من «التمارين».</div>`;
+  if (done === list.length) {
+    const kg = list.reduce((a, e) => a + item(e.id).sets.reduce((x, st) => x + st.reps * st.weight, 0), 0);
+    h += `<div class="party fade"><div class="big">🎉</div><div class="name" style="font-size:19px;margin-top:6px">خلّصت تمرين اليوم!</div>
+      <div class="sub" style="margin-top:4px">${kg ? `رفعت اليوم ${n(Math.round(kg))} كجم إجمالًا` : 'عافية عليك'}</div></div>`;
+  }
+  // المفتوح: اللي اختاره، وإلا أول تمرين ما خلص
+  let openId = s.open;
+  if (openId === undefined || (openId && !list.some(e => e.id === openId))) openId = list.find(e => item(e.id).step !== 'done')?.id || '';
+  return h + list.map((e, i) => exCard(e, i, openId)).join('');
 }
 
 function viewSched() {
-  return `<div class="card"><div class="sub" style="margin-bottom:6px">اختر لكل يوم: علوي أو سفلي أو أوف</div>` +
-    WEEK.map(d => `<div style="margin-top:12px"><div class="row between"><b>${DAYS[d]}</b>${d === new Date().getDay() ? '<span class="sub">اليوم</span>' : ''}</div>
-      <div class="seg" style="margin-top:6px">${['upper', 'lower', 'off'].map(p => `<button class="${p} ${S.sched[d] === p ? 'on' : ''}" data-act="sched" data-d="${d}" data-v="${p}">${PART[p]}</button>`).join('')}</div></div>`).join('') +
-    '</div>';
+  const c = { upper: 0, lower: 0, off: 0 };
+  WEEK.forEach(d => c[S.sched[d] || 'off']++);
+  return `<div class="sum"><div class="upper"><b>${n(c.upper)}</b><span>علوي</span></div><div class="lower"><b>${n(c.lower)}</b><span>سفلي</span></div><div class="off"><b>${n(c.off)}</b><span>أوف</span></div></div>
+    <div class="card sched">` + WEEK.map(d => `<div class="r"><b>${DAYS[d]}${d === new Date().getDay() ? ' <span class="pill p-off">اليوم</span>' : ''}</b>
+      <div class="seg">${['upper', 'lower', 'off'].map(p => `<button class="${p} ${(S.sched[d] || 'off') === p ? 'on' : ''}" data-act="sched" data-d="${d}" data-v="${p}">${PART[p]}</button>`).join('')}</div></div>`).join('') + '</div>';
 }
 
 function viewEx() {
   let h = '';
   for (const p of ['upper', 'lower']) {
     const list = S.ex.filter(e => e.part === p);
-    h += `<h2>${PART[p]} · ${n(list.length)}</h2><div class="card list">` +
-      (list.map(e => `<div class="item"><div class="grow"><div class="name" style="font-size:15px">${esc(e.name)}</div><div class="muscle">${esc(e.muscle)}</div></div>
+    h += `<h2 class="${p}"><i></i>${PART[p]} · ${n(list.length)}</h2><div class="card list">` +
+      (list.map(e => `<div class="item"><div class="badge" style="--h:${hue(e.muscle || e.name)}">${esc((e.muscle || e.name).trim()[0] || '؟')}</div>
+        <div class="grow"><div class="name" style="font-size:15px">${esc(e.name)}</div><div class="meta">${esc(e.muscle)}</div></div>
         <button class="sm ghost" data-act="renameEx" data-id="${e.id}">تعديل</button>
         <button class="x" data-act="delEx" data-id="${e.id}" aria-label="احذف">✕</button></div>`).join('') || '<div class="empty">ما فيه تمارين</div>') + '</div>';
   }
-  h += `<h2>أضف تمرين</h2><div class="card">
-    <div class="fields"><label class="field"><span>الاسم</span><input id="nName" placeholder="مثلًا: ديبس" style="text-align:right"></label></div>
-    <div class="fields"><label class="field"><span>العضلة</span><input id="nMuscle" placeholder="مثلًا: صدر" style="text-align:right"></label>
-    <label class="field"><span>القسم</span><select id="nPart"><option value="upper">علوي</option><option value="lower">سفلي</option></select></label></div>
-    <div class="btns"><button class="pri grow" data-act="addEx">أضف</button></div></div>`;
+  h += L.adding ? `<div class="card addform fade"><div class="name">تمرين جديد</div>
+      <input id="nName" placeholder="اسم التمرين، مثلًا: ديبس">
+      <input id="nMuscle" placeholder="العضلة، مثلًا: صدر">
+      <div class="seg" id="nPart" style="margin-top:0"><button class="upper on" data-act="npart" data-v="upper">علوي</button><button class="lower" data-act="npart" data-v="lower">سفلي</button></div>
+      <div class="btns" style="margin-top:4px"><button class="pri grow" data-act="addEx">أضف</button><button class="ghost" data-act="adding">إلغاء</button></div></div>`
+    : `<button class="pri" data-act="adding">+ أضف تمرين</button>`;
   h += `<h2>حسابي</h2><div class="card">
     <div class="row">${USER.photoURL ? `<img class="avatar" src="${esc(USER.photoURL)}" alt="" referrerpolicy="no-referrer">` : ''}
-    <div class="grow"><div class="name" style="font-size:15px">${esc(USER.displayName || '')}</div><div class="muscle">${esc(USER.email || '')}</div></div></div>
-    <div class="btns"><button class="grow" data-act="export">نزّل نسخة من بياناتي</button></div>
-    <div class="btns"><button class="ghost grow" data-act="logout">تسجيل خروج</button></div></div>`;
+    <div class="grow"><div class="name" style="font-size:15px">${esc(USER.displayName || '')}</div><div class="meta">${esc(USER.email || '')}</div></div></div>
+    <div class="btns"><button class="grow" data-act="export">⬇ نزّل نسخة من بياناتي</button></div>
+    <div class="btns" style="margin-top:8px"><button class="ghost grow" data-act="logout">تسجيل خروج</button></div></div>`;
   return h;
 }
 
+function spark(vals) {
+  const W = 90, H = 32, P = 4, mn = Math.min(...vals), mx = Math.max(...vals), sp = mx - mn || 1;
+  const pts = vals.map((v, i) => [P + (W - 2 * P) * (vals.length > 1 ? i / (vals.length - 1) : .5), H - P - (H - 2 * P) * (v - mn) / sp]);
+  // الزمن من اليسار لليمين كما في أي رسم بياني، فالخط الطالع يعني تحسّنًا بلا التباس
+  const last = pts[pts.length - 1];
+  return `<svg class="spark" viewBox="0 0 ${W} ${H}"><polyline points="${pts.map(p => p.join(',')).join(' ')}"/><circle cx="${last[0]}" cy="${last[1]}" r="3.5"/></svg>`;
+}
+
 function viewHist() {
+  let h = `<div class="seg" style="margin-top:0"><button class="${L.hist !== 'prog' ? 'on' : ''}" data-act="hist" data-v="days">الأيام</button><button class="${L.hist === 'prog' ? 'on' : ''}" data-act="hist" data-v="prog">التقدّم</button></div>`;
+  if (L.hist === 'prog') {
+    const rows = S.ex.filter(e => (S.logs[e.id] || []).length).map(e => {
+      const ls = S.logs[e.id], top = ls.map(l => Math.max(...l.sets.map(s => +s.weight || 0))), reps = ls.map(l => Math.max(...l.sets.map(s => +s.reps || 0)));
+      const useW = top.some(v => v > 0), vals = useW ? top : reps, diff = vals[vals.length - 1] - vals[0];
+      return `<div class="item ${e.part}"><div class="grow"><div class="name" style="font-size:15px">${esc(e.name)}</div>
+        <div class="meta">${useW ? `أعلى وزن ${n(vals[vals.length - 1])} كجم` : `${n(vals[vals.length - 1])} عدّة`} · ${n(ls.length)} ${say(ls.length, 'مرة', 'مرتين', 'مرات')}
+        ${diff > 0 ? ` · <span class="up">▲ ${n(diff)}${useW ? ' كجم' : ''}</span>` : ''}</div></div>${spark(vals)}</div>`;
+    });
+    return h + (rows.length ? `<div class="card list">${rows.join('')}</div>` : '<div class="empty">سجّل كم تمرين ويطلع لك تقدّمك هنا</div>');
+  }
   const dates = Object.keys(logsByDate).filter(d => Object.keys(logsByDate[d].items || {}).length).sort().reverse();
-  if (!dates.length) return '<div class="empty">ما سجّلت شي للحين</div>';
-  return dates.map(d => {
+  if (!dates.length) return h + '<div class="empty">ما سجّلت شي للحين</div>';
+  return h + dates.map(d => {
     const items = logsByDate[d].items;
     const rows = Object.keys(items).map(id => ({ e: exById(id), sets: items[id] }));
-    const part = rows.find(r => r.e)?.e.part;
-    return `<div class="card hist"><div class="row between" style="margin-bottom:6px"><b>${d === TODAY ? 'اليوم' : fmtDate(d)}</b>${part ? `<span class="pill p-${part}">${PART[part]}</span>` : ''}</div>` +
-      rows.map(({ e, sets }) => `<div class="ex"><span>${e ? esc(e.name) : '<span class="sub">تمرين محذوف</span>'}</span><span>${summary(sets)}</span></div>`).join('') + '</div>';
+    const part = rows.find(r => r.e)?.e.part || 'off';
+    return `<div class="card day ${part}"><div class="row between" style="margin-bottom:4px"><b>${fmtDate(d)}</b><span class="pill p-${part}">${PART[part]}</span></div>` +
+      rows.map(({ e, sets }) => `<div class="exl"><span>${e ? esc(e.name) : '<span class="sub">تمرين محذوف</span>'}</span><span>${summary(sets)}</span></div>`).join('') + '</div>';
   }).join('');
 }
 
 const G_ICON = '<svg viewBox="0 0 48 48"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.4-.4-3.5z"/><path fill="#FF3D00" d="m6.3 14.7 6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-8l-6.5 5C9.5 39.6 16.2 44 24 44z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C37 39.2 44 34 44 24c0-1.3-.1-2.4-.4-3.5z"/></svg>';
 function renderLogin(err = '') {
   document.getElementById('app').innerHTML = `<div class="login">
-    <div class="logo">🏋️</div><h1>النادي</h1>
+    <img class="logo" src="icon.png" alt=""><h1>النادي</h1>
     <p>جدول تمارينك: علوي وسفلي وأوف، ويسألك قبل كل تمرين تبي تزود ولا لا.</p>
     <button class="gbtn" data-act="login">${G_ICON}الدخول بحساب Google</button>
     <p class="sub">تمارينك تنحفظ في حسابك، وتفتحها من أي جهاز، ومحد يشوفها غيرك.</p>
     ${err ? `<div class="err">${esc(err)}</div>` : ''}</div>`;
 }
-const renderLoading = () => { document.getElementById('app').innerHTML = '<div class="login"><div class="logo">🏋️</div><div class="sub">جاري تحميل تمارينك…</div></div>'; };
+const renderLoading = () => { document.getElementById('app').innerHTML = '<div class="login"><img class="logo" src="icon.png" alt=""><div class="sub">جاري تحميل تمارينك…</div></div>'; };
 
-const TABS = [['today', '🏋️', 'اليوم'], ['sched', '📅', 'الجدول'], ['ex', '📋', 'التمارين'], ['hist', '📈', 'السجل']];
+const ICONS = {
+  today: '<svg viewBox="0 0 24 24"><path d="M6.5 6.5v11M17.5 6.5v11M3.5 9v6M20.5 9v6M6.5 12h11"/></svg>',
+  sched: '<svg viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="15" rx="3"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>',
+  ex: '<svg viewBox="0 0 24 24"><path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r="1.2"/><circle cx="4.5" cy="12" r="1.2"/><circle cx="4.5" cy="18" r="1.2"/></svg>',
+  hist: '<svg viewBox="0 0 24 24"><path d="M4 19h16"/><path d="M5 15l4-4 3 3 7-7"/><path d="M15 7h4v4"/></svg>',
+};
+const TABS = [['today', 'اليوم'], ['sched', 'الجدول'], ['ex', 'التمارين'], ['hist', 'السجل']];
 let pending = false;
 function render() {
   pending = false;
@@ -346,10 +471,11 @@ function render() {
   if (!S) return renderLoading();
   if (!TABS.some(t => t[0] === L.tab)) L.tab = 'today';
   const v = { today: viewToday, sched: viewSched, ex: viewEx, hist: viewHist }[L.tab]();
-  const title = L.tab === 'today' ? 'تمرين اليوم' : TABS.find(t => t[0] === L.tab)[2];
+  const title = L.tab === 'today' ? 'تمرين اليوم' : TABS.find(t => t[0] === L.tab)[1];
   document.getElementById('app').innerHTML =
-    `<header><h1>${title}</h1></header><main>${v}</main>
-     <nav>${TABS.map(([k, i, t]) => `<button class="${L.tab === k ? 'on' : ''}" data-act="tab" data-v="${k}"><span class="i">${i}</span>${t}</button>`).join('')}</nav>`;
+    `<header><h1>${title}</h1>${L.tab === 'today' && USER.photoURL ? `<img class="avatar" style="width:34px;height:34px" src="${esc(USER.photoURL)}" alt="" referrerpolicy="no-referrer" data-act="tab" data-v="ex">` : ''}</header><main>${v}</main>
+     <nav><div class="in">${TABS.map(([k, t]) => `<button class="${L.tab === k ? 'on' : ''}" data-act="tab" data-v="${k}">${ICONS[k]}${t}</button>`).join('')}</div></nav>`;
+  flash = null;
   saveLocal();
 }
 // تحديثٌ يصل من السحابة وهو يكتب في خانة: لا نعيد الرسم فيضيع المؤشر وما كتبه،
@@ -404,13 +530,22 @@ onAuthStateChanged(auth, u => {
 });
 
 function exportData() {
-  const data = { app: 'saleh', exported: new Date().toISOString(), email: USER.email, ex: S.ex, sched: S.sched, logs: logsByDate };
+  const data = { app: 'alnadi', exported: new Date().toISOString(), email: USER.email, ex: S.ex, sched: S.sched, logs: logsByDate };
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }));
-  a.download = `saleh-${TODAY}.json`;
+  a.download = `alnadi-${TODAY}.json`;
   document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(a.href), 5000);
 }
+
+// خانةٌ تغيّرت (بالكتابة أو بزرّي + و −): نحدّث الحالة بلا إعادة رسم
+function setField(it, f, i, val) {
+  if (f === 'inc.reps' || f === 'inc.weight') it.inc[f.slice(4)] = val;
+  else if (f === 'one.k') { const k = Math.max(1, Math.min(20, Math.floor(+val) || 1)), s = it.sets[0]; it.sets = Array.from({ length: k }, () => ({ ...s })); }
+  else if (f === 'one.reps' || f === 'one.weight') it.sets.forEach(s => s[f.slice(4)] = val);
+  else if (f === 'set.reps' || f === 'set.weight') it.sets[+i][f.slice(4)] = val;
+}
+const updPrev = id => { const el = document.getElementById('prev-' + id), it = L.sess.items[id]; if (el) el.innerHTML = statBoxes(incTarget(id, it), lastLog(id).sets); };
 
 document.addEventListener('click', ev => {
   const b = ev.target.closest('[data-act]');
@@ -420,33 +555,56 @@ document.addEventListener('click', ev => {
   if (!S) return;
   const it = id && L.sess && L.sess.items[id];
   switch (act) {
-    case 'tab': L.tab = v; window.scrollTo(0, 0); break;
-    case 'todayPart': session().part = v; break;
+    case 'tab': L.tab = v; L.adding = false; window.scrollTo(0, 0); break;
+    case 'showPart': L.showPart = true; break;
+    case 'todayPart': session().part = v; session().open = undefined; L.showPart = false; break;
+    case 'open': { const s = session(); s.open = s.open === id ? '' : id; break; }
     case 'sched':
       S.sched[b.dataset.d] = v;
       if (+b.dataset.d === new Date().getDay() && L.sess) L.sess.part = v;
       saveProfile(); break;
     case 'yes': it.step = 'inc'; it.inc = it.inc || { reps: 1, weight: 0 }; break;
     case 'no': it.target = copy(lastLog(id).sets); it.sets = copy(it.target); it.step = 'log'; break;
-    case 'applyInc': {
-      const r = +it.inc.reps || 0, w = +it.inc.weight || 0;
-      it.target = lastLog(id).sets.map(s => ({ reps: Math.max(0, +s.reps + r), weight: Math.max(0, +s.weight + w) }));
-      it.sets = copy(it.target); it.step = 'log'; break;
+    case 'quick': {
+      it.inc.reps = (+it.inc.reps || 0) + +b.dataset.r; it.inc.weight = (+it.inc.weight || 0) + +b.dataset.w;
+      document.querySelector(`input[data-f="inc.reps"][data-id="${id}"]`).value = it.inc.reps;
+      document.querySelector(`input[data-f="inc.weight"][data-id="${id}"]`).value = it.inc.weight;
+      updPrev(id); saveLocal(); return;
     }
+    case 'step': {
+      const inp = b.parentElement.querySelector('input');
+      const nv = Math.max(0, Math.round(((+inp.value || 0) + +b.dataset.d) * 100) / 100);
+      inp.value = nv; setField(it, b.dataset.f, b.dataset.i, nv);
+      if (b.dataset.f.startsWith('inc.')) updPrev(id);
+      saveLocal(); return;
+    }
+    case 'applyInc': it.target = incTarget(id, it); it.sets = copy(it.target); it.step = 'log'; break;
     case 'back': it.step = 'ask'; it.target = null; break;
     case 'mode': it.mode = v; exById(id).mode = v; saveProfile(); break;
     case 'addSet': it.sets.push({ ...(it.sets[it.sets.length - 1] || { reps: 10, weight: 0 }) }); break;
     case 'delSet': if (it.sets.length > 1) it.sets.splice(+b.dataset.i, 1); break;
     case 'saveEx': {
       const sets = copy(it.sets).filter(s => s.reps > 0);
-      if (!sets.length) return alert('اكتب العدّات أول');
+      if (!sets.length) return toast('اكتب العدّات أول', true);
       // نحدّث الذاكرة قبل السحابة، فيظهر «خلص» فورًا حتى لو الشبكة بطيئة
       (logsByDate[TODAY] = logsByDate[TODAY] || { items: {} }).items[id] = sets;
       S.logs = buildLogs();
       saveLog(id, sets);
-      it.sets = sets; it.step = 'done'; break;
+      it.sets = sets; it.step = 'done';
+      const s = session(), list = S.ex.filter(e => e.part === s.part), idx = list.findIndex(e => e.id === id);
+      const next = [...list.slice(idx + 1), ...list.slice(0, idx)].find(e => item(e.id).step !== 'done');
+      s.open = next ? next.id : '';
+      flash = id;
+      try { navigator.vibrate && navigator.vibrate(20); } catch (e) { }
+      toast('✓ انحفظ ' + exById(id).name);
+      render();
+      if (next) document.getElementById('ex-' + next.id)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      return;
     }
     case 'edit': it.step = 'log'; break;
+    case 'hist': L.hist = v; break;
+    case 'adding': L.adding = !L.adding; break;
+    case 'npart': b.parentElement.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b)); return;
     case 'delEx':
       if (!confirm('تحذف «' + exById(id).name + '»؟ سجلّه القديم يبقى.')) return;
       S.ex = S.ex.filter(e => e.id !== id); saveProfile(); break;
@@ -460,9 +618,10 @@ document.addEventListener('click', ev => {
     }
     case 'addEx': {
       const nm = document.getElementById('nName').value.trim();
-      if (!nm) return alert('اكتب اسم التمرين');
-      S.ex.push({ id: 'e' + Date.now(), name: nm, muscle: document.getElementById('nMuscle').value.trim(), part: document.getElementById('nPart').value, mode: 'one' });
-      saveProfile(); break;
+      if (!nm) return toast('اكتب اسم التمرين', true);
+      const part = document.querySelector('#nPart .on').dataset.v;
+      S.ex.push({ id: 'e' + Date.now(), name: nm, muscle: document.getElementById('nMuscle').value.trim(), part, mode: 'one' });
+      L.adding = false; saveProfile(); toast('✓ انضاف ' + nm); break;
     }
     case 'export': return exportData();
     case 'logout': if (confirm('تسجّل خروج؟')) signOut(auth); return;
@@ -474,11 +633,8 @@ document.addEventListener('click', ev => {
 document.addEventListener('input', ev => {
   const t = ev.target, f = t.dataset.f;
   if (!f || !L.sess) return;
-  const it = L.sess.items[t.dataset.id], val = t.value;
-  if (f === 'inc.reps' || f === 'inc.weight') it.inc[f.slice(4)] = val;
-  else if (f === 'one.k') { const k = Math.max(1, Math.min(20, Math.floor(+val) || 1)), s = it.sets[0]; it.sets = Array.from({ length: k }, () => ({ ...s })); }
-  else if (f === 'one.reps' || f === 'one.weight') it.sets.forEach(s => s[f.slice(4)] = val);
-  else if (f === 'set.reps' || f === 'set.weight') it.sets[+t.dataset.i][f.slice(4)] = val;
+  setField(L.sess.items[t.dataset.id], f, t.dataset.i, t.value);
+  if (f.startsWith('inc.')) updPrev(t.dataset.id);
   saveLocal();
 });
 </script>
