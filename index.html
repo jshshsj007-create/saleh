@@ -154,6 +154,20 @@ nav button.on svg{background:color-mix(in srgb,var(--up) 25%,transparent);color:
 .avatar{width:40px;height:40px;border-radius:50%;flex:none;background:var(--card2)}
 .addform{display:flex;flex-direction:column;gap:8px}
 .addform input{text-align:right;font-weight:500}
+
+/* تقسيمي: اختيار النظام، والأيام، والألوان */
+.choice{width:100%;text-align:right;display:block;padding:16px;border-radius:20px;border:1px solid var(--pc);background:linear-gradient(135deg,color-mix(in srgb,var(--pc) 22%,var(--card)),var(--card))}
+.daycard{border-inline-start:4px solid var(--pc)}
+.opts{display:flex;flex-wrap:wrap;gap:6px;flex:1;justify-content:flex-start}
+.opts button,.dchip{padding:6px 12px;font-size:13px;border-radius:999px;background:transparent;color:var(--c);border:1px solid color-mix(in srgb,var(--c) 40%,transparent)}
+.opts button.on,.dchip.on{background:var(--c);color:#fff;border-color:var(--c);font-weight:600}
+.colors{display:flex;gap:10px;flex-wrap:wrap}
+.colors button{width:32px;height:32px;border-radius:50%;padding:0;border:0}
+.colors button.on{outline:3px solid var(--text);outline-offset:2px}
+.item.pick{cursor:pointer}
+input.txt{text-align:right;font-weight:500}
+.sum{flex-wrap:wrap}
+.sum div{min-width:70px}
 </style>
 </head>
 <body>
@@ -183,33 +197,50 @@ catch (e) { db = initializeFirestore(fb, {}); }
 const iso = d => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
 let TODAY = iso(new Date());
 const DAYS = ['الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
-const WEEK = [6, 0, 1, 2, 3, 4, 5]; // الأسبوع يبدأ بالسبت
 const SHORT = ['أحد', 'اثنين', 'ثلاثاء', 'أربعاء', 'خميس', 'جمعة', 'سبت'];
-const PART = { upper: 'علوي', lower: 'سفلي', off: 'أوف' };
+const WEEK = [6, 0, 1, 2, 3, 4, 5]; // الأسبوع يبدأ بالسبت
+const SYS = { ul: 'علوي وسفلي', custom: 'تقسيمي' };
+const OFF = '#7b8496';
+const COLORS = ['#a78bfa', '#5b8cff', '#34d399', '#ff8f45', '#f472b6', '#fbbf24', '#22d3ee', '#ef4444'];
 const n = x => Number(x || 0).toLocaleString('ar-SA', { maximumFractionDigits: 2 });
 // تمييز العدد: ١ جولة، ٢ جولتين، ٣–١٠ جولات، ١١+ جولة
 const say = (k, one, two, few) => k == 1 ? one : k == 2 ? two : k >= 3 && k <= 10 ? few : one;
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 // لون ثابت لكل عضلة من اسمها، فتتعرّف على التمرين بعينك قبل ما تقرأ
 const hue = s => { let h = 0; for (const c of String(s)) h = (h * 31 + c.codePointAt(0)) % 360; return h; };
+const tint = (c, p = 20) => `color-mix(in srgb,${c} ${p}%,transparent)`;
+const pill = (name, c) => `<span class="pill" style="background:${tint(c)};color:${c}">${esc(name)}</span>`;
 
-function seed() {
-  const ex = [
-    ['بنش برس', 'صدر', 'upper'], ['تفتيح صدر بالجهاز', 'صدر', 'upper'], ['سحب أمامي', 'ظهر', 'upper'],
-    ['تجديف بالكيبل', 'ظهر', 'upper'], ['ضغط أكتاف', 'أكتاف', 'upper'], ['رفرفة جانبية', 'أكتاف', 'upper'],
-    ['بايسبس بالبار', 'باي', 'upper'], ['ترايسبس بالكيبل', 'تراي', 'upper'],
-    ['ليق برس', 'أرجل', 'lower'], ['رفرفة أمامية', 'أمامي الفخذ', 'lower'], ['رفرفة خلفية', 'خلفي الفخذ', 'lower'],
-    ['جهاز المؤخرة', 'مؤخرة', 'lower'], ['سمانة', 'سمانة', 'lower'],
-  ].map(([name, muscle, part], i) => ({ id: 'e' + i, name, muscle, part, mode: 'one' }));
-  return { ex, sched: { 6: 'upper', 0: 'lower', 1: 'off', 2: 'upper', 3: 'lower', 4: 'off', 5: 'off' } };
+const LIB = [
+  ['بنش برس', 'صدر', 'upper'], ['تفتيح صدر بالجهاز', 'صدر', 'upper'], ['سحب أمامي', 'ظهر', 'upper'],
+  ['تجديف بالكيبل', 'ظهر', 'upper'], ['ضغط أكتاف', 'أكتاف', 'upper'], ['رفرفة جانبية', 'أكتاف', 'upper'],
+  ['بايسبس بالبار', 'باي', 'upper'], ['ترايسبس بالكيبل', 'تراي', 'upper'],
+  ['ليق برس', 'أرجل', 'lower'], ['رفرفة أمامية', 'أمامي الفخذ', 'lower'], ['رفرفة خلفية', 'خلفي الفخذ', 'lower'],
+  ['جهاز المؤخرة', 'مؤخرة', 'lower'], ['سمانة', 'سمانة', 'lower'],
+];
+const ulDays = ex => [['upper', 'علوي', '#5b8cff'], ['lower', 'سفلي', '#ff8f45']].map(([id, name, color]) => ({ id, name, color, fixed: true, ex: ex.filter(e => e.part === id).map(e => e.id) }));
+// الحساب: مكتبة تمارين واحدة، ولكل نظام أيامه وجدوله. فالتبديل بين النظامين لا يمسح شيئًا،
+// والسجل للتمرين نفسه أيًّا كان اليوم اللي جاء فيه
+function seed(system) {
+  const ex = LIB.map(([name, muscle, part], i) => ({ id: 'e' + i, name, muscle, part }));
+  return {
+    v: 2, system, ex: ex.map(({ part, ...e }) => ({ ...e, mode: 'one' })),
+    plans: { ul: { days: ulDays(ex), sched: { 6: 'upper', 0: 'lower', 1: 'off', 2: 'upper', 3: 'lower', 4: 'off', 5: 'off' } }, custom: { days: [], sched: {} } },
+  };
+}
+// حسابات النسخة الأولى (part على التمرين وجدول واحد) تُقرأ بالشكل الجديد كما هي،
+// ولا تُكتب بالشكل الجديد إلا مع أول تعديل منه
+function normalize(p) {
+  if (p.v === 2) return p;
+  const ex = p.ex || [];
+  return { v: 2, system: 'ul', ex: ex.map(({ part, ...e }) => e), plans: { ul: { days: ulDays(ex), sched: p.sched || {} }, custom: { days: [], sched: {} } } };
 }
 
-// ما في الحساب: التمارين والجدول (users/<uid>) والسجل يومًا بيوم (users/<uid>/logs/<تاريخ>).
-// وما في الجهاز: التبويب وخطوات تمرين اليوم الجارية، لأنها لحظية ولا تستحق السحابة
-let USER = null, S = null, logsByDate = {}, unsubs = [];
-let L = { tab: 'today', sess: null, hist: 'days' };
+// ما في الجهاز: التبويب وخطوات تمرين اليوم الجارية، لأنها لحظية ولا تستحق السحابة
+let USER = null, S = null, logsByDate = {}, unsubs = [], choosing = false;
+let L = { tab: 'today', sess: null, hist: 'days', exv: 'days' };
 try { L = Object.assign(L, JSON.parse(localStorage.getItem('saleh.local')) || {}); } catch (e) { }
-const saveLocal = () => { try { localStorage.setItem('saleh.local', JSON.stringify({ tab: L.tab, sess: L.sess, uid: L.uid, hist: L.hist })); } catch (e) { } };
+const saveLocal = () => { try { localStorage.setItem('saleh.local', JSON.stringify({ tab: L.tab, sess: L.sess, uid: L.uid, hist: L.hist, exv: L.exv })); } catch (e) { } };
 let flash = null; // التمرين اللي انحفظ للتو، يتحرّك مرة وحدة
 
 function toast(msg, bad) {
@@ -220,9 +251,10 @@ function toast(msg, bad) {
   setTimeout(() => t.remove(), bad ? 5000 : 2200);
 }
 const fail = e => { console.error(e); toast('ما انحفظ: ' + (e.code || e.message), true); };
-const saveProfile = () => setDoc(doc(db, 'users', USER.uid), { ex: S.ex, sched: S.sched }).catch(fail);
-// merge يكتب تمرينًا واحدًا داخل يومه ولا يمسح تمارين اليوم الأخرى
-const saveLog = (id, sets) => setDoc(doc(db, 'users', USER.uid, 'logs', TODAY), { items: { [id]: sets } }, { merge: true }).catch(fail);
+const saveProfile = () => setDoc(doc(db, 'users', USER.uid), { v: 2, system: S.system, ex: S.ex, plans: S.plans }).catch(fail);
+// merge يكتب تمرينًا واحدًا داخل يومه ولا يمسح تمارين اليوم الأخرى، ومعه اسم اليوم ولونه
+// وقت التمرين، فيبقى السجل صحيحًا لو انحذف اليوم أو تبدّل النظام بعدين
+const saveLog = (id, sets, day) => setDoc(doc(db, 'users', USER.uid, 'logs', TODAY), { items: { [id]: sets }, ...(day ? { day } : {}) }, { merge: true }).catch(fail);
 
 function buildLogs() {
   const out = {};
@@ -233,7 +265,15 @@ function buildLogs() {
   return out;
 }
 
+const plan = () => S.plans[S.system];
 const exById = id => S.ex.find(e => e.id === id);
+const dayById = id => plan().days.find(d => d.id === id);
+const dayEx = d => d ? d.ex.map(exById).filter(Boolean) : [];
+// يومٌ في الجدول انحذف من «تقسيمي» يُعامل أوف، لا يكسر الصفحة
+const schedOf = wd => { const v = plan().sched[wd]; return v && dayById(v) ? v : 'off'; };
+const colorOf = id => dayById(id)?.color || OFF;
+const nameOf = id => dayById(id)?.name || 'أوف';
+const exColor = id => plan().days.find(d => d.ex.includes(id))?.color || '#5b8cff';
 // آخر تسجيلٍ قبل اليوم: تسجيل اليوم نفسه لا يصلح مرجعًا لسؤال الزيادة
 const lastLog = id => (S.logs[id] || []).filter(l => l.date < TODAY).slice(-1)[0] || null;
 const todayLog = id => (S.logs[id] || []).find(l => l.date === TODAY) || null;
@@ -262,7 +302,10 @@ function statBoxes(sets, before) {
 
 function session() {
   TODAY = iso(new Date());
-  if (!L.sess || L.sess.date !== TODAY) L.sess = { date: TODAY, part: S.sched[new Date().getDay()] || 'off', items: {} };
+  const sd = schedOf(new Date().getDay());
+  if (!L.sess || L.sess.date !== TODAY) L.sess = { date: TODAY, part: sd, items: {} };
+  // بعد تبديل النظام أو حذف يوم، يوم الجلسة قد لا يكون موجودًا
+  if (L.sess.part !== 'off' && !dayById(L.sess.part)) { L.sess.part = sd; L.sess.open = undefined; }
   return L.sess;
 }
 function item(id) {
@@ -282,8 +325,8 @@ function nextTraining() {
   const d = new Date();
   for (let i = 1; i <= 7; i++) {
     d.setDate(d.getDate() + 1);
-    const p = S.sched[d.getDay()];
-    if (p && p !== 'off') return { day: i === 1 ? 'بكرة' : DAYS[d.getDay()], part: p };
+    const p = schedOf(d.getDay());
+    if (p !== 'off') return { day: i === 1 ? 'بكرة' : DAYS[d.getDay()], id: p };
   }
   return null;
 }
@@ -299,6 +342,7 @@ const stepper = (f, v, d, attrs) => `<div class="stp"><button data-act="step" da
   <input type="number" inputmode="decimal" step="any" min="0" data-f="${f}" value="${esc(v)}" ${attrs}>
   <button data-act="step" data-f="${f}" data-d="-${d}" ${attrs} aria-label="نقّص">−</button></div>`;
 const cell = (label, html) => `<div class="fcell"><span>${label}</span>${html}</div>`;
+const badge = e => `<div class="badge" style="--h:${hue(e.muscle || e.name)}">${esc((e.muscle || e.name).trim()[0] || '؟')}</div>`;
 
 function exBody(e, it, l) {
   const A = `data-id="${e.id}"`;
@@ -338,8 +382,7 @@ function exCard(e, i, openId) {
   const it = item(e.id), l = lastLog(e.id), open = e.id === openId, done = it.step === 'done';
   const meta = done ? `<span class="up">✓ ${summary(it.sets)}</span>` : l ? `آخر مرة: ${summary(l.sets)}` : 'أول مرة';
   return `<div class="ex ${open ? 'open' : ''} ${done ? 'isdone' : ''} ${flash === e.id ? 'pop' : ''}" id="ex-${e.id}">
-    <div class="head" data-act="open" data-id="${e.id}">
-      <div class="badge" style="--h:${hue(e.muscle || e.name)}">${esc((e.muscle || e.name).trim()[0] || '؟')}</div>
+    <div class="head" data-act="open" data-id="${e.id}">${badge(e)}
       <div class="grow"><div class="name">${esc(e.name)}</div><div class="meta">${meta}</div></div>
       <div class="st ${done ? 'ok' : ''} ${done && flash === e.id ? 'pop' : ''}">${done ? '✓' : n(i + 1)}</div>
     </div>
@@ -348,30 +391,33 @@ function exCard(e, i, openId) {
 
 function weekStrip() {
   const wd = new Date().getDay();
-  return `<div class="week">${WEEK.map(d => { const p = S.sched[d] || 'off';
-    return `<div class="wd ${p} ${d === wd ? 'today' : ''}" data-act="tab" data-v="sched">${SHORT[d]}<i></i></div>`; }).join('')}</div>`;
+  return `<div class="week">${WEEK.map(d => `<div class="wd ${d === wd ? 'today' : ''}" data-act="tab" data-v="sched">${SHORT[d]}<i style="background:${colorOf(schedOf(d))}"></i></div>`).join('')}</div>`;
 }
 
 function viewToday() {
-  const s = session(), wd = new Date().getDay();
-  const list = S.ex.filter(e => e.part === s.part);
+  const s = session(), wd = new Date().getDay(), days = plan().days;
+  if (!days.length) return `<div class="card rest"><div class="big">✏️</div><div class="name" style="margin-top:8px">«تقسيمي» لسا فاضي</div>
+    <div class="sub" style="margin-top:6px">سوّ أول يوم، مثل «صدر وباي»، وحط فيه تمارينك</div>
+    <div class="btns" style="justify-content:center"><button class="pri" data-act="newDay">+ سوّ أول يوم</button></div></div>`;
+  const d = dayById(s.part), list = dayEx(d), col = d ? d.color : OFF;
   const done = list.filter(e => item(e.id).step === 'done').length;
   const C = 2 * Math.PI * 34, frac = list.length ? done / list.length : 0;
-  let h = `<div class="hero ${s.part}"><div class="row between">
+  let h = `<div class="hero" style="--pc:${col}"><div class="row between">
     <div class="grow"><div class="sub">${DAYS[wd]} ${n(+TODAY.slice(8))}/${n(+TODAY.slice(5, 7))}</div>
-      <div class="big">${s.part === 'off' ? 'راحة' : PART[s.part]}</div>
-      <div class="sub">${s.part === 'off' ? 'يوم أوف' : `${n(list.length)} تمارين`}</div></div>
-    ${s.part !== 'off' && list.length ? `<div class="ring"><svg viewBox="0 0 80 80"><circle class="bgc" cx="40" cy="40" r="34"/><circle class="fg" cx="40" cy="40" r="34" stroke-dasharray="${C}" stroke-dashoffset="${C * (1 - frac)}"/></svg>
+      <div class="big">${d ? esc(d.name) : 'راحة'}</div>
+      <div class="sub">${d ? `${n(list.length)} ${say(list.length, 'تمرين', 'تمرينين', 'تمارين')}` : 'يوم أوف'}</div></div>
+    ${d && list.length ? `<div class="ring"><svg viewBox="0 0 80 80"><circle class="bgc" cx="40" cy="40" r="34"/><circle class="fg" cx="40" cy="40" r="34" stroke-dasharray="${C}" stroke-dashoffset="${C * (1 - frac)}"/></svg>
       <div class="t">${n(done)}/${n(list.length)}<small>خلّصت</small></div></div>` : ''}</div>
-    ${L.showPart ? `<div class="chips fade">${['upper', 'lower', 'off'].map(p => `<button class="${s.part === p ? 'on' : ''}" data-act="todayPart" data-v="${p}">${PART[p]}</button>`).join('')}</div>`
-      : `<div style="margin-top:8px"><button class="link" data-act="showPart">غيّر نوع اليوم</button></div>`}</div>`;
+    ${L.showPart ? `<div class="chips fade">${[...days.map(x => [x.id, x.name]), ['off', 'أوف']].map(([id, name]) => `<button class="${s.part === id ? 'on' : ''}" data-act="todayPart" data-v="${id}">${esc(name)}</button>`).join('')}</div>`
+      : `<div style="margin-top:8px"><button class="link" data-act="showPart">غيّر يوم اليوم</button></div>`}</div>`;
   h += weekStrip();
-  if (s.part === 'off') {
+  if (!d) {
     const nx = nextTraining();
     return h + `<div class="card rest"><div class="big">😴</div><div class="name" style="margin-top:8px">اليوم راحة، العضلة تكبر وأنت مرتاح</div>
-      <div class="sub" style="margin-top:6px">${nx ? `التمرين الجاي: ${nx.day} <span class="pill p-${nx.part}">${PART[nx.part]}</span>` : 'ما فيه تمرين في جدولك'}</div></div>`;
+      <div class="sub" style="margin-top:6px">${nx ? `التمرين الجاي: ${nx.day} ${pill(nameOf(nx.id), colorOf(nx.id))}` : 'ما فيه تمرين في جدولك'}</div></div>`;
   }
-  if (!list.length) return h + `<div class="empty">ما فيه تمارين ${PART[s.part]}. أضفها من «التمارين».</div>`;
+  if (!list.length) return h + `<div class="card rest"><div class="sub">ما فيه تمارين في «${esc(d.name)}»</div>
+    <div class="btns" style="justify-content:center"><button class="pri" data-act="editDay" data-id="${d.id}">أضف تمارين</button></div></div>`;
   if (done === list.length) {
     const kg = list.reduce((a, e) => a + item(e.id).sets.reduce((x, st) => x + st.reps * st.weight, 0), 0);
     h += `<div class="party fade"><div class="big">🎉</div><div class="name" style="font-size:19px;margin-top:6px">خلّصت تمرين اليوم!</div>
@@ -380,33 +426,65 @@ function viewToday() {
   // المفتوح: اللي اختاره، وإلا أول تمرين ما خلص
   let openId = s.open;
   if (openId === undefined || (openId && !list.some(e => e.id === openId))) openId = list.find(e => item(e.id).step !== 'done')?.id || '';
-  return h + list.map((e, i) => exCard(e, i, openId)).join('');
+  return h + `<div style="display:contents;--pc:${col}">${list.map((e, i) => exCard(e, i, openId)).join('')}</div>`;
 }
 
 function viewSched() {
-  const c = { upper: 0, lower: 0, off: 0 };
-  WEEK.forEach(d => c[S.sched[d] || 'off']++);
-  return `<div class="sum"><div class="upper"><b>${n(c.upper)}</b><span>علوي</span></div><div class="lower"><b>${n(c.lower)}</b><span>سفلي</span></div><div class="off"><b>${n(c.off)}</b><span>أوف</span></div></div>
+  const days = plan().days;
+  if (!days.length) return `<div class="card rest"><div class="sub">سوّ أيامك أول من «التمارين»، وبعدها وزّعها هنا على الأسبوع</div>
+    <div class="btns" style="justify-content:center"><button class="pri" data-act="newDay">+ سوّ أول يوم</button></div></div>`;
+  const opts = [...days.map(x => [x.id, x.name, x.color]), ['off', 'أوف', OFF]];
+  const cnt = id => WEEK.filter(d => schedOf(d) === id).length;
+  return `<div class="sum">${opts.map(([id, name, c]) => `<div><b style="color:${c}">${n(cnt(id))}</b><span>${esc(name)}</span></div>`).join('')}</div>
     <div class="card sched">` + WEEK.map(d => `<div class="r"><b>${DAYS[d]}${d === new Date().getDay() ? ' <span class="pill p-off">اليوم</span>' : ''}</b>
-      <div class="seg">${['upper', 'lower', 'off'].map(p => `<button class="${p} ${(S.sched[d] || 'off') === p ? 'on' : ''}" data-act="sched" data-d="${d}" data-v="${p}">${PART[p]}</button>`).join('')}</div></div>`).join('') + '</div>';
+      <div class="opts">${opts.map(([id, name, c]) => `<button class="${schedOf(d) === id ? 'on' : ''}" style="--c:${c}" data-act="sched" data-d="${d}" data-v="${id}">${esc(name)}</button>`).join('')}</div></div>`).join('') + '</div>';
+}
+
+function dayCardView(d) {
+  const when = WEEK.filter(w => schedOf(w) === d.id).map(w => DAYS[w]);
+  const ex = dayEx(d);
+  return `<div class="card daycard" style="--pc:${d.color}"><div class="row between"><div class="grow"><div class="name">${esc(d.name)}</div>
+    <div class="meta">${n(ex.length)} ${say(ex.length, 'تمرين', 'تمرينين', 'تمارين')}${when.length ? ' · ' + when.join(' و') : ' · مو في الجدول'}</div></div>
+    <button class="sm ghost" data-act="editDay" data-id="${d.id}">تعديل</button></div>
+    ${ex.length ? `<div class="chips">${ex.map(e => pill(e.name, d.color)).join('')}</div>` : ''}</div>`;
+}
+
+function viewEditor() {
+  const D = L.edit, fixed = D.fixed;
+  return `<div class="card" style="--pc:${D.color}">
+      ${fixed ? `<div class="name" style="font-size:20px;color:${D.color}">${esc(D.name)}</div><div class="sub">أيام علوي وسفلي ثابتة الاسم، وتقدر تغيّر تمارينها</div>`
+      : `<div class="lbl" style="margin-top:0">اسم اليوم</div><input class="txt" data-f="draft.name" value="${esc(D.name)}" placeholder="مثلًا: صدر وباي">
+      <div class="lbl">اللون</div><div class="colors">${COLORS.map(c => `<button class="${c === D.color ? 'on' : ''}" style="background:${c}" data-act="dcolor" data-v="${c}" aria-label="لون"></button>`).join('')}</div>`}</div>
+    <h2>تمارين هذا اليوم · اضغط عشان تختار</h2>
+    <div class="card list" style="--pc:${D.color}">${S.ex.map(e => { const on = D.ex.includes(e.id);
+      return `<div class="item pick" data-act="dtoggle" data-id="${e.id}">${badge(e)}<div class="grow"><div class="name" style="font-size:15px">${esc(e.name)}</div><div class="meta">${esc(e.muscle)}</div></div>
+        <div class="st ${on ? 'ok' : ''}" style="${on ? `background:${D.color};border-color:${D.color}` : ''}">${on ? '✓' : ''}</div></div>`; }).join('') || '<div class="empty">ما فيه تمارين، أضف واحد</div>'}</div>
+    <button class="ghost" data-act="dnewex">+ تمرين جديد</button>
+    <div class="btns" style="margin-top:0;--pc:${D.color}"><button class="pri grow" data-act="dsave">احفظ</button>
+      <button class="ghost" data-act="dcancel">إلغاء</button>
+      ${!fixed && D.id ? `<button class="ghost" style="color:var(--danger)" data-act="ddel">احذف</button>` : ''}</div>`;
 }
 
 function viewEx() {
-  let h = '';
-  for (const p of ['upper', 'lower']) {
-    const list = S.ex.filter(e => e.part === p);
-    h += `<h2 class="${p}"><i></i>${PART[p]} · ${n(list.length)}</h2><div class="card list">` +
-      (list.map(e => `<div class="item"><div class="badge" style="--h:${hue(e.muscle || e.name)}">${esc((e.muscle || e.name).trim()[0] || '؟')}</div>
-        <div class="grow"><div class="name" style="font-size:15px">${esc(e.name)}</div><div class="meta">${esc(e.muscle)}</div></div>
+  if (L.edit) return viewEditor();
+  let h = `<div class="card" style="padding:12px"><div class="sub" style="margin:0 2px 6px">نظامي</div>
+    <div class="seg" style="margin-top:0">${Object.entries(SYS).map(([k, t]) => `<button class="${S.system === k ? 'on' : ''}" data-act="system" data-v="${k}">${t}</button>`).join('')}</div></div>
+    <div class="seg" style="margin-top:0"><button class="${L.exv !== 'all' ? 'on' : ''}" data-act="exv" data-v="days">أيامي</button><button class="${L.exv === 'all' ? 'on' : ''}" data-act="exv" data-v="all">كل التمارين</button></div>`;
+  if (L.exv !== 'all') {
+    h += plan().days.map(dayCardView).join('') || '<div class="empty">ما سوّيت أيام للحين</div>';
+    if (S.system === 'custom') h += `<button class="pri" data-act="newDay">+ أضف يوم</button>`;
+  } else {
+    h += `<div class="card list">${S.ex.map(e => `<div class="item">${badge(e)}
+        <div class="grow"><div class="name" style="font-size:15px">${esc(e.name)}</div><div class="meta">${esc(e.muscle)}${plan().days.filter(d => d.ex.includes(e.id)).map(d => ' · ' + esc(d.name)).join('')}</div></div>
         <button class="sm ghost" data-act="renameEx" data-id="${e.id}">تعديل</button>
-        <button class="x" data-act="delEx" data-id="${e.id}" aria-label="احذف">✕</button></div>`).join('') || '<div class="empty">ما فيه تمارين</div>') + '</div>';
+        <button class="x" data-act="delEx" data-id="${e.id}" aria-label="احذف">✕</button></div>`).join('') || '<div class="empty">ما فيه تمارين</div>'}</div>`;
+    h += L.adding ? `<div class="card addform fade"><div class="name">تمرين جديد</div>
+        <input id="nName" class="txt" placeholder="اسم التمرين، مثلًا: ديبس">
+        <input id="nMuscle" class="txt" placeholder="العضلة، مثلًا: صدر">
+        ${plan().days.length ? `<div class="sub">حطه في:</div><div class="chips" id="nDays" style="margin-top:0">${plan().days.map(d => `<button style="--c:${d.color}" class="dchip" data-act="nday" data-v="${d.id}">${esc(d.name)}</button>`).join('')}</div>` : ''}
+        <div class="btns" style="margin-top:4px"><button class="pri grow" data-act="addEx">أضف</button><button class="ghost" data-act="adding">إلغاء</button></div></div>`
+      : `<button class="pri" data-act="adding">+ أضف تمرين</button>`;
   }
-  h += L.adding ? `<div class="card addform fade"><div class="name">تمرين جديد</div>
-      <input id="nName" placeholder="اسم التمرين، مثلًا: ديبس">
-      <input id="nMuscle" placeholder="العضلة، مثلًا: صدر">
-      <div class="seg" id="nPart" style="margin-top:0"><button class="upper on" data-act="npart" data-v="upper">علوي</button><button class="lower" data-act="npart" data-v="lower">سفلي</button></div>
-      <div class="btns" style="margin-top:4px"><button class="pri grow" data-act="addEx">أضف</button><button class="ghost" data-act="adding">إلغاء</button></div></div>`
-    : `<button class="pri" data-act="adding">+ أضف تمرين</button>`;
   h += `<h2>حسابي</h2><div class="card">
     <div class="row">${USER.photoURL ? `<img class="avatar" src="${esc(USER.photoURL)}" alt="" referrerpolicy="no-referrer">` : ''}
     <div class="grow"><div class="name" style="font-size:15px">${esc(USER.displayName || '')}</div><div class="meta">${esc(USER.email || '')}</div></div></div>
@@ -415,12 +493,24 @@ function viewEx() {
   return h;
 }
 
-function spark(vals) {
+function spark(vals, c) {
   const W = 90, H = 32, P = 4, mn = Math.min(...vals), mx = Math.max(...vals), sp = mx - mn || 1;
   const pts = vals.map((v, i) => [P + (W - 2 * P) * (vals.length > 1 ? i / (vals.length - 1) : .5), H - P - (H - 2 * P) * (v - mn) / sp]);
   // الزمن من اليسار لليمين كما في أي رسم بياني، فالخط الطالع يعني تحسّنًا بلا التباس
   const last = pts[pts.length - 1];
-  return `<svg class="spark" viewBox="0 0 ${W} ${H}"><polyline points="${pts.map(p => p.join(',')).join(' ')}"/><circle cx="${last[0]}" cy="${last[1]}" r="3.5"/></svg>`;
+  return `<svg class="spark" style="--pc:${c}" viewBox="0 0 ${W} ${H}"><polyline points="${pts.map(p => p.join(',')).join(' ')}"/><circle cx="${last[0]}" cy="${last[1]}" r="3.5"/></svg>`;
+}
+
+// اسم يوم السجل ولونه: المحفوظ معه وقت التمرين، وإلا من الأيام الحالية
+function logDay(d) {
+  const L0 = logsByDate[d];
+  if (L0.day && L0.day.name) return L0.day;
+  const ids = Object.keys(L0.items || {});
+  for (const sys of ['ul', 'custom']) {
+    const x = S.plans[sys].days.find(dd => ids.some(id => dd.ex.includes(id)));
+    if (x) return x;
+  }
+  return { name: 'تمرين', color: OFF };
 }
 
 function viewHist() {
@@ -429,19 +519,18 @@ function viewHist() {
     const rows = S.ex.filter(e => (S.logs[e.id] || []).length).map(e => {
       const ls = S.logs[e.id], top = ls.map(l => Math.max(...l.sets.map(s => +s.weight || 0))), reps = ls.map(l => Math.max(...l.sets.map(s => +s.reps || 0)));
       const useW = top.some(v => v > 0), vals = useW ? top : reps, diff = vals[vals.length - 1] - vals[0];
-      return `<div class="item ${e.part}"><div class="grow"><div class="name" style="font-size:15px">${esc(e.name)}</div>
+      return `<div class="item"><div class="grow"><div class="name" style="font-size:15px">${esc(e.name)}</div>
         <div class="meta">${useW ? `أعلى وزن ${n(vals[vals.length - 1])} كجم` : `${n(vals[vals.length - 1])} عدّة`} · ${n(ls.length)} ${say(ls.length, 'مرة', 'مرتين', 'مرات')}
-        ${diff > 0 ? ` · <span class="up">▲ ${n(diff)}${useW ? ' كجم' : ''}</span>` : ''}</div></div>${spark(vals)}</div>`;
+        ${diff > 0 ? ` · <span class="up">▲ ${n(diff)}${useW ? ' كجم' : ''}</span>` : ''}</div></div>${spark(vals, exColor(e.id))}</div>`;
     });
     return h + (rows.length ? `<div class="card list">${rows.join('')}</div>` : '<div class="empty">سجّل كم تمرين ويطلع لك تقدّمك هنا</div>');
   }
   const dates = Object.keys(logsByDate).filter(d => Object.keys(logsByDate[d].items || {}).length).sort().reverse();
   if (!dates.length) return h + '<div class="empty">ما سجّلت شي للحين</div>';
   return h + dates.map(d => {
-    const items = logsByDate[d].items;
+    const items = logsByDate[d].items, dd = logDay(d);
     const rows = Object.keys(items).map(id => ({ e: exById(id), sets: items[id] }));
-    const part = rows.find(r => r.e)?.e.part || 'off';
-    return `<div class="card day ${part}"><div class="row between" style="margin-bottom:4px"><b>${fmtDate(d)}</b><span class="pill p-${part}">${PART[part]}</span></div>` +
+    return `<div class="card day" style="--pc:${dd.color}"><div class="row between" style="margin-bottom:4px"><b>${fmtDate(d)}</b>${pill(dd.name, dd.color)}</div>` +
       rows.map(({ e, sets }) => `<div class="exl"><span>${e ? esc(e.name) : '<span class="sub">تمرين محذوف</span>'}</span><span>${summary(sets)}</span></div>`).join('') + '</div>';
   }).join('');
 }
@@ -450,12 +539,25 @@ const G_ICON = '<svg viewBox="0 0 48 48"><path fill="#FFC107" d="M43.6 20.5H42V2
 function renderLogin(err = '') {
   document.getElementById('app').innerHTML = `<div class="login">
     <img class="logo" src="icon.png" alt=""><h1>النادي</h1>
-    <p>جدول تمارينك: علوي وسفلي وأوف، ويسألك قبل كل تمرين تبي تزود ولا لا.</p>
+    <p>جدول تمارينك، ويسألك قبل كل تمرين تبي تزود ولا لا.</p>
     <button class="gbtn" data-act="login">${G_ICON}الدخول بحساب Google</button>
     <p class="sub">تمارينك تنحفظ في حسابك، وتفتحها من أي جهاز، ومحد يشوفها غيرك.</p>
     ${err ? `<div class="err">${esc(err)}</div>` : ''}</div>`;
 }
 const renderLoading = () => { document.getElementById('app').innerHTML = '<div class="login"><img class="logo" src="icon.png" alt=""><div class="sub">جاري تحميل تمارينك…</div></div>'; };
+function renderChoose() {
+  const c = '#a78bfa';
+  document.getElementById('app').innerHTML = `<div class="login" style="justify-content:flex-start;padding-top:calc(60px + env(safe-area-inset-top));gap:12px">
+    <img class="logo" src="icon.png" style="width:72px;height:72px;border-radius:20px" alt=""><h1 style="font-size:26px">هلا فيك 👋</h1>
+    <p>كيف تبي تتمرن؟ تقدر تغيّر بعدين.</p>
+    <button class="choice" style="--pc:#5b8cff" data-act="choose" data-v="ul"><div class="row"><div style="font-size:34px">💪</div><div class="grow"><div class="name" style="font-size:18px">علوي وسفلي</div>
+      <div class="sub">جاهز على طول: يوم علوي، ويوم سفلي، وأوف. فيه ١٣ تمرين جاهزة.</div></div></div>
+      <div class="chips">${pill('علوي', '#5b8cff')}${pill('سفلي', '#ff8f45')}${pill('أوف', OFF)}</div></button>
+    <button class="choice" style="--pc:${c}" data-act="choose" data-v="custom"><div class="row"><div style="font-size:34px">✏️</div><div class="grow"><div class="name" style="font-size:18px">تقسيمي</div>
+      <div class="sub">قسّم عضلاتك على الأيام مثل ما تبي، وسمّ كل يوم وحط تمارينه.</div></div></div>
+      <div class="chips">${pill('صدر وباي', c)}${pill('ظهر وتراي', '#34d399')}${pill('أرجل', '#ff8f45')}</div></button>
+  </div>`;
+}
 
 const ICONS = {
   today: '<svg viewBox="0 0 24 24"><path d="M6.5 6.5v11M17.5 6.5v11M3.5 9v6M20.5 9v6M6.5 12h11"/></svg>',
@@ -468,10 +570,11 @@ let pending = false;
 function render() {
   pending = false;
   if (!USER) return renderLogin();
+  if (choosing) return renderChoose();
   if (!S) return renderLoading();
   if (!TABS.some(t => t[0] === L.tab)) L.tab = 'today';
   const v = { today: viewToday, sched: viewSched, ex: viewEx, hist: viewHist }[L.tab]();
-  const title = L.tab === 'today' ? 'تمرين اليوم' : TABS.find(t => t[0] === L.tab)[1];
+  const title = L.tab === 'ex' && L.edit ? (L.edit.id ? 'تعديل يوم' : 'يوم جديد') : L.tab === 'today' ? 'تمرين اليوم' : TABS.find(t => t[0] === L.tab)[1];
   document.getElementById('app').innerHTML =
     `<header><h1>${title}</h1>${L.tab === 'today' && USER.photoURL ? `<img class="avatar" style="width:34px;height:34px" src="${esc(USER.photoURL)}" alt="" referrerpolicy="no-referrer" data-act="tab" data-v="ex">` : ''}</header><main>${v}</main>
      <nav><div class="in">${TABS.map(([k, t]) => `<button class="${L.tab === k ? 'on' : ''}" data-act="tab" data-v="${k}">${ICONS[k]}${t}</button>`).join('')}</div></nav>`;
@@ -496,21 +599,21 @@ async function login() {
   }
 }
 
+let profile = null, gotLogs = false;
+function ready() {
+  if (!profile || !gotLogs) return;
+  // المحرَّر الآن لا يُستبدل بلقطة السحابة، وإلا ضاع اللي اختاره قبل ما يحفظ
+  S = { ...normalize(profile), logs: buildLogs() };
+  refresh();
+}
 function listen(uid) {
-  let profile = null, gotLogs = false;
-  const ready = () => {
-    if (!profile || !gotLogs) return;
-    S = { ex: profile.ex || [], sched: profile.sched || {}, logs: buildLogs() };
-    refresh();
-  };
+  profile = null; gotLogs = false;
   unsubs.push(onSnapshot(doc(db, 'users', uid), snap => {
-    if (snap.exists()) { profile = snap.data(); return ready(); }
-    // الغياب من النسخة المحلية ليس غيابًا من الحساب: لو بذرنا الآن والجهاز بلا شبكة
-    // لكتبنا القائمة الافتراضية فوق تمارينه الحقيقية لما يرجع الاتصال
+    if (snap.exists()) { profile = snap.data(); choosing = false; return ready(); }
+    // الغياب من النسخة المحلية ليس غيابًا من الحساب: لو سألناه الآن والجهاز بلا شبكة
+    // لكتبنا حسابًا جديدًا فوق تمارينه الحقيقية لما يرجع الاتصال
     if (snap.metadata.fromCache) return;
-    profile = seed();
-    setDoc(snap.ref, profile).catch(fail);
-    ready();
+    choosing = true; render();
   }, fail));
   unsubs.push(onSnapshot(collection(db, 'users', uid, 'logs'), qs => {
     logsByDate = {};
@@ -522,7 +625,7 @@ function listen(uid) {
 
 onAuthStateChanged(auth, u => {
   unsubs.forEach(f => f()); unsubs = [];
-  USER = u; S = null; logsByDate = {};
+  USER = u; S = null; logsByDate = {}; choosing = false; L.edit = null;
   if (!u) return renderLogin();
   if (L.uid !== u.uid) { L.sess = null; L.uid = u.uid; }
   renderLoading();
@@ -530,7 +633,7 @@ onAuthStateChanged(auth, u => {
 });
 
 function exportData() {
-  const data = { app: 'alnadi', exported: new Date().toISOString(), email: USER.email, ex: S.ex, sched: S.sched, logs: logsByDate };
+  const data = { app: 'alnadi', exported: new Date().toISOString(), email: USER.email, system: S.system, ex: S.ex, plans: S.plans, logs: logsByDate };
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }));
   a.download = `alnadi-${TODAY}.json`;
@@ -546,23 +649,75 @@ function setField(it, f, i, val) {
   else if (f === 'set.reps' || f === 'set.weight') it.sets[+i][f.slice(4)] = val;
 }
 const updPrev = id => { const el = document.getElementById('prev-' + id), it = L.sess.items[id]; if (el) el.innerHTML = statBoxes(incTarget(id, it), lastLog(id).sets); };
+const newDraft = () => ({ id: '', name: '', color: COLORS[plan().days.length % COLORS.length], ex: [] });
+function newExercise() {
+  const nm = prompt('اسم التمرين');
+  if (!nm || !nm.trim()) return null;
+  const m = prompt('العضلة (مثلًا: صدر)', '') || '';
+  const e = { id: 'e' + Date.now(), name: nm.trim(), muscle: m.trim(), mode: 'one' };
+  S.ex.push(e);
+  return e;
+}
 
 document.addEventListener('click', ev => {
   const b = ev.target.closest('[data-act]');
   if (!b) return;
   const { act, id, v } = b.dataset;
   if (act === 'login') return login();
+  if (act === 'choose') {
+    const p = seed(v);
+    setDoc(doc(db, 'users', USER.uid), p).catch(fail);
+    profile = p; choosing = false;
+    // «تقسيمي» يبدأ فاضي، فنفتح له أول يوم مباشرة
+    if (v === 'custom') { S = { ...p, logs: buildLogs() }; L.tab = 'ex'; L.exv = 'days'; L.edit = newDraft(); }
+    ready(); return render();
+  }
   if (!S) return;
   const it = id && L.sess && L.sess.items[id];
   switch (act) {
-    case 'tab': L.tab = v; L.adding = false; window.scrollTo(0, 0); break;
+    case 'tab': L.tab = v; L.adding = false; L.edit = null; window.scrollTo(0, 0); break;
     case 'showPart': L.showPart = true; break;
     case 'todayPart': session().part = v; session().open = undefined; L.showPart = false; break;
     case 'open': { const s = session(); s.open = s.open === id ? '' : id; break; }
-    case 'sched':
-      S.sched[b.dataset.d] = v;
-      if (+b.dataset.d === new Date().getDay() && L.sess) L.sess.part = v;
+    case 'sched': {
+      plan().sched[b.dataset.d] = v;
+      if (+b.dataset.d === new Date().getDay() && L.sess) { L.sess.part = v; L.sess.open = undefined; }
       saveProfile(); break;
+    }
+    case 'system': {
+      if (v === S.system) return;
+      if (!confirm(`بتنتقل إلى «${SYS[v]}». «${SYS[S.system]}» يبقى محفوظ، وترجع له متى ما تبي.`)) return;
+      S.system = v; L.sess = null; saveProfile();
+      toast('✓ صرت على ' + SYS[v]);
+      if (v === 'custom' && !plan().days.length) { L.exv = 'days'; L.edit = newDraft(); }
+      break;
+    }
+    case 'exv': L.exv = v; L.adding = false; break;
+    case 'newDay': L.tab = 'ex'; L.edit = newDraft(); window.scrollTo(0, 0); break;
+    case 'editDay': { const d = dayById(id); L.tab = 'ex'; L.edit = { ...d, ex: [...d.ex] }; window.scrollTo(0, 0); break; }
+    case 'dcolor': L.edit.color = v; break;
+    case 'dtoggle': { const a = L.edit.ex, k = a.indexOf(id); k < 0 ? a.push(id) : a.splice(k, 1); break; }
+    case 'dnewex': { const e = newExercise(); if (!e) return; L.edit.ex.push(e.id); saveProfile(); break; }
+    case 'dcancel': L.edit = null; break;
+    case 'dsave': {
+      const D = L.edit, name = (D.name || '').trim();
+      if (!name) return toast('اكتب اسم اليوم', true);
+      const days = plan().days;
+      if (D.id) days[days.findIndex(d => d.id === D.id)] = { ...D, name };
+      else days.push({ id: 'd' + Date.now(), name, color: D.color, ex: D.ex });
+      L.edit = null; saveProfile();
+      toast('✓ انحفظ ' + name);
+      // يوم جديد ما هو في الجدول: نوديه للجدول يوزّعه
+      if (!D.id) { L.tab = 'sched'; window.scrollTo(0, 0); }
+      break;
+    }
+    case 'ddel': {
+      const D = L.edit;
+      if (!confirm(`تحذف «${D.name}»؟ التمارين وسجلّها تبقى.`)) return;
+      plan().days = plan().days.filter(d => d.id !== D.id);
+      for (const k in plan().sched) if (plan().sched[k] === D.id) plan().sched[k] = 'off';
+      L.edit = null; saveProfile(); break;
+    }
     case 'yes': it.step = 'inc'; it.inc = it.inc || { reps: 1, weight: 0 }; break;
     case 'no': it.target = copy(lastLog(id).sets); it.sets = copy(it.target); it.step = 'log'; break;
     case 'quick': {
@@ -586,12 +741,15 @@ document.addEventListener('click', ev => {
     case 'saveEx': {
       const sets = copy(it.sets).filter(s => s.reps > 0);
       if (!sets.length) return toast('اكتب العدّات أول', true);
+      const s = session(), d = dayById(s.part);
       // نحدّث الذاكرة قبل السحابة، فيظهر «خلص» فورًا حتى لو الشبكة بطيئة
-      (logsByDate[TODAY] = logsByDate[TODAY] || { items: {} }).items[id] = sets;
+      const rec = logsByDate[TODAY] = logsByDate[TODAY] || { items: {} };
+      rec.items[id] = sets;
+      if (d) rec.day = { id: d.id, name: d.name, color: d.color };
       S.logs = buildLogs();
-      saveLog(id, sets);
+      saveLog(id, sets, rec.day);
       it.sets = sets; it.step = 'done';
-      const s = session(), list = S.ex.filter(e => e.part === s.part), idx = list.findIndex(e => e.id === id);
+      const list = dayEx(d), idx = list.findIndex(e => e.id === id);
       const next = [...list.slice(idx + 1), ...list.slice(0, idx)].find(e => item(e.id).step !== 'done');
       s.open = next ? next.id : '';
       flash = id;
@@ -604,10 +762,13 @@ document.addEventListener('click', ev => {
     case 'edit': it.step = 'log'; break;
     case 'hist': L.hist = v; break;
     case 'adding': L.adding = !L.adding; break;
-    case 'npart': b.parentElement.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b)); return;
-    case 'delEx':
+    case 'nday': b.classList.toggle('on'); return;
+    case 'delEx': {
       if (!confirm('تحذف «' + exById(id).name + '»؟ سجلّه القديم يبقى.')) return;
-      S.ex = S.ex.filter(e => e.id !== id); saveProfile(); break;
+      S.ex = S.ex.filter(e => e.id !== id);
+      for (const sys of ['ul', 'custom']) S.plans[sys].days.forEach(d => { d.ex = d.ex.filter(x => x !== id); });
+      saveProfile(); break;
+    }
     case 'renameEx': {
       const e = exById(id), nm = prompt('اسم التمرين', e.name);
       if (!nm || !nm.trim()) return;
@@ -619,8 +780,9 @@ document.addEventListener('click', ev => {
     case 'addEx': {
       const nm = document.getElementById('nName').value.trim();
       if (!nm) return toast('اكتب اسم التمرين', true);
-      const part = document.querySelector('#nPart .on').dataset.v;
-      S.ex.push({ id: 'e' + Date.now(), name: nm, muscle: document.getElementById('nMuscle').value.trim(), part, mode: 'one' });
+      const e = { id: 'e' + Date.now(), name: nm, muscle: document.getElementById('nMuscle').value.trim(), mode: 'one' };
+      S.ex.push(e);
+      document.querySelectorAll('#nDays .on').forEach(x => dayById(x.dataset.v)?.ex.push(e.id));
       L.adding = false; saveProfile(); toast('✓ انضاف ' + nm); break;
     }
     case 'export': return exportData();
@@ -632,7 +794,9 @@ document.addEventListener('click', ev => {
 // الكتابة في الخانات تحفظ بلا إعادة رسم، وإلا ضاع المؤشر من الخانة مع كل حرف
 document.addEventListener('input', ev => {
   const t = ev.target, f = t.dataset.f;
-  if (!f || !L.sess) return;
+  if (!f) return;
+  if (f === 'draft.name') { if (L.edit) L.edit.name = t.value; return; }
+  if (!L.sess) return;
   setField(L.sess.items[t.dataset.id], f, t.dataset.i, t.value);
   if (f.startsWith('inc.')) updPrev(t.dataset.id);
   saveLocal();
