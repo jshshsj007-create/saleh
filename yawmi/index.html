@@ -411,8 +411,8 @@ function toast(msg, bad) {
   setTimeout(() => t.remove(), bad ? 5000 : 2200);
 }
 function fail(e) { console.error(e); toast('ما انحفظ: ' + (e.code || e.message), true); }
-const saveProfile = () => DB.saveProfile({ v: 2, system: S.system, ex: S.ex, plans: S.plans });
-const saveY = () => DB.saveY(Y);
+const saveProfile = () => { DB.saveProfile({ v: 2, system: S.system, ex: S.ex, plans: S.plans }); syncPush(); };
+const saveY = () => { DB.saveY(Y); syncPush(); };
 const emptyY = () => ({ v: 1, tasks: [], longs: [], rems: [], set: { gymTime: '21:00' } });
 
 /* ───────── النادي (منطق موقع النادي كما هو) ───────── */
@@ -954,6 +954,92 @@ let swReg = null;
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').then(r => { swReg = r; }).catch(() => { });
 navigator.serviceWorker?.addEventListener('message', e => { if (e.data && e.data.tab) { L.tab = e.data.tab; render(); } });
 const canNotify = () => 'Notification' in window && Notification.permission === 'granted';
+
+/* ───────── إشعارات والجوال مقفل (خادم «مصروف» على Netlify) ─────────
+   نفس طريقة فيض: اشتراك Web Push ومفتاح VAPID في الخادم. والفرق إن الإشعار هنا له
+   وقت، فالجهاز يحسب مواعيده الجاية بتوقيته ويرسلها للخادم، والخادم يصحى كل دقيقة
+   ويرسل اللي حان. وكل تعديل يعيد إرسالها، فاللي خلص أو انحذف ينشال. */
+const PUSH = '';
+const pushOK = () => !!PUSH && 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1);
+const standalone = () => navigator.standalone === true || matchMedia('(display-mode: standalone)').matches;
+let pushOn = false;
+try { pushOn = localStorage.getItem('yawmi.push') === '1'; } catch (e) { }
+const b64 = s => { const p = '='.repeat((4 - s.length % 4) % 4), r = atob((s + p).replace(/-/g, '+').replace(/_/g, '/')); return Uint8Array.from(r, c => c.charCodeAt(0)); };
+const api = (path, body) => fetch(PUSH + path, body ? { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) } : {}).then(r => r.json());
+async function getSub() { const r = swReg || await navigator.serviceWorker.ready; return r.pushManager.getSubscription(); }
+
+// مواعيد الأيام التسعة الجاية: نفس اللي يطلع في الشريط، بس محسوبة لوقتها
+function schedule() {
+  const out = [], now = Date.now(), at = (d, t) => new Date(d + 'T' + (t || DEF_T)).getTime();
+  const add = (ms, k, title, body, tab) => { if (ms > now) out.push({ at: ms, k, title, body, tab }); };
+  const when = (d, t) => `${DAYS[dow(d)]} ${dm(d)} · ${hm(t || DEF_T)}`;
+  const pres = (x, d, t, title, tab) => (x.pre || []).forEach(m => add(at(d, t) - m * 6e4, `p:${x.id}:${d}:${m}`, title, `${PRE.find(p => p[0] === m)?.[1].replace('قبل', 'بعد') || ''} · ${when(d, t)}`, tab));
+  for (let i = 0; i <= 8; i++) {
+    const d = addD(TODAY, i);
+    for (const t of tasksOn(d)) if (!isDone(t, d)) {
+      if (t.time) add(at(d, t.time), `t:${t.id}:${d}`, t.title, t.note || `مهمة · ${hm(t.time)}`, 'today');
+      pres(t, d, t.time, t.title, i ? 'week' : 'today');
+    }
+    for (const r of remsOn(d)) { add(at(d, r.time), `r:${r.id}:${d}`, '🔔 ' + r.title, hm(r.time), 'rem'); pres(r, d, r.time, '🔔 ' + r.title, 'rem'); }
+    // يوم تمرين ما انسجّل فيه شي: «ترا ما رحت النادي». ولو سجّلت، المزامنة تشيله
+    if (S && plan().days.length && schedOf(dow(d)) !== 'off' && !loggedOn(d))
+      add(at(d, Y.set.gymTime || '21:00'), `g:${d}`, 'ترا ما رحت النادي اليوم', `اليوم ${nameOf(schedOf(dow(d)))}، ولو ما سجّلت شي قبل ١١:٥٩ م ينحسب أوف`, 'gym');
+    if (dow(d) === 6) { const b = weekBrief(d); if (b) add(at(d, '08:00'), `w:${d}`, 'مهام هذا الأسبوع', b, 'week'); }
+  }
+  for (const l of Y.longs) if (!l.done) {
+    add(at(l.due, DEF_T), `ld:${l.id}`, `«${l.title}»: اليوم آخر يوم`, 'مهمة بعيدة المدى', 'long');
+    pres(l, l.due, DEF_T, `«${l.title}»`, 'long');
+  }
+  // يومين أوف ورا بعض: الثالث «لازم تروح». من آخر يوم سجّلت فيه
+  if (S) {
+    const last = Object.keys(logsByDate).filter(loggedOn).sort().pop();
+    if (last) for (let k = 3; k <= 10; k++) {
+      const d = addD(last, k);
+      if (d >= TODAY && d <= addD(TODAY, 8)) add(at(d, '10:00'), `s:${d}`, 'لازم تروح النادي اليوم', `صار لك ${cnt(k - 1, 'يوم', 'يومين', 'أيام')} أوف`, 'gym');
+    }
+  }
+  return out.sort((a, b) => a.at - b.at);
+}
+let pushT = null, lastPush = '';
+try { lastPush = localStorage.getItem('yawmi.pushsig') || ''; } catch (e) { }
+// بعد كل حفظ بثانيتين، ومرة وحدة لكل تغيير: النقرات المتتالية ترسل مرة
+function syncPush(force) {
+  if (!pushOn || !pushOK() || !S || !Y) return;
+  clearTimeout(pushT);
+  pushT = setTimeout(async () => {
+    try {
+      const sub = await getSub();
+      if (!sub) { pushOn = false; localStorage.setItem('yawmi.push', '0'); return; }
+      const items = schedule(), sig = JSON.stringify([sub.endpoint, items]);
+      // نفس المواعيد: ما نرسل إلا مرة كل ٦ ساعات، يكفي يذكّر الخادم إن الجهاز حيّ
+      const stamp = +(localStorage.getItem('yawmi.pushat') || 0);
+      if (!force && sig === lastPush && Date.now() - stamp < 6 * 3600e3) return;
+      const r = await api('sync', { sub: sub.toJSON(), items });
+      if (r.ok) { lastPush = sig; localStorage.setItem('yawmi.pushsig', sig); localStorage.setItem('yawmi.pushat', String(Date.now())); }
+    } catch (e) { console.error('push sync', e); }
+  }, force ? 0 : 2000);
+}
+async function enablePush() {
+  if (isIOS && !standalone()) return toast('أضف التطبيق للشاشة الرئيسية أول، وافتحه من أيقونته', true);
+  try {
+    const p = await Notification.requestPermission();
+    if (p !== 'granted') { render(); return toast('ما سمحت بالإشعارات', true); }
+    const reg = swReg || await navigator.serviceWorker.ready;
+    const { key } = await api('key');
+    const sub = (await reg.pushManager.getSubscription()) || await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64(key) });
+    pushOn = true; localStorage.setItem('yawmi.push', '1');
+    syncPush(true);
+    const t = await api('test', { sub: sub.toJSON() });
+    toast(t.ok ? '✓ تفعّلت، وجاك إشعار تجربة' : 'تفعّلت، بس التجربة ما وصلت: ' + t.error, !t.ok);
+  } catch (e) { console.error(e); toast('ما زبط التفعيل: ' + e.message, true); }
+  render();
+}
+async function disablePush() {
+  try { const sub = await getSub(); if (sub) { await api('off', { endpoint: sub.endpoint }); await sub.unsubscribe(); } } catch (e) { console.error(e); }
+  pushOn = false; localStorage.setItem('yawmi.push', '0'); lastPush = '';
+  toast('وقفت الإشعارات'); render();
+}
 function checkNotify() {
   if (!S || !Y) return;
   TODAY = iso(new Date());
@@ -970,7 +1056,7 @@ function checkNotify() {
     // تذكيرٌ فات وقته بساعتين ما يُرسل متأخرًا، يكفيه الشريط
     if (a.fresh) { const [h, m] = a.fresh.split(':').map(Number); if (mins - (h * 60 + m) > 120) { fired[a.k] = 1; changed = true; continue; } }
     fired[a.k] = 1; changed = true;
-    if (canNotify()) {
+    if (canNotify() && !pushOn) {
       const opts = { body: a.s, icon: '../icon.png', badge: '../icon.png', tag: a.k, data: { tab: a.tab } };
       (swReg ? swReg.showNotification(a.t, opts) : Promise.resolve(new Notification(a.t, opts))).catch(() => { });
     }
@@ -983,9 +1069,18 @@ function checkNotify() {
   }
 }
 setInterval(() => { checkNotify(); if (L.tab === 'home' && !typing()) refresh(); }, 30000);
-document.addEventListener('visibilitychange', () => { if (!document.hidden) { TODAY = iso(new Date()); checkNotify(); refresh(); } });
+document.addEventListener('visibilitychange', () => { if (!document.hidden) { TODAY = iso(new Date()); checkNotify(); syncPush(); refresh(); } });
 
-function notifCard() {
+function notifCard(inSettings) {
+  if (pushOK()) {
+    if (isIOS && !standalone()) return `<div class="card"><div class="name" style="font-size:15px">عشان يجيك التنبيه والجوال مقفل</div>
+      <div class="sub" style="margin-top:4px">١. افتح الموقع في Safari<br>٢. زر المشاركة ⬆️ ← «إضافة إلى الشاشة الرئيسية»<br>٣. افتح «يومي» من أيقونته الجديدة<br>٤. ارجع هنا واضغط «فعّل»</div></div>`;
+    if (Notification.permission === 'denied') return `<div class="card"><div class="sub">الإشعارات مقفلة لهذا التطبيق. افتحها من إعدادات الجوال ← الإشعارات.</div></div>`;
+    if (pushOn && Notification.permission === 'granted') return inSettings ? `<div class="card"><div class="row"><div class="grow"><div class="name" style="font-size:15px">✓ الإشعارات شغّالة</div>
+      <div class="sub">يجيك التنبيه بوقته حتى لو الجوال مقفل</div></div></div>
+      <div class="btns"><button class="sm" data-act="pushTest">جرّب إشعار</button><button class="sm ghost" data-act="pushOff">أوقفها</button></div></div>` : '';
+    return `<div class="card row"><div class="grow"><div class="name" style="font-size:15px">فعّل الإشعارات</div><div class="sub">يجيك التنبيه بوقته حتى لو الجوال مقفل</div></div><button class="pri sm" data-act="pushOn">فعّل</button></div>`;
+  }
   if (!('Notification' in window)) return `<div class="card"><div class="name" style="font-size:15px">الإشعارات</div><div class="sub" style="margin-top:4px">في الآيفون: افتح الموقع من Safari ← زر المشاركة ← «إضافة إلى الشاشة الرئيسية»، وافتحه من الأيقونة، وبعدها فعّل الإشعارات من هنا.</div></div>`;
   if (Notification.permission === 'granted') return '';
   if (Notification.permission === 'denied') return `<div class="card"><div class="sub">الإشعارات مقفلة لهذا الموقع. افتحها من إعدادات الجوال.</div></div>`;
@@ -1061,7 +1156,7 @@ function viewHome() {
 
 function viewSet() {
   const standalone = navigator.standalone || matchMedia('(display-mode: standalone)').matches;
-  return notifCard() + `<div class="card"><div class="name" style="font-size:15px">أيقونة التطبيق</div>
+  return notifCard(true) + `<div class="card"><div class="name" style="font-size:15px">أيقونة التطبيق</div>
     <div class="row" style="margin-top:10px"><img src="${myIcon || DEF_ICON}" alt="" style="width:72px;height:72px;border-radius:18px;object-fit:cover;flex:none;background:var(--card2)">
     <div class="grow"><div class="sub">${myIcon ? 'صورتك هي الأيقونة' : 'الأيقونة الأصلية'}</div>
     <div class="btns" style="margin-top:8px"><button class="sm pri" data-act="pickImg" data-id="_icon">📷 اختر صورتك</button>${myIcon ? '<button class="sm ghost" data-act="resetIcon">رجّع الأصلية</button>' : ''}</div></div></div>
@@ -1130,7 +1225,7 @@ let profile = null, gotLogs = false;
 function ready() {
   if (!profile || !gotLogs || !Y) return;
   S = { ...normalize(profile), logs: buildLogs() };
-  checkNotify();
+  checkNotify(); syncPush();
   refresh();
 }
 function listen(u) {
@@ -1276,6 +1371,9 @@ document.addEventListener('click', ev => {
     case 'go': if (L.tab !== v) fx.page = true; L.tab = v; L.form = null; L.edit = null; L.adding = false; L.showAlerts = false; window.scrollTo(0, 0); break;
     case 'alerts': L.showAlerts = !L.showAlerts; break;
     case 'gv': if (L.gv !== v) fx.page = true; L.gv = v; L.adding = false; L.edit = null; window.scrollTo(0, 0); break;
+    case 'pushOn': enablePush(); return;
+    case 'pushOff': if (confirm('توقف الإشعارات؟')) disablePush(); return;
+    case 'pushTest': getSub().then(sub => sub && api('test', { sub: sub.toJSON() })).then(r => toast(r && r.ok ? '✓ انرسل، شوف الإشعار' : 'ما وصل: ' + (r && r.error), !(r && r.ok))).catch(e => toast('ما وصل: ' + e.message, true)); return;
     case 'perm':
       Notification.requestPermission().then(p => { if (p === 'granted') { toast('✓ تفعّلت الإشعارات'); checkNotify(); } render(); });
       return;
@@ -1423,7 +1521,7 @@ document.addEventListener('click', ev => {
       rec.items[id] = sets;
       if (d) rec.day = { id: d.id, name: d.name, color: d.color };
       S.logs = buildLogs();
-      DB.saveLog(TODAY, id, sets, rec.day);
+      DB.saveLog(TODAY, id, sets, rec.day); syncPush();
       it.sets = sets; it.step = 'done';
       const list = dayEx(d), idx = list.findIndex(e => e.id === id);
       const next = [...list.slice(idx + 1), ...list.slice(0, idx)].find(e => item(e.id).step !== 'done');
