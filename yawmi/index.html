@@ -9,8 +9,8 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="يومي">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<link rel="apple-touch-icon" href="../icon.png">
-<link rel="icon" href="../icon.png">
+<link rel="apple-touch-icon" id="appIcon" href="../icon.png">
+<link rel="icon" id="favIcon" href="../icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
@@ -257,6 +257,18 @@ nav button.on{color:var(--acc);font-weight:700}
 <script type="module">
 // ?demo يشغّل التطبيق كاملًا ببياناتٍ في الجهاز بلا Firebase: للتجربة والفحص قبل النشر
 const DEMO = new URLSearchParams(location.search).has('demo');
+
+// أيقونة الشاشة الرئيسية: صورة يختارها صاحب التطبيق بنفسه. الآيفون يأخذ الأيقونة لحظة
+// «إضافة إلى الشاشة الرئيسية»، فتُحفظ في الجهاز وتُوضع في الصفحة قبل أي شي ثاني
+const DEF_ICON = '../icon.png';
+let myIcon = null;
+try { myIcon = localStorage.getItem('yawmi.icon'); } catch (e) { }
+function applyIcon(d) {
+  myIcon = d || null;
+  try { d ? localStorage.setItem('yawmi.icon', d) : localStorage.removeItem('yawmi.icon'); } catch (e) { }
+  for (const id of ['appIcon', 'favIcon']) document.getElementById(id).href = myIcon || DEF_ICON;
+}
+applyIcon(myIcon);
 
 // تاريخ اليوم بتوقيت الجهاز، لأن «اليوم» عند صاحبه هو يومه هو لا يوم UTC
 const iso = d => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
@@ -1008,7 +1020,13 @@ function viewHome() {
 }
 
 function viewSet() {
-  return notifCard() + `<div class="card form"><div class="name" style="font-size:15px">تنبيه «ما رحت النادي»</div>
+  const standalone = navigator.standalone || matchMedia('(display-mode: standalone)').matches;
+  return notifCard() + `<div class="card"><div class="name" style="font-size:15px">أيقونة التطبيق</div>
+    <div class="row" style="margin-top:10px"><img src="${myIcon || DEF_ICON}" alt="" style="width:72px;height:72px;border-radius:18px;object-fit:cover;flex:none;background:var(--card2)">
+    <div class="grow"><div class="sub">${myIcon ? 'صورتك هي الأيقونة' : 'الأيقونة الأصلية'}</div>
+    <div class="btns" style="margin-top:8px"><button class="sm pri" data-act="pickImg" data-id="_icon">📷 اختر صورتك</button>${myIcon ? '<button class="sm ghost" data-act="resetIcon">رجّع الأصلية</button>' : ''}</div></div></div>
+    ${myIcon ? `<div class="sub" style="margin-top:10px">عشان تتغيّر على شاشة الجوال: ${standalone ? 'احذف أيقونة التطبيق من الشاشة الرئيسية، وافتح الرابط في Safari، وبعدين' : 'احذف الأيقونة القديمة من الشاشة الرئيسية إذا كانت موجودة، وبعدين من هنا في Safari'}: زر المشاركة ← «إضافة إلى الشاشة الرئيسية». والاسم تكتبه أنت هناك.</div>` : ''}</div>
+    ` + `<div class="card form"><div class="name" style="font-size:15px">تنبيه «ما رحت النادي»</div>
     <div class="sub">في يوم التمرين، لو ما سجّلت شي لين هالساعة يذكّرك. ولو ما سجّلت لين ١١:٥٩ م ينحسب اليوم أوف، وبعد يومين أوف ورا بعض يقول لك: لازم تروح.</div>
     <input type="time" data-f="set.gymTime" value="${Y.set.gymTime || '21:00'}"></div>
     <div class="card">
@@ -1093,7 +1111,12 @@ function listen(u) {
       Y = d ? { ...e, ...d, set: { ...e.set, ...(d.set || {}) } } : e;
       ready(); if (!profile && choosing) render();
     },
-    img(o) { IMG = o; if (S) refresh(); },
+    img(o) {
+      IMG = o;
+      // الأيقونة اللي اختارها من جهاز ثاني توصل هنا بعد، والمحذوفة تنحذف
+      if ((IMG._icon || null) !== myIcon && (IMG._icon || !DEMO)) applyIcon(IMG._icon);
+      if (S) refresh();
+    },
   }) || [];
 }
 
@@ -1136,11 +1159,28 @@ async function shrink(file) {
     return c.toDataURL('image/jpeg', 0.72);
   } finally { URL.revokeObjectURL(url); }
 }
+// الأيقونة مربّعة: نقصّ وسط الصورة بدل ما نمطّها
+async function squareIcon(file) {
+  const url = URL.createObjectURL(file);
+  try {
+    const img = new Image();
+    await new Promise((ok, no) => { img.onload = ok; img.onerror = no; img.src = url; });
+    const w = img.naturalWidth, h = img.naturalHeight, m = Math.min(w, h), S0 = 180;
+    const c = document.createElement('canvas'); c.width = c.height = S0;
+    c.getContext('2d').drawImage(img, (w - m) / 2, (h - m) / 2, m, m, 0, 0, S0, S0);
+    return c.toDataURL('image/jpeg', 0.88);
+  } finally { URL.revokeObjectURL(url); }
+}
 let imgFor = null;
 document.getElementById('imgPick').addEventListener('change', async ev => {
   const f = ev.target.files[0]; ev.target.value = '';
   if (!f || !imgFor) return;
   try {
+    if (imgFor === '_icon') {
+      const d = await squareIcon(f);
+      IMG._icon = d; applyIcon(d); DB.saveImg('_icon', d);
+      toast('✓ تغيّرت الأيقونة'); return render();
+    }
     toast('جاري تجهيز الصورة…');
     const d = await shrink(f);
     fx.img = imgFor;
@@ -1199,6 +1239,7 @@ document.addEventListener('click', ev => {
       Notification.requestPermission().then(p => { if (p === 'granted') { toast('✓ تفعّلت الإشعارات'); checkNotify(); } render(); });
       return;
     case 'pickImg': imgFor = id; document.querySelector('.zoom')?.remove(); document.getElementById('imgPick').click(); return;
+    case 'resetIcon': delete IMG._icon; applyIcon(null); DB.delImg('_icon'); toast('رجعت الأيقونة الأصلية'); break;
     case 'delImg': delete IMG[id]; DB.delImg(id); document.querySelector('.zoom')?.remove(); toast('انحذفت الصورة'); break;
 
     // المهام
