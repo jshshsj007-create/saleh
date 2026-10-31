@@ -71,6 +71,47 @@ h2{font-size:14px;font-weight:600;margin:6px 4px -4px;color:var(--mute);display:
 .tile .icb{margin-bottom:8px}
 .tile .tt{font-weight:700;font-size:17px}
 .tile .ts{color:var(--mute);font-size:13px}
+/* مؤقّت الراحة: عائمٌ فوق شريط التنقّل، برا الصفحة عشان ما تمسحه إعادة الرسم */
+.rest-t{position:fixed;inset-inline:16px;bottom:calc(78px + env(safe-area-inset-bottom));max-width:528px;margin:0 auto;z-index:15;display:flex;align-items:center;gap:12px;
+  padding:10px 12px;border-radius:20px;background:color-mix(in srgb,var(--card2) 92%,transparent);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
+  border:1px solid color-mix(in srgb,var(--acc) 45%,transparent);box-shadow:0 12px 34px -12px #000;animation:pageIn .3s ease}
+.rest-t .rr{width:54px;height:54px;flex:none;position:relative}
+.rest-t .rr svg{width:100%;height:100%;transform:rotate(-90deg)}
+.rest-t .rr circle{fill:none;stroke-width:6}
+.rest-t .rr .bgc{stroke:var(--line)}
+.rest-t .rr .fg{stroke:var(--acc);stroke-linecap:round}
+.rest-t .rr span{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:20px}
+.rest-t .tt{font-size:24px;font-weight:700;font-variant-numeric:tabular-nums;line-height:1.1}
+.rest-t.done{border-color:var(--ok);background:color-mix(in srgb,var(--ok) 22%,var(--card2))}
+.rest-t.done .tt{color:var(--ok);font-size:19px}
+.rest-t.done{animation:pulse 1s ease 3}
+@keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.03)}}
+.restrow{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:12px}
+.restrow .l{font-size:12px;color:var(--mute);margin-inline-end:2px}
+.restrow button{padding:5px 11px;font-size:13px;border-radius:999px;background:transparent;color:var(--acc);border-color:color-mix(in srgb,var(--acc) 40%,transparent)}
+/* رسم التقدّم */
+.chart{width:100%;height:auto;display:block}
+.chart .grid{stroke:var(--line);stroke-width:1}
+.chart .ax{fill:var(--mute);font-size:10px;font-family:inherit}
+.chart .ln{fill:none;stroke-width:3;stroke-linecap:round;stroke-linejoin:round}
+.chart .pt{stroke:var(--card);stroke-width:2}
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:12px}
+.kpis div{background:var(--card2);border-radius:12px;padding:8px 4px;text-align:center}
+.kpis b{display:block;font-size:17px}
+.kpis span{font-size:11px;color:var(--mute)}
+.item.tap{cursor:pointer}
+/* تقرير الأسبوع */
+.rep-c{background:linear-gradient(135deg,color-mix(in srgb,#a78bfa 20%,var(--card)),var(--card));border:1px solid color-mix(in srgb,#a78bfa 40%,transparent)}
+.rgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}
+.rgrid>div{background:color-mix(in srgb,var(--bg) 55%,transparent);border-radius:14px;padding:10px 12px}
+.rgrid b{display:block;font-size:22px;line-height:1.2}
+.rgrid span{font-size:12px;color:var(--mute)}
+.rgrid i{display:block;font-style:normal;font-size:11.5px;font-weight:600;margin-top:2px}
+.rgrid i.z{color:var(--mute);font-weight:500}
+.rgrid i.u{color:var(--ok)}.rgrid i.d{color:#ff9b9b}
+.rdots{display:flex;gap:5px;margin-top:6px}
+.rdots s{flex:1;height:8px;border-radius:999px;background:var(--line);text-decoration:none}
+.rdots s.on{background:var(--ok)}.rdots s.miss{background:color-mix(in srgb,var(--danger) 60%,transparent)}
 /* شريط تقدّم صغير أسفل المربّع: تشوف وين وصلت قبل ما تفتحه */
 .tbar{width:64%;height:5px;border-radius:999px;background:var(--card2);overflow:hidden;margin-top:8px}
 .tbar i{display:block;height:100%;border-radius:999px;background:var(--acc);transition:width .6s ease}
@@ -291,6 +332,7 @@ nav button.on{color:var(--acc);font-weight:700}
 <body>
 <div id="app"><div class="login"><div class="sub">جاري التحميل…</div></div></div>
 <input type="file" id="imgPick" accept="image/*" hidden>
+<div id="restBox"></div>
 <script type="module">
 // ?demo يشغّل التطبيق كاملًا ببياناتٍ في الجهاز بلا Firebase: للتجربة والفحص قبل النشر
 const DEMO = new URLSearchParams(location.search).has('demo');
@@ -618,13 +660,13 @@ function exBody(e, it, l) {
       });
       h += `<button class="sm ghost" style="margin-top:10px" data-act="addSet" ${A}>+ جولة</button>`;
     }
-    return h + `<div class="btns"><button class="okb grow" data-act="saveEx" ${A}>✓ سجّل اللي سويته</button>${l ? `<button class="ghost" data-act="back" ${A}>رجوع</button>` : ''}</div>`;
+    return h + restRow() + `<div class="btns"><button class="okb grow" data-act="saveEx" ${A}>✓ سجّل اللي سويته</button>${l ? `<button class="ghost" data-act="back" ${A}>رجوع</button>` : ''}</div>`;
   }
   const better = l && volume(it.sets) > volume(l.sets), pr = isPR(e.id, it.sets);
   return h + `<div class="lbl">سجّلت اليوم${l ? ' · والصغير جنبه رقمك السابق' : ''}</div>${statBoxes(it.sets, l?.sets)}
     ${pr ? `<div class="pr"><span class="cup">🏆</span><div class="grow">رقم قياسي جديد!<div class="sub" style="font-weight:500">${n(Math.max(...it.sets.map(x => +x.weight || 0)))} كجم، وكان أعلى شي ${n(bestBefore(e.id))}</div></div></div>`
       : better ? '<div class="better">▲ أقوى من المرة اللي فاتت</div>' : ''}
-    <div class="btns"><button class="sm ghost" data-act="edit" ${A}>تعديل</button>${IMG[e.id] ? `<button class="sm ghost" data-act="pickImg" ${A}>📷 غيّر الصورة</button>` : ''}</div>`;
+    <div class="btns"><button class="sm ghost" data-act="edit" ${A}>تعديل</button><button class="sm ghost" data-act="chart" data-v="${e.id}">📈 تقدّمي</button>${IMG[e.id] ? `<button class="sm ghost" data-act="pickImg" ${A}>📷 غيّر الصورة</button>` : ''}</div>`;
 }
 
 function exCard(e, i, openId) {
@@ -768,9 +810,9 @@ function viewHist() {
     const rows = S.ex.filter(e => (S.logs[e.id] || []).length).map(e => {
       const ls = S.logs[e.id], top = ls.map(l => Math.max(...l.sets.map(s => +s.weight || 0))), reps = ls.map(l => Math.max(...l.sets.map(s => +s.reps || 0)));
       const useW = top.some(v => v > 0), vals = useW ? top : reps, diff = vals[vals.length - 1] - vals[0];
-      return `<div class="item">${badge(e)}<div class="grow"><div class="name" style="font-size:15px">${esc(e.name)}</div>
+      return `<div class="item tap" data-act="chart" data-v="${e.id}">${badge(e)}<div class="grow"><div class="name" style="font-size:15px">${esc(e.name)}</div>
         <div class="meta">${useW ? `أعلى وزن ${n(vals[vals.length - 1])} كجم` : `${n(vals[vals.length - 1])} عدّة`} · ${n(ls.length)} ${say(ls.length, 'مرة', 'مرتين', 'مرات')}
-        ${diff > 0 ? ` · <span class="up">▲ ${n(diff)}${useW ? ' كجم' : ''}</span>` : ''}</div></div>${spark(vals, exColor(e.id))}</div>`;
+        ${diff > 0 ? ` · <span class="up">▲ ${n(diff)}${useW ? ' كجم' : ''}</span>` : ''}</div></div>${spark(vals, exColor(e.id))}<span class="chev">‹</span></div>`;
     });
     return h + (rows.length ? `<div class="card list">${rows.join('')}</div>` : '<div class="empty">سجّل كم تمرين ويطلع لك تقدّمك هنا</div>');
   }
@@ -802,7 +844,144 @@ const GV = [['day', 'اليوم'], ['sched', 'الجدول'], ['ex', 'التما
 function viewGym() {
   if (!S) return `<div class="empty">جاري تحميل تمارينك…</div>`;
   const seg = L.edit ? '' : `<div class="seg" style="margin-top:0">${GV.map(([k, t]) => `<button class="${L.gv === k ? 'on' : ''}" data-act="gv" data-v="${k}">${t}</button>`).join('')}</div>`;
+  if (L.chart) return viewChart();
   return seg + ({ day: viewGymDay, sched: viewSched, ex: viewEx, hist: viewHist }[L.gv] || viewGymDay)();
+}
+
+/* ───────── مؤقّت الراحة ─────────
+   ينحسب من وقت النهاية لا بالعدّ: لو طلعت من التطبيق ورجعت، يكمل من مكانه الصح.
+   ويرسم نفسه لحاله كل ربع ثانية في عنصر برا الصفحة، فإعادة رسم الصفحة ما تقطعه */
+const RESTS = [60, 90, 120, 180];
+let REST = null;
+try { REST = JSON.parse(localStorage.getItem('yawmi.rest')); } catch (e) { }
+const mmss = sec => { sec = Math.max(0, Math.ceil(sec)); return `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`; };
+const saveRest = () => { try { REST ? localStorage.setItem('yawmi.rest', JSON.stringify(REST)) : localStorage.removeItem('yawmi.rest'); } catch (e) { } };
+function beep() {
+  try {
+    const A = new (window.AudioContext || window.webkitAudioContext)();
+    [0, .22, .44].forEach((t, i) => { const o = A.createOscillator(), g = A.createGain(); o.frequency.value = i === 2 ? 1046 : 784; o.connect(g); g.connect(A.destination);
+      g.gain.setValueAtTime(.0001, A.currentTime + t); g.gain.exponentialRampToValueAtTime(.3, A.currentTime + t + .02); g.gain.exponentialRampToValueAtTime(.0001, A.currentTime + t + .18);
+      o.start(A.currentTime + t); o.stop(A.currentTime + t + .2); });
+  } catch (e) { }
+}
+function startRest(sec) {
+  REST = { end: Date.now() + sec * 1000, dur: sec };
+  Y.set.rest = sec;
+  saveRest(); drawRest(); buzz(10);
+}
+function drawRest() {
+  const box = document.getElementById('restBox');
+  if (!REST) { box.innerHTML = ''; return; }
+  const left = (REST.end - Date.now()) / 1000, done = left <= 0;
+  if (done && !REST.rang) {
+    REST.rang = true; saveRest(); beep(); buzz([200, 100, 200]);
+    if (document.hidden && canNotify() && swReg) swReg.showNotification('يلا الجولة الجاية 💪', { body: 'خلصت الراحة', tag: 'rest', icon: '../icon.png' }).catch(() => { });
+  }
+  // بعد دقيقة من النهاية يختفي لحاله
+  if (done && left < -60) { REST = null; saveRest(); box.innerHTML = ''; return; }
+  const C = 2 * Math.PI * 23, f = done ? 0 : left / REST.dur;
+  // الهيكل يُبنى مرة لكل حالة؛ وكل ربع ثانية يتغيّر الرقم والحلقة بس، وإلا ضاعت ضغطة
+  // الإصبع على زرّ انمسح وانبنى من جديد تحتها
+  const state = (done ? 'd' : 'r') + REST.dur;
+  let el = box.firstElementChild;
+  if (!el || el.dataset.s !== state) {
+    box.innerHTML = `<div class="rest-t ${done ? 'done' : ''}" data-s="${state}">
+      <div class="rr"><svg viewBox="0 0 54 54"><circle class="bgc" cx="27" cy="27" r="23"/><circle class="fg" cx="27" cy="27" r="23" stroke-dasharray="${C}" style="${done ? 'stroke:var(--ok)' : ''}"/></svg><span>${done ? '💪' : '⏱️'}</span></div>
+      <div class="grow"><div class="tt"></div><div class="sub">${done ? 'خلصت الراحة' : `راحة ${mmss(REST.dur)}`}</div></div>
+      ${done ? `<button class="sm" data-act="restGo" data-v="${REST.dur}">↻ ${mmss(REST.dur)}</button>` : '<button class="sm ghost" data-act="restAdd">+١٥ث</button>'}
+      <button class="ic" data-act="restStop" aria-label="وقف" style="font-size:18px">✕</button></div>`;
+    el = box.firstElementChild;
+  }
+  el.querySelector('.tt').textContent = done ? 'يلا الجولة الجاية!' : mmss(left);
+  el.querySelector('.fg').setAttribute('stroke-dashoffset', C * (1 - f));
+}
+setInterval(() => { if (REST) drawRest(); }, 250);
+const restRow = () => `<div class="restrow"><span class="l">⏱️ راحة</span>${RESTS.map(x => `<button data-act="restGo" data-v="${x}">${mmss(x)}</button>`).join('')}</div>`;
+
+/* ───────── رسم تقدّم التمرين ───────── */
+// لكل مرة: أعلى وزن (أو أعلى عدّات للتمرين اللي بلا وزن). والرقم القياسي نقطة ذهبية
+function exSeries(id) {
+  const ls = S.logs[id] || [];
+  const w = ls.map(l => Math.max(...l.sets.map(x => +x.weight || 0)));
+  const useW = w.some(v => v > 0);
+  return { ls, useW, vals: useW ? w : ls.map(l => Math.max(...l.sets.map(x => +x.reps || 0))), unit: useW ? 'كجم' : 'عدّة' };
+}
+function bigChart(vals, dates, c) {
+  const W = 340, H = 190, pl = 34, pr = 12, pt = 16, pb = 26;
+  let mn = Math.min(...vals), mx = Math.max(...vals);
+  if (mn === mx) { mn -= 5; mx += 5; }
+  const pad = (mx - mn) * .12; mn = Math.max(0, mn - pad); mx += pad;
+  // الزمن من اليسار لليمين مثل أي رسم بياني
+  const X = i => pl + (W - pl - pr) * (vals.length > 1 ? i / (vals.length - 1) : .5), Yv = v => pt + (H - pt - pb) * (1 - (v - mn) / (mx - mn));
+  const ticks = [0, .5, 1].map(f => mn + (mx - mn) * f);
+  const pts = vals.map((v, i) => [X(i), Yv(v)]);
+  let best = -Infinity;
+  const prs = vals.map((v, i) => { const isPr = i > 0 && v > best; best = Math.max(best, v); return isPr; });
+  const area = `M${pts[0][0]},${H - pb} L${pts.map(p => p.join(',')).join(' L')} L${pts[pts.length - 1][0]},${H - pb} Z`;
+  const lbl = d => `${+d.slice(8)}/${+d.slice(5, 7)}`;
+  return `<svg class="chart" viewBox="0 0 ${W} ${H}" style="direction:ltr"><defs><linearGradient id="cg" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="${c}" stop-opacity=".35"/><stop offset="1" stop-color="${c}" stop-opacity="0"/></linearGradient></defs>
+    ${ticks.map(t => `<line class="grid" x1="${pl}" x2="${W - pr}" y1="${Yv(t)}" y2="${Yv(t)}"/><text class="ax" x="${pl - 6}" y="${Yv(t) + 3}" text-anchor="end">${Math.round(t)}</text>`).join('')}
+    <path d="${area}" fill="url(#cg)"/><polyline class="ln" stroke="${c}" points="${pts.map(p => p.join(',')).join(' ')}"/>
+    ${pts.map((p, i) => `<circle class="pt" cx="${p[0]}" cy="${p[1]}" r="${prs[i] ? 6 : 4}" fill="${prs[i] ? '#fbbf24' : c}"/>`).join('')}
+    <text class="ax" x="${pts[0][0]}" y="${H - 8}" text-anchor="${vals.length > 1 ? 'start' : 'middle'}">${lbl(dates[0])}</text>
+    ${vals.length > 1 ? `<text class="ax" x="${pts[pts.length - 1][0]}" y="${H - 8}" text-anchor="end">${lbl(dates[dates.length - 1])}</text>` : ''}</svg>`;
+}
+function viewChart() {
+  const e = exById(L.chart);
+  if (!e) { L.chart = null; return viewHist(); }
+  const { ls, vals, unit, useW } = exSeries(e.id), c = exColor(e.id);
+  let h = `<button class="sm ghost" data-act="chart" data-v="" style="align-self:flex-start">› رجوع</button>
+    <div class="card"><div class="row">${badge(e)}<div class="grow"><div class="name" style="font-size:18px">${esc(e.name)}</div><div class="meta">${esc(e.muscle)} · ${useW ? 'أعلى وزن كل مرة' : 'أعلى عدّات كل مرة'}</div></div></div>`;
+  if (!ls.length) return h + `<div class="empty">ما سجّلت هذا التمرين للحين</div></div>`;
+  const first = vals[0], last = vals[vals.length - 1], best = Math.max(...vals), diff = last - first, pct = first ? Math.round(diff / first * 100) : 0;
+  h += `<div style="margin-top:12px">${bigChart(vals, ls.map(l => l.date), c)}</div>
+    <div class="kpis"><div><b>${n(first)}</b><span>أول مرة</span></div><div><b>${n(last)}</b><span>آخر مرة</span></div>
+    <div><b style="color:var(--gold)">${n(best)}</b><span>🏆 أعلى</span></div><div><b class="${diff > 0 ? 'up' : ''}" style="${diff < 0 ? 'color:#ff9b9b' : ''}">${diff > 0 ? '▲' : diff < 0 ? '▼' : ''}${n(Math.abs(pct))}٪</b><span>التغيّر</span></div></div>
+    <div class="sub" style="margin-top:8px;text-align:center">${n(ls.length)} ${say(ls.length, 'مرة', 'مرتين', 'مرات')} · بالـ${unit} · النقطة الذهبية رقم قياسي</div></div>`;
+  h += `<h2>كل مرة</h2><div class="card list">${ls.slice().reverse().map((l, i, a) => {
+    const v = vals[vals.length - 1 - i], prev = vals[vals.length - 2 - i];
+    return `<div class="item"><div class="grow"><div class="name" style="font-size:14px">${fmtDate(l.date)}</div><div class="meta">${summary(l.sets)}</div></div>
+      <b>${n(v)}${prev !== undefined && v !== prev ? `<span class="pv ${v > prev ? 'up' : 'down'}">${v > prev ? '▲' : '▼'}${n(Math.abs(v - prev))}</span>` : ''}</b></div>`;
+  }).join('')}</div>`;
+  return h;
+}
+
+/* ───────── تقرير الأسبوع ───────── */
+// أسبوع من السبت للجمعة: النادي، والمهام، والأرقام القياسية، ومقارنة بالأسبوع اللي قبله
+function weekStats(ws) {
+  const days = Array.from({ length: 7 }, (_, i) => addD(ws, i)), upto = days.filter(d => d <= TODAY);
+  const gym = days.map(d => loggedOn(d) ? 'on' : d < TODAY && S && schedOf(dow(d)) !== 'off' ? 'miss' : '');
+  const planned = upto.filter(d => S && schedOf(dow(d)) !== 'off').length;
+  const went = days.filter(loggedOn).length;
+  let kg = 0, prs = 0;
+  for (const d of days) if (loggedOn(d)) for (const [id, sets] of Object.entries(logsByDate[d].items)) {
+    kg += sets.reduce((a, x) => a + (+x.reps || 0) * (+x.weight || 0), 0);
+    const before = (S.logs[id] || []).filter(l => l.date < d);
+    if (before.length && Math.max(...sets.map(x => +x.weight || 0)) > Math.max(...before.flatMap(l => l.sets.map(x => +x.weight || 0)))) prs++;
+  }
+  const tl = days.flatMap(d => tasksOn(d).map(t => isDone(t, d)));
+  return { gym, went, planned, kg: Math.round(kg), prs, tasks: tl.length, done: tl.filter(Boolean).length };
+}
+function reportCard(ws) {
+  const a = weekStats(ws), b = weekStats(addD(ws, -7)), cur = ws === wkStart(TODAY);
+  // الفرق بسطرٍ لحاله تحت الرقم: جنبه يتلخبط ترتيبه بين العربي والأسهم
+  const delta = (x, y, unit = '') => x === y ? `<i class="z">نفس اللي قبله</i>` : `<i class="${x > y ? 'u' : 'd'}">${x > y ? '▲' : '▼'} ${n(Math.abs(x - y))}${unit} عن اللي قبله</i>`;
+  const pct = a.tasks ? Math.round(a.done / a.tasks * 100) : 0;
+  const msg = a.went >= Math.max(1, a.planned) && (!a.tasks || pct >= 80) ? 'أسبوع قوي، كمّل كذا 🔥'
+    : a.went > b.went ? 'أحسن من الأسبوع اللي فات 👏' : a.went === 0 && a.planned ? 'النادي يناديك هالأسبوع 💪' : 'كل يوم فرصة تعوّض';
+  // أول الأسبوع التقرير شبه فاضي، فتقدر تشوف الأسبوع اللي فات من نفس البطاقة
+  const tabs = cur || L.repPrev ? `<div class="seg" style="margin-top:10px"><button class="${!L.repPrev ? 'on' : ''}" data-act="repWk" data-v="0">هالأسبوع</button><button class="${L.repPrev ? 'on' : ''}" data-act="repWk" data-v="1">الأسبوع اللي فات</button></div>` : '';
+  return `<div class="card rep-c"><div class="name">📊 ${cur ? 'تقرير هالأسبوع' : 'تقرير الأسبوع'}</div><div class="sub">${msg}</div>${tabs}
+    <div class="rgrid">
+      <div><span>النادي</span><b>${!a.went ? 'ولا يوم' : a.planned ? `${n(a.went)} <span style="font-size:13px">من ${n(a.planned)}</span>` : cnt(a.went, 'يوم', 'يومين', 'أيام')}</b>${delta(a.went, b.went)}<div class="rdots">${a.gym.map(g => `<s class="${g}"></s>`).join('')}</div></div>
+      <div><span>المهام</span><b>${a.tasks ? `${n(pct)}٪` : '—'}</b><span>${a.tasks ? `${n(a.done)} من ${n(a.tasks)} خلصت` : 'ما فيه مهام'}</span></div>
+      <div><span>رفعت إجمالًا</span><b>${a.kg ? `${n(a.kg)} <span style="font-size:13px">كجم</span>` : '—'}</b>${delta(a.kg, b.kg, ' كجم')}</div>
+      <div><span>أرقام قياسية</span><b>${a.prs ? '🏆 ' + n(a.prs) : '—'}</b></div>
+    </div></div>`;
+}
+function reportText(ws) {
+  const a = weekStats(ws);
+  return [`النادي ${n(a.went)}${a.planned ? ' من ' + n(a.planned) : ''}`, a.tasks ? `المهام ${n(Math.round(a.done / a.tasks * 100))}٪` : '', a.prs ? `🏆 ${cnt(a.prs, 'رقم قياسي', 'رقمين قياسيين', 'أرقام قياسية')}` : '', a.kg ? `رفعت ${n(a.kg)} كجم` : ''].filter(Boolean).join(' · ');
 }
 
 /* ───────── المهام والتذكيرات ───────── */
@@ -904,6 +1083,7 @@ function viewWeek() {
     return `<div class="${d === TODAY ? 'today' : ''} ${all ? 'all' : ''}" data-act="jump" data-v="${d}"><b>${all ? '✓' : n(ts.length)}</b>${SHORT[dow(d)]}${ts.length && !all && dn ? `<u style="width:${Math.round(dn / ts.length * 100)}%"></u>` : ''}</div>`;
   }).join('')}</div>`;
   if (L.form && L.form.tab === 'week') h += formHtml();
+  else if (S && ws <= TODAY) h += reportCard(L.wk === 0 && L.repPrev ? addD(ws, -7) : ws);
   h += days.map(d => {
     const ts = tasksOn(d), g = S && plan().days.length ? schedOf(dow(d)) : null;
     return `<div class="card wday ${d === TODAY ? 'today' : d < TODAY ? 'past' : ''}" id="wd-${d}">
@@ -1055,6 +1235,10 @@ function schedule() {
       const d = addD(last, k);
       if (d >= TODAY && d <= addD(TODAY, 8)) add(at(d, '10:00'), `s:${d}`, 'لازم تروح النادي اليوم', `صار لك ${cnt(k - 1, 'يوم', 'يومين', 'أيام')} أوف`, 'gym');
     }
+  }
+  for (let i = 0; i <= 8; i++) {
+    const d = addD(TODAY, i);
+    if (dow(d) === 5 && S) add(at(d, '20:00'), `rep:${d}`, '📊 تقرير أسبوعك', reportText(wkStart(d)) || 'افتح «يومي» وشوف أسبوعك', 'week');
   }
   return out.sort((a, b) => a.at - b.at);
 }
@@ -1274,7 +1458,7 @@ let pending = false;
 function render() {
   try { renderInner(); } catch (e) {
     console.error(e);
-    L.form = null; L.edit = null;
+    L.form = null; L.edit = null; L.chart = null;
     document.getElementById('app').innerHTML = `<div class="login"><img class="logo" src="${myIcon || DEF_ICON}" alt="">
       <div class="name">صار خطأ وأنا أفتح «${esc(TITLES[L.tab] || 'يومي')}»</div>
       <div class="err" dir="ltr" style="font-family:monospace">${esc(e && (e.message || e))}</div>
@@ -1464,9 +1648,9 @@ document.addEventListener('click', ev => {
   if (!S || !Y) return;
   const it = id && L.sess && L.sess.items[id];
   switch (act) {
-    case 'go': if (L.tab !== v) fx.page = true; L.tab = v; L.form = null; L.edit = null; L.adding = false; L.showAlerts = false; window.scrollTo(0, 0); break;
+    case 'go': if (L.tab !== v) fx.page = true; L.chart = null; L.tab = v; L.form = null; L.edit = null; L.adding = false; L.showAlerts = false; window.scrollTo(0, 0); break;
     case 'alerts': L.showAlerts = !L.showAlerts; break;
-    case 'gv': if (L.gv !== v) fx.page = true; L.gv = v; L.adding = false; L.edit = null; window.scrollTo(0, 0); break;
+    case 'gv': if (L.gv !== v) fx.page = true; L.chart = null; L.gv = v; L.adding = false; L.edit = null; window.scrollTo(0, 0); break;
     case 'pushOn': enablePush(); return;
     case 'pushOff': if (confirm('توقف الإشعارات؟')) disablePush(); return;
     case 'pushTest': getSub().then(sub => sub && api('test', { sub: sub.toJSON() })).then(r => toast(r && r.ok ? '✓ انرسل، شوف الإشعار' : 'ما وصل: ' + (r && r.error), !(r && r.ok))).catch(e => toast('ما وصل: ' + e.message, true)); return;
@@ -1632,6 +1816,11 @@ document.addEventListener('click', ev => {
     }
     case 'edit': it.step = 'log'; break;
     case 'hist': L.hist = v; break;
+    case 'chart': L.chart = v || null; L.tab = 'gym'; fx.page = true; window.scrollTo(0, 0); break;
+    case 'restGo': startRest(+v); return;
+    case 'repWk': L.repPrev = v === '1'; break;
+    case 'restAdd': if (REST) { REST.end += 15000; REST.dur += 15; saveRest(); drawRest(); } return;
+    case 'restStop': REST = null; saveRest(); drawRest(); return;
     case 'adding': L.adding = !L.adding; break;
     case 'nday': b.classList.toggle('on'); return;
     case 'delEx': {
