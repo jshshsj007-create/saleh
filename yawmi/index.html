@@ -71,6 +71,43 @@ h2{font-size:14px;font-weight:600;margin:6px 4px -4px;color:var(--mute);display:
 .tile .icb{margin-bottom:8px}
 .tile .tt{font-weight:700;font-size:17px}
 .tile .ts{color:var(--mute);font-size:13px}
+/* شريط تقدّم صغير أسفل المربّع: تشوف وين وصلت قبل ما تفتحه */
+.tbar{width:64%;height:5px;border-radius:999px;background:var(--card2);overflow:hidden;margin-top:8px}
+.tbar i{display:block;height:100%;border-radius:999px;background:var(--acc);transition:width .6s ease}
+.tbar.full i{background:var(--ok)}
+.tbar.late i{background:var(--danger)}.tbar.near i{background:var(--gold)}
+/* التحية والسلسلة */
+.hello{display:flex;align-items:center;gap:12px;padding:16px;border-radius:20px;background:linear-gradient(135deg,color-mix(in srgb,var(--acc) 22%,var(--card)),var(--card));border:1px solid color-mix(in srgb,var(--acc) 30%,transparent)}
+.hello .hi{font-size:13px;color:var(--mute)}
+.hello .nm{font-size:20px;font-weight:700;line-height:1.3}
+.hello .ln{font-size:13px;color:var(--text);opacity:.85;margin-top:2px}
+.flame{flex:none;text-align:center;min-width:64px;padding:8px 10px;border-radius:16px;background:color-mix(in srgb,#ff8f45 16%,transparent);border:1px solid color-mix(in srgb,#ff8f45 40%,transparent);color:#ffb37a}
+.flame b{display:block;font-size:22px;line-height:1.1}
+.flame span{font-size:11px}
+.flame.cold{background:var(--card2);border-color:var(--line);color:var(--mute)}
+.flame .f{font-size:20px;display:block;animation:flick 1.6s ease-in-out infinite}
+@keyframes flick{0%,100%{transform:scale(1) rotate(0)}50%{transform:scale(1.12) rotate(-4deg)}}
+/* رقم قياسي */
+.pr{display:flex;align-items:center;gap:8px;margin-top:10px;padding:10px 12px;border-radius:14px;font-weight:700;color:#ffd66b;
+  background:linear-gradient(135deg,color-mix(in srgb,var(--gold) 22%,var(--card2)),var(--card2));border:1px solid color-mix(in srgb,var(--gold) 45%,transparent);animation:pageIn .4s ease}
+.pr .cup{font-size:24px;animation:bounce 1s ease 2}
+@keyframes bounce{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
+/* العدّ التنازلي في حلقة */
+.cdr{position:relative;width:84px;height:84px;flex:none}
+.cdr svg{width:100%;height:100%;transform:rotate(-90deg)}
+.cdr circle{fill:none;stroke-width:7}
+.cdr .bgc{stroke:var(--card2)}
+.cdr .fg{stroke:var(--acc);stroke-linecap:round;transition:stroke-dashoffset .6s ease}
+.cdr.near .fg{stroke:var(--gold)}.cdr.late .fg{stroke:var(--danger)}.cdr.done .fg{stroke:var(--ok)}
+.cdr .in{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center}
+.cdr .in b{font-size:26px;line-height:1;color:var(--acc)}
+.cdr.near .in b{color:var(--gold)}.cdr.late .in b{color:var(--danger)}.cdr.done .in b{color:var(--ok)}
+.cdr .in small{font-size:10.5px;color:var(--mute);margin-top:3px;line-height:1.2}
+/* ملخّص الأسبوع: اليوم اللي خلص أخضر، واللي نصّه بشريط */
+.wsum div{position:relative;overflow:hidden}
+.wsum div.all{background:color-mix(in srgb,var(--ok) 18%,var(--card));border-color:color-mix(in srgb,var(--ok) 50%,transparent)}
+.wsum div.all b{color:var(--ok)}
+.wsum div u{position:absolute;bottom:0;inset-inline-start:0;height:3px;background:var(--acc);text-decoration:none}
 .tile .dot{position:absolute;top:12px;inset-inline-start:12px;min-width:22px;height:22px;border-radius:999px;background:var(--danger);color:#fff;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;padding:0 6px}
 
 /* المهام */
@@ -312,7 +349,7 @@ async function initDB() {
     D.logs = D.logs || {}; D.img = D.img || {};
     const put = () => { try { localStorage.setItem(K, JSON.stringify(D)); } catch (e) { toast('مساحة الجهاز ممتلئة', true); } };
     DB = {
-      onAuth: cb => cb({ uid: 'demo', displayName: 'وضع التجربة', email: 'البيانات في هذا الجهاز فقط' }),
+      onAuth: cb => cb({ uid: 'demo', displayName: localStorage.getItem('yawmi.demoName') || 'وضع التجربة', email: 'البيانات في هذا الجهاز فقط' }),
       login() { }, logout() { localStorage.removeItem(K); location.reload(); },
       listen(u, h) { setTimeout(() => { h.profile(D.profile || null, false); h.logs({ ...D.logs }); h.y(D.y || null, false); h.img({ ...D.img }); }, 50); return []; },
       saveProfile: p => { D.profile = p; put(); },
@@ -527,6 +564,21 @@ function offStreak() {
   return k;
 }
 const gymDay = () => S ? dayById(session().part) : null;
+// سلسلة النادي: أيام سجّلت فيها ورا بعض. يوم الأوف في جدولك ما يقطعها، ويوم تمرين فوّته يقطعها،
+// واليوم ما يقطعها لين يخلص
+function gymStreak() {
+  let k = 0;
+  for (let i = 0; i < 400; i++) {
+    const d = addD(TODAY, -i);
+    if (loggedOn(d)) { k++; continue; }
+    if (i === 0 || schedOf(dow(d)) === 'off') continue;
+    break;
+  }
+  return k;
+}
+// أعلى وزن قبل اليوم لهذا التمرين: لو تعدّاه اليوم، رقم قياسي
+const bestBefore = id => Math.max(0, ...(S.logs[id] || []).filter(l => l.date < TODAY).flatMap(l => l.sets.map(x => +x.weight || 0)));
+const isPR = (id, sets) => (S.logs[id] || []).some(l => l.date < TODAY) && Math.max(0, ...sets.map(x => +x.weight || 0)) > bestBefore(id);
 
 const stepper = (f, v, d, attrs) => `<div class="stp"><button data-act="step" data-f="${f}" data-d="${d}" ${attrs} aria-label="زِد">+</button>
   <input type="number" inputmode="decimal" step="any" min="0" data-f="${f}" value="${esc(v)}" ${attrs}>
@@ -568,15 +620,16 @@ function exBody(e, it, l) {
     }
     return h + `<div class="btns"><button class="okb grow" data-act="saveEx" ${A}>✓ سجّل اللي سويته</button>${l ? `<button class="ghost" data-act="back" ${A}>رجوع</button>` : ''}</div>`;
   }
-  const better = l && volume(it.sets) > volume(l.sets);
+  const better = l && volume(it.sets) > volume(l.sets), pr = isPR(e.id, it.sets);
   return h + `<div class="lbl">سجّلت اليوم${l ? ' · والصغير جنبه رقمك السابق' : ''}</div>${statBoxes(it.sets, l?.sets)}
-    ${better ? '<div class="better">▲ أقوى من المرة اللي فاتت</div>' : ''}
+    ${pr ? `<div class="pr"><span class="cup">🏆</span><div class="grow">رقم قياسي جديد!<div class="sub" style="font-weight:500">${n(Math.max(...it.sets.map(x => +x.weight || 0)))} كجم، وكان أعلى شي ${n(bestBefore(e.id))}</div></div></div>`
+      : better ? '<div class="better">▲ أقوى من المرة اللي فاتت</div>' : ''}
     <div class="btns"><button class="sm ghost" data-act="edit" ${A}>تعديل</button>${IMG[e.id] ? `<button class="sm ghost" data-act="pickImg" ${A}>📷 غيّر الصورة</button>` : ''}</div>`;
 }
 
 function exCard(e, i, openId) {
   const it = item(e.id), l = lastLog(e.id), open = e.id === openId, done = it.step === 'done';
-  const meta = done ? `<span class="up">✓ ${summary(it.sets)}</span>${l ? ` · السابق ${summary(l.sets)}` : ''}` : l ? `آخر مرة: ${summary(l.sets)}` : 'أول مرة';
+  const meta = done ? `<span class="up">${isPR(e.id, it.sets) ? '🏆' : '✓'} ${summary(it.sets)}</span>${l ? ` · السابق ${summary(l.sets)}` : ''}` : l ? `آخر مرة: ${summary(l.sets)}` : 'أول مرة';
   return `<div class="ex ${open ? 'open' : ''} ${done ? 'isdone' : ''} ${flash === e.id ? 'pop' : ''}" id="ex-${e.id}">
     <div class="head" data-act="open" data-id="${e.id}">${badge(e)}
       <div class="grow"><div class="name">${esc(e.name)}</div><div class="meta">${meta}</div></div>
@@ -846,7 +899,10 @@ function viewWeek() {
     <div style="text-align:center"><div class="name">${L.wk === 0 ? 'هذا الأسبوع' : L.wk === 1 ? 'الأسبوع الجاي' : L.wk === -1 ? 'الأسبوع اللي فات' : 'أسبوع'}</div>
     <div class="sub">${DAYS[6]} ${dm(ws)} – ${DAYS[5]} ${dm(we)} · ${total ? `${n(done)} من ${n(total)} خلصت` : 'ما فيه مهام'}</div></div>
     <button class="ic" data-act="wk" data-v="1" aria-label="الأسبوع الجاي" style="font-size:20px">‹</button></div>`;
-  h += `<div class="wsum">${days.map(d => `<div class="${d === TODAY ? 'today' : ''}" data-act="jump" data-v="${d}"><b>${n(tasksOn(d).length)}</b>${SHORT[dow(d)]}</div>`).join('')}</div>`;
+  h += `<div class="wsum">${days.map(d => {
+    const ts = tasksOn(d), dn = ts.filter(t => isDone(t, d)).length, all = ts.length && dn === ts.length;
+    return `<div class="${d === TODAY ? 'today' : ''} ${all ? 'all' : ''}" data-act="jump" data-v="${d}"><b>${all ? '✓' : n(ts.length)}</b>${SHORT[dow(d)]}${ts.length && !all && dn ? `<u style="width:${Math.round(dn / ts.length * 100)}%"></u>` : ''}</div>`;
+  }).join('')}</div>`;
   if (L.form && L.form.tab === 'week') h += formHtml();
   h += days.map(d => {
     const ts = tasksOn(d), g = S && plan().days.length ? schedOf(dow(d)) : null;
@@ -867,10 +923,11 @@ function longCard(l) {
   const big = l.done ? '✓' : left < 0 ? n(-left) : n(left);
   const small = l.done ? 'خلصت' : left < 0 ? `${say(-left, 'يوم', 'يومين', 'أيام')} تأخير` : left === 0 ? 'اليوم آخر يوم' : `${say(left, 'يوم', 'يومين', 'أيام')} باقي`;
   return `<div class="card ${fx.long === l.id ? 'pop' : ''} ${fx.added === l.id ? 'glowc' : ''}" style="${l.done ? 'opacity:.6' : ''}"><div class="row">
-    <div class="cd ${cls}">${left === 0 && !l.done ? '!' : big}<small>${small}</small></div>
+    ${(() => { const C = 2 * Math.PI * 36, f = l.done ? 1 : left < 0 ? 1 : 1 - gone;
+      return `<div class="cdr ${l.done ? 'done' : cls}"><svg viewBox="0 0 84 84"><circle class="bgc" cx="42" cy="42" r="36"/><circle class="fg" cx="42" cy="42" r="36" stroke-dasharray="${C}" stroke-dashoffset="${C * (1 - f)}"/></svg>
+        <div class="in"><b>${left === 0 && !l.done ? '!' : big}</b><small>${small}</small></div></div>`; })()}
     <div class="grow"><div class="name">${esc(l.title)}</div>${l.note ? `<div class="sub wrap">${esc(l.note)}</div>` : ''}
       <div class="meta">آخر موعد: ${DAYS[dow(l.due)]} ${dm(l.due)}</div>${l.pre?.length && !l.done ? `<div class="meta">🔔 ${preTxt(l.pre)}</div>` : ''}</div></div>
-    ${l.done ? '' : `<div class="bar"><i style="width:${Math.round(gone * 100)}%;${left < 0 ? 'background:var(--danger)' : left <= 3 ? 'background:var(--gold)' : ''}"></i></div>`}
     <div class="btns"><button class="sm ${l.done ? 'ghost' : 'okb'}" data-act="ldone" data-id="${l.id}">${l.done ? 'رجّعها' : '✓ خلصت'}</button><button class="sm ghost" data-act="ledit" data-id="${l.id}">تعديل</button></div></div>`;
 }
 function viewLong() {
@@ -1129,6 +1186,17 @@ function viewHome() {
   }
   h += notifCard();
   const d = S ? gymDay() : null;
+  {
+    const hr = new Date().getHours(), hi = hr < 12 ? 'صباح الخير ☀️' : hr < 18 ? 'مساء الخير 🌤️' : 'مساء الخير 🌙';
+    const nm = (USER.displayName || '').trim().split(/\s+/)[0] || 'هلا فيك';
+    const tl = tasksOn(TODAY), left = tl.filter(t => !isDone(t, TODAY)).length, st = S ? gymStreak() : 0;
+    const gl = d ? dayEx(d).filter(e => item(e.id).step !== 'done').length : 0;
+    const line = !tl.length && !d ? 'يومك فاضي، استمتع فيه'
+      : !left && !gl ? 'خلّصت كل شي اليوم، عافية عليك 💪'
+      : [left ? `باقي ${cnt(left, 'مهمة', 'مهمتين', 'مهام')}` : '', gl ? `و${cnt(gl, 'تمرين', 'تمرينين', 'تمارين')} في النادي` : ''].filter(Boolean).join(' ').replace(/^و/, 'باقي ');
+    h += `<div class="hello"><div class="grow"><div class="hi">${hi}</div><div class="nm">${esc(nm)}</div><div class="ln">${line}</div></div>
+      ${S ? `<div class="flame ${st ? '' : 'cold'}"><span class="f">${st ? '🔥' : '💤'}</span><b>${n(st)}</b><span>${st ? say(st, 'يوم', 'يومين', 'أيام') + ' ورا بعض' : 'ابدأ سلسلة'}</span></div>` : ''}</div>`;
+  }
   h += `<div class="secttl">اليوم الجاري</div>
     <div class="card curday" data-act="go" data-v="today"><div class="icb">${ICONS.today}</div>
     <div class="grow"><div class="name" style="font-size:19px">${DAYS[dow(TODAY)]} ${dm(TODAY)}</div>
@@ -1142,12 +1210,16 @@ function viewHome() {
   if (S && d) { const list = dayEx(d), dn = list.filter(e => item(e.id).step === 'done').length; gsub = `${d.name} · ${n(dn)}/${n(list.length)}`; }
   else if (S) gsub = 'اليوم أوف';
   const lateGym = al.some(a => a.tab === 'gym');
-  const tile = (k, title, sub, dot) => `<div class="tile" data-act="go" data-v="${k}">${dot ? `<span class="dot">${dot}</span>` : ''}<div class="icb">${ICONS[k]}</div><div class="tt">${title}</div><div class="ts">${esc(sub)}</div></div>`;
+  const bar = (f, c) => f == null ? '' : `<div class="tbar ${c || (f >= 1 ? 'full' : '')}"><i style="width:${Math.round(Math.min(1, f) * 100)}%"></i></div>`;
+  const tile = (k, title, sub, dot, f, c) => `<div class="tile" data-act="go" data-v="${k}">${dot ? `<span class="dot">${dot}</span>` : ''}<div class="icb">${ICONS[k]}</div><div class="tt">${title}</div><div class="ts">${esc(sub)}</div>${bar(f, c)}</div>`;
+  const gl = d ? dayEx(d) : [], gf = gl.length ? gl.filter(e => item(e.id).step === 'done').length / gl.length : null;
+  const wt = wdays.reduce((a, x) => a + tasksOn(x).length, 0);
+  const lf = lo.length ? Math.min(1, Math.max(0, diffD(TODAY, lo[0].start || TODAY) / Math.max(1, diffD(lo[0].due, lo[0].start || lo[0].due)))) : null;
   h += `<div class="tiles ${fx.page ? 'in' : ''}">
-    ${tile('gym', 'النادي', gsub, lateGym ? '!' : '')}
-    ${tile('today', 'جدول اليوم', tasks.length ? `${n(td)} من ${n(tasks.length)} خلصت` : 'مهامك اليوم')}
-    ${tile('week', 'مهام الأسبوع', wl ? `باقي ${cnt(wl, 'مهمة', 'مهمتين', 'مهام')}` : 'مهمة كل يوم')}
-    ${tile('long', 'المهام البعيدة', lo.length ? `${lo[0].title} · ${daysLeft(lo[0]) < 0 ? 'متأخرة' : `باقي ${cnt(daysLeft(lo[0]), 'يوم', 'يومين', 'أيام')}`}` : 'أهدافك والأيام الباقية', lo.some(l => daysLeft(l) < 0) ? '!' : '')}
+    ${tile('gym', 'النادي', gsub, lateGym ? '!' : '', gf)}
+    ${tile('today', 'جدول اليوم', tasks.length ? `${n(td)} من ${n(tasks.length)} خلصت` : 'مهامك اليوم', '', tasks.length ? td / tasks.length : null)}
+    ${tile('week', 'مهام الأسبوع', wl ? `باقي ${cnt(wl, 'مهمة', 'مهمتين', 'مهام')}` : 'مهمة كل يوم', '', wt ? (wt - wl) / wt : null)}
+    ${tile('long', 'المهام البعيدة', lo.length ? `${lo[0].title} · ${daysLeft(lo[0]) < 0 ? 'متأخرة' : `باقي ${cnt(daysLeft(lo[0]), 'يوم', 'يومين', 'أيام')}`}` : 'أهدافك والأيام الباقية', lo.some(l => daysLeft(l) < 0) ? '!' : '', lf, lo.length ? (daysLeft(lo[0]) < 0 ? 'late' : daysLeft(lo[0]) <= 3 ? 'near' : 'x') : '')}
     ${tile('rem', 'التذكيرات', nr ? `${fmtDate(nr.d)} ${hm(nr.r.time)}` : 'ذكّرني بـ…')}
     ${tile('set', 'الإعدادات', 'الحساب والإشعارات')}
   </div>`;
