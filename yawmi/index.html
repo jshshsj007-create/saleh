@@ -250,7 +250,7 @@ nav button{flex:1;background:transparent;border:0;color:var(--mute);font-size:11
 nav svg{width:25px;height:25px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
 nav button.on{color:var(--acc);font-weight:700}
 .login{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:24px 16px;text-align:center}
-.login .logo{width:96px;height:96px;border-radius:26px}
+.login .logo{width:96px;height:96px;border-radius:26px;object-fit:cover}
 .login h1{font-size:32px}
 .login p{color:var(--mute);max-width:320px}
 .gbtn{display:flex;align-items:center;gap:10px;background:#fff;color:#1f1f1f;border:0;font-weight:600;padding:13px 22px;border-radius:999px;margin-top:8px}
@@ -1115,7 +1115,8 @@ function checkNotify() {
     fired[a.k] = 1; changed = true;
     if (canNotify() && !pushOn) {
       const opts = { body: a.s, icon: '../icon.png', badge: '../icon.png', tag: a.k, data: { tab: a.tab } };
-      (swReg ? swReg.showNotification(a.t, opts) : Promise.resolve(new Notification(a.t, opts))).catch(() => { });
+      // الآيفون يرمي خطأ مع new Notification (ما يسمح إلا من عامل الخدمة)، وكان يوقف التحميل كله
+      navigator.serviceWorker?.ready.then(r => r.showNotification(a.t, opts)).catch(() => { });
     }
   }
   if (changed) {
@@ -1248,17 +1249,17 @@ function viewSet() {
 const G_ICON = '<svg viewBox="0 0 48 48"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.4-.4-3.5z"/><path fill="#FF3D00" d="m6.3 14.7 6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-8l-6.5 5C9.5 39.6 16.2 44 24 44z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C37 39.2 44 34 44 24c0-1.3-.1-2.4-.4-3.5z"/></svg>';
 function renderLogin(err = '') {
   document.getElementById('app').innerHTML = `<div class="login">
-    <img class="logo" src="../icon.png" alt=""><h1>يومي</h1>
+    <img class="logo" src="${myIcon || DEF_ICON}" alt=""><h1>يومي</h1>
     <p>النادي، وجدول يومك، ومهام الأسبوع، والمهام البعيدة، والتذكيرات، في مكان واحد.</p>
     <button class="gbtn" data-act="login">${G_ICON}الدخول بحساب Google</button>
     <p class="sub">نفس حسابك في «النادي»، وتمارينك تجيك كما هي.</p>
     ${err ? `<div class="err">${esc(err)}</div>` : ''}</div>`;
 }
-const renderLoading = () => { document.getElementById('app').innerHTML = '<div class="login"><img class="logo" src="../icon.png" alt=""><div class="sub">جاري التحميل…</div></div>'; };
+const renderLoading = () => { document.getElementById('app').innerHTML = `<div class="login"><img class="logo" src="${myIcon || DEF_ICON}" alt=""><div class="sub">جاري التحميل…</div></div>`; };
 function renderChoose() {
   const c = '#a78bfa';
   document.getElementById('app').innerHTML = `<div class="login" style="justify-content:flex-start;padding-top:calc(60px + env(safe-area-inset-top));gap:12px">
-    <img class="logo" src="../icon.png" style="width:72px;height:72px;border-radius:20px" alt=""><h1 style="font-size:26px">هلا فيك 👋</h1>
+    <img class="logo" src="${myIcon || DEF_ICON}" style="width:72px;height:72px;border-radius:20px" alt=""><h1 style="font-size:26px">هلا فيك 👋</h1>
     <p>كيف تبي تتمرن؟ تقدر تغيّر بعدين.</p>
     <button class="choice" style="--pc:#5b8cff" data-act="choose" data-v="ul"><div class="row"><div style="font-size:34px">💪</div><div class="grow"><div class="name" style="font-size:18px">علوي وسفلي</div>
       <div class="sub">جاهز على طول: يوم علوي، ويوم سفلي، وأوف. فيه ١٣ تمرين جاهزة.</div></div></div>
@@ -1271,6 +1272,17 @@ function renderChoose() {
 
 let pending = false;
 function render() {
+  try { renderInner(); } catch (e) {
+    console.error(e);
+    L.form = null; L.edit = null;
+    document.getElementById('app').innerHTML = `<div class="login"><img class="logo" src="${myIcon || DEF_ICON}" alt="">
+      <div class="name">صار خطأ وأنا أفتح «${esc(TITLES[L.tab] || 'يومي')}»</div>
+      <div class="err" dir="ltr" style="font-family:monospace">${esc(e && (e.message || e))}</div>
+      <div class="sub">صوّر هالشاشة وأرسلها، وجرّب:</div>
+      <div class="btns"><button class="pri" data-act="safeHome">افتح الرئيسية</button><button onclick="location.reload()">حدّث</button></div></div>`;
+  }
+}
+function renderInner() {
   pending = false;
   if (!USER) return renderLogin();
   if (choosing) return renderChoose();
@@ -1297,10 +1309,21 @@ let profile = null, gotLogs = false;
 function ready() {
   if (!profile || !gotLogs || !Y) return;
   S = { ...normalize(profile), logs: buildLogs() };
-  checkNotify(); syncPush();
+  try { checkNotify(); syncPush(); } catch (e) { console.error(e); }
   refresh();
 }
+let loadTimer = null;
+function watchLoad() {
+  clearTimeout(loadTimer);
+  loadTimer = setTimeout(() => {
+    if (S || choosing || !USER) return;
+    const miss = [!profile && 'الحساب', !gotLogs && 'السجل', !Y && 'المهام'].filter(Boolean).join('، ');
+    const el = document.querySelector('.login .sub');
+    if (el) el.innerHTML = `طوّل التحميل… ما وصل: ${esc(miss || '—')}<br>تأكد من النت، أو <button class="link" onclick="location.reload()">حدّث الصفحة</button>`;
+  }, 12000);
+}
 function listen(u) {
+  watchLoad();
   profile = null; gotLogs = false; Y = null;
   unsubs = DB.listen(u, {
     profile(p, fromCache, mine) {
@@ -1422,6 +1445,7 @@ document.addEventListener('click', ev => {
   if (!b) return;
   const { act, id, v } = b.dataset;
   if (act === 'login') return DB.login();
+  if (act === 'safeHome') { L.tab = 'home'; L.gv = 'day'; L.sess = null; return render(); }
   if (act === 'choose') {
     const p = seed(v);
     DB.saveProfile(p);
