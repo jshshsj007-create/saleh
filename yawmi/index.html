@@ -959,7 +959,7 @@ const canNotify = () => 'Notification' in window && Notification.permission === 
    نفس طريقة فيض: اشتراك Web Push ومفتاح VAPID في الخادم. والفرق إن الإشعار هنا له
    وقت، فالجهاز يحسب مواعيده الجاية بتوقيته ويرسلها للخادم، والخادم يصحى كل دقيقة
    ويرسل اللي حان. وكل تعديل يعيد إرسالها، فاللي خلص أو انحذف ينشال. */
-const PUSH = '';
+const PUSH = 'https://dynamic-churros-f6908c.netlify.app/yawmi/';
 const pushOK = () => !!PUSH && 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
 const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1);
 const standalone = () => navigator.standalone === true || matchMedia('(display-mode: standalone)').matches;
