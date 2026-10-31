@@ -775,9 +775,18 @@ function taskRow(t, d) {
   const fxc = (fx.task === t.id + '|' + d ? ' pop' : '') + (fx.added === t.id ? ' glow' : '');
   return `<div class="task ${done ? 'done' : ''}${fxc}"><button class="chk" data-act="tdone" data-id="${t.id}" data-d="${d}" aria-label="خلّصت">${done ? '✓' : ''}</button>
     <div class="grow"><div class="tt">${esc(t.title)}</div>${t.note ? `<div class="nt">${esc(t.note)}</div>` : ''}</div>
-    ${t.time ? `<span class="tm">${hm(t.time)}</span>` : ''}${t.wd != null ? '<span class="rep" title="كل أسبوع">↻</span>' : ''}
+    ${t.time ? `<span class="tm">${hm(t.time)}</span>` : ''}${t.wd != null ? '<span class="rep" title="كل أسبوع">↻</span>' : ''}${t.pre?.length ? `<span class="rep" title="${preTxt(t.pre)}">🔔</span>` : ''}
     <button class="ic" data-act="tedit" data-id="${t.id}" data-d="${d}" aria-label="تعديل">✎</button></div>`;
 }
+
+// كم قبل الموعد يذكّرك، بالدقائق. تختار أكثر من وحدة، وكل وحدة لها إشعارها
+const PRE = [[60, 'قبل ساعة'], [180, 'قبل ٣ ساعات'], [1440, 'قبل يوم'], [4320, 'قبل ٣ أيام'], [10080, 'قبل أسبوع']];
+const preTxt = pre => (pre || []).slice().sort((a, b) => a - b).map(m => PRE.find(p => p[0] === m)?.[1]).filter(Boolean).join(' و');
+const preChips = (sel, hint) => `<label>ذكّرني قبلها</label><div class="opts" id="fPre">${PRE.map(([m, t]) =>
+  `<button type="button" class="dchip ${(sel || []).includes(m) ? 'on' : ''}" style="--c:#7aa2ff" data-act="fpre" data-v="${m}">${t}</button>`).join('')}</div>${hint ? `<div class="sub">${hint}</div>` : ''}`;
+// المهمة اللي ما لها وقت، والمهمة البعيدة، موعدها ٩ الصبح عشان «قبل ساعة» يكون له معنى
+const DEF_T = '09:00';
+const calBtn = F => F.id ? `<button class="ghost" data-act="icsItem">📅</button>` : '';
 
 function formHtml() {
   const F = L.form;
@@ -790,19 +799,22 @@ function formHtml() {
     <label>توضيح المهمة (اختياري)</label><textarea id="fNote" placeholder="وش المطلوب بالضبط؟">${esc(F.note)}</textarea>
     <div class="two"><div><label>اليوم</label><input id="fDate" type="date" value="${F.date}"></div><div><label>الوقت (اختياري)</label><input id="fTime" type="time" value="${F.time || ''}"></div></div>
     <label class="check"><input id="fWeekly" type="checkbox" ${F.weekly ? 'checked' : ''}> تتكرر كل أسبوع في نفس اليوم</label>
-    <div class="btns"><button class="pri grow" data-act="fsave">احفظ</button>${cancel}${del}</div></div>`;
+    ${preChips(F.pre, 'لو ما حطيت وقت، نحسب موعدها ٩ الصبح')}
+    <div class="btns"><button class="pri grow" data-act="fsave">احفظ</button>${cancel}${calBtn(F)}${del}</div></div>`;
   if (F.kind === 'long') return `<div class="card form fade" id="theForm">
     <div class="name">${F.id ? 'تعديل مهمة بعيدة' : 'مهمة بعيدة المدى'}</div>
     <input id="fTitle" class="txt" placeholder="مثلًا: أخلّص حفظ جزء عمّ" value="${esc(F.title)}">
     <label>التفاصيل (اختياري)</label><textarea id="fNote">${esc(F.note)}</textarea>
     <div class="two"><div><label>تبدأ من</label><input id="fStart" type="date" value="${F.start}"></div><div><label>آخر موعد</label><input id="fDue" type="date" value="${F.due}"></div></div>
-    <div class="btns"><button class="pri grow" data-act="fsave">احفظ</button>${cancel}${del}</div></div>`;
+    ${preChips(F.pre, 'يذكّرك قبل آخر موعد، الساعة ٩ الصبح')}
+    <div class="btns"><button class="pri grow" data-act="fsave">احفظ</button>${cancel}${calBtn(F)}${del}</div></div>`;
   return `<div class="card form fade" id="theForm">
     <div class="name">${F.id ? 'تعديل تذكير' : 'تذكير جديد'}</div>
     <input id="fTitle" class="txt" placeholder="ذكّرني بـ…" value="${esc(F.title)}">
     <div class="two"><div><label>من يوم</label><input id="fDate" type="date" value="${F.date}"></div><div><label>الساعة</label><input id="fTime" type="time" value="${F.time}"></div></div>
     <label>يتكرر</label><select id="fRep" class="txt">${[['none', 'مرة وحدة'], ['daily', 'كل يوم'], ['weekly', 'كل أسبوع']].map(([k, t]) => `<option value="${k}" ${F.rep === k ? 'selected' : ''}>${t}</option>`).join('')}</select>
-    <div class="btns"><button class="pri grow" data-act="fsave">احفظ</button>${cancel}${del}</div></div>`;
+    ${preChips(F.pre, 'وبوقته يذكّرك دايم')}
+    <div class="btns"><button class="pri grow" data-act="fsave">احفظ</button>${cancel}${calBtn(F)}${del}</div></div>`;
 }
 
 function viewTodayPlan() {
@@ -857,7 +869,7 @@ function longCard(l) {
   return `<div class="card ${fx.long === l.id ? 'pop' : ''} ${fx.added === l.id ? 'glowc' : ''}" style="${l.done ? 'opacity:.6' : ''}"><div class="row">
     <div class="cd ${cls}">${left === 0 && !l.done ? '!' : big}<small>${small}</small></div>
     <div class="grow"><div class="name">${esc(l.title)}</div>${l.note ? `<div class="sub wrap">${esc(l.note)}</div>` : ''}
-      <div class="meta">آخر موعد: ${DAYS[dow(l.due)]} ${dm(l.due)}</div></div></div>
+      <div class="meta">آخر موعد: ${DAYS[dow(l.due)]} ${dm(l.due)}</div>${l.pre?.length && !l.done ? `<div class="meta">🔔 ${preTxt(l.pre)}</div>` : ''}</div></div>
     ${l.done ? '' : `<div class="bar"><i style="width:${Math.round(gone * 100)}%;${left < 0 ? 'background:var(--danger)' : left <= 3 ? 'background:var(--gold)' : ''}"></i></div>`}
     <div class="btns"><button class="sm ${l.done ? 'ghost' : 'okb'}" data-act="ldone" data-id="${l.id}">${l.done ? 'رجّعها' : '✓ خلصت'}</button><button class="sm ghost" data-act="ledit" data-id="${l.id}">تعديل</button></div></div>`;
 }
@@ -876,7 +888,7 @@ function viewRem() {
   const live = Y.rems.map(r => ({ r, d: nextOcc(r) })).filter(x => x.d).sort((a, b) => (a.d + a.r.time) < (b.d + b.r.time) ? -1 : 1);
   const old = Y.rems.filter(r => !nextOcc(r));
   const row = (r, d) => `<div class="item ${fx.added === r.id ? 'glow' : ''}"><span>🔔</span><div class="grow"><div class="name" style="font-size:15px">${esc(r.title)}</div>
-    <div class="meta">${d ? `${fmtDate(d)} · ` : ''}${hm(r.time)}${r.rep !== 'none' ? ' · ' + repT[r.rep] : ''}</div></div>
+    <div class="meta">${d ? `${fmtDate(d)} · ` : ''}${hm(r.time)}${r.rep !== 'none' ? ' · ' + repT[r.rep] : ''}${r.pre?.length ? ' · 🔔 ' + preTxt(r.pre) : ''}</div></div>
     <button class="ic" data-act="icsRem" data-id="${r.id}" aria-label="للتقويم">📅</button><button class="ic" data-act="redit" data-id="${r.id}" aria-label="تعديل">✎</button></div>`;
   h += live.length ? `<div class="card list">${live.map(x => row(x.r, x.d)).join('')}</div>` : '<div class="empty">ما فيه تذكيرات جاية</div>';
   if (old.length) h += `<h2>انتهت</h2><div class="card list" style="opacity:.6">${old.map(r => row(r, null)).join('')}</div>`;
@@ -886,7 +898,7 @@ function viewRem() {
 
 /* ───────── التنبيهات ───────── */
 // كل التنبيهات من البيانات نفسها: الشريط في الرئيسية، والإشعار لو مسموح
-function alerts() {
+function alerts(forNotify) {
   const out = [];
   if (S) {
     const d = gymDay(), noLog = !loggedOn(TODAY), st = offStreak();
@@ -902,7 +914,35 @@ function alerts() {
   for (const r of remsOn(TODAY)) if (r.time <= now) out.push({ k: `r:${r.id}:${TODAY}`, lvl: 'info', t: '🔔 ' + r.title, s: hm(r.time), tab: 'rem', quiet: true, fresh: r.time });
   for (const t of tasksOn(TODAY)) if (t.time && t.time <= now && !isDone(t, TODAY)) out.push({ k: `t:${t.id}:${TODAY}`, lvl: 'info', t: t.title, s: `مهمة اليوم · ${hm(t.time)}`, tab: 'today', fresh: t.time });
   const ws = wkStart(TODAY), wt = Array.from({ length: 7 }, (_, i) => addD(ws, i)).filter(d => d >= TODAY).reduce((a, d) => a + tasksOn(d).filter(t => !isDone(t, d)).length, 0);
+  // المهمة البعيدة القريبة لها شريطها فوق، فلا نكرّرها في الشريط (والإشعار يوصل)
+  out.push(...preAlerts().filter(a => !(!forNotify && a.long && daysLeft(a.long) <= 3)));
   if (wt && dow(TODAY) === 6) out.push({ k: 'w:' + ws, lvl: 'info', t: `بداية الأسبوع: عندك ${cnt(wt, 'مهمة', 'مهمتين', 'مهام')}`, s: weekBrief(ws), tab: 'week' });
+  return out;
+}
+// تذكيرات «قبلها»: لكل موعد جاي، أقرب «قبل» فات وقته. والمفتاح فيه «القبل» نفسه،
+// فلو اخترت «قبل يوم» و«قبل ساعة» يجيك إشعارين
+function leftTxt(min, d) {
+  if (min < 60) return `بعد ${cnt(Math.max(1, min), 'دقيقة', 'دقيقتين', 'دقائق')}`;
+  if (min < 1440 && d === TODAY) return `بعد ${cnt(Math.round(min / 60), 'ساعة', 'ساعتين', 'ساعات')}`;
+  const k = diffD(d, TODAY);
+  return k === 1 ? 'بكرة' : `بعد ${cnt(k, 'يوم', 'يومين', 'أيام')}`;
+}
+function preAlerts() {
+  const out = [], now = new Date();
+  const add = (x, d, t, title, tab) => {
+    if (!x.pre || !x.pre.length) return;
+    const occ = new Date(d + 'T' + (t || DEF_T));
+    if (occ <= now) return;
+    const m = x.pre.filter(p => occ - p * 6e4 <= now).sort((a, b) => a - b)[0];
+    if (m === undefined) return;
+    out.push({ k: `p:${x.id}:${d}:${m}`, lvl: 'info', t: title, s: `${leftTxt(Math.round((occ - now) / 6e4), d)} · ${fmtDate(d)} ${hm(t || DEF_T)}`, tab, long: tab === 'long' ? x : null });
+  };
+  for (let i = 0; i <= 8; i++) {
+    const d = addD(TODAY, i);
+    for (const t of tasksOn(d)) if (!isDone(t, d)) add(t, d, t.time, t.title, i === 0 ? 'today' : 'week');
+    for (const r of remsOn(d)) add(r, d, r.time, '🔔 ' + r.title, 'rem');
+  }
+  for (const l of Y.longs) if (!l.done) add(l, l.due, DEF_T, `«${l.title}»`, 'long');
   return out;
 }
 function weekBrief(ws) {
@@ -918,7 +958,7 @@ function checkNotify() {
   if (!S || !Y) return;
   TODAY = iso(new Date());
   // بداية الأسبوع تُرسل أول ما يفتح التطبيق في الأسبوع، لا السبت وحده
-  const ws = wkStart(TODAY), wkKey = 'w:' + ws, list = alerts();
+  const ws = wkStart(TODAY), wkKey = 'w:' + ws, list = alerts(true);
   if (!fired[wkKey] && !list.some(a => a.k === wkKey)) {
     const brief = weekBrief(ws);
     if (brief) list.push({ k: wkKey, t: 'مهام هذا الأسبوع', s: brief, tab: 'week' });
@@ -959,7 +999,7 @@ function ics(name, evs) {
   const lines = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//yawmi//ar', 'CALSCALE:GREGORIAN'];
   for (const v of evs) lines.push('BEGIN:VEVENT', `UID:${v.uid}@yawmi`, `DTSTAMP:${st}`, `DTSTART:${v.date.replace(/-/g, '')}T${v.time.replace(':', '')}00`, 'DURATION:PT15M',
     `SUMMARY:${e(v.title)}`, ...(v.desc ? [`DESCRIPTION:${e(v.desc)}`] : []), ...(v.rrule ? [`RRULE:${v.rrule}`] : []),
-    'BEGIN:VALARM', 'ACTION:DISPLAY', `DESCRIPTION:${e(v.title)}`, 'TRIGGER:PT0M', 'END:VALARM', 'END:VEVENT');
+    ...[0, ...(v.pre || [])].flatMap(m => ['BEGIN:VALARM', 'ACTION:DISPLAY', `DESCRIPTION:${e(v.title)}`, `TRIGGER:${m ? '-' : ''}PT${m}M`, 'END:VALARM']), 'END:VEVENT');
   lines.push('END:VCALENDAR');
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([lines.join('\r\n')], { type: 'text/calendar;charset=utf-8' }));
@@ -1193,19 +1233,20 @@ function readForm() {
   const g = id => document.getElementById(id);
   const F = L.form, title = g('fTitle').value.trim();
   if (!title) { toast('اكتب العنوان', true); return null; }
+  const pre = [...document.querySelectorAll('#fPre .on')].map(x => +x.dataset.v);
   if (F.kind === 'task') {
     const date = g('fDate').value || TODAY, weekly = g('fWeekly').checked;
-    return { title, note: g('fNote').value.trim(), time: g('fTime').value || '', ...(weekly ? { wd: dow(date), from: date, date: null } : { date, wd: null }) };
+    return { title, note: g('fNote').value.trim(), time: g('fTime').value || '', pre, ...(weekly ? { wd: dow(date), from: date, date: null } : { date, wd: null }) };
   }
   if (F.kind === 'long') {
     const due = g('fDue').value;
     if (!due) { toast('حدّد آخر موعد', true); return null; }
     const start = g('fStart').value || TODAY;
-    return { title, note: g('fNote').value.trim(), due, start: start > due ? due : start };
+    return { title, note: g('fNote').value.trim(), due, start: start > due ? due : start, pre };
   }
   const time = g('fTime').value;
   if (!time) { toast('حدّد الساعة', true); return null; }
-  return { title, date: g('fDate').value || TODAY, time, rep: g('fRep').value };
+  return { title, date: g('fDate').value || TODAY, time, rep: g('fRep').value, pre };
 }
 const coll = k => ({ task: 'tasks', long: 'longs', rem: 'rems' }[k]);
 
@@ -1243,13 +1284,25 @@ document.addEventListener('click', ev => {
     case 'delImg': delete IMG[id]; DB.delImg(id); document.querySelector('.zoom')?.remove(); toast('انحذفت الصورة'); break;
 
     // المهام
-    case 'newTask': L.form = { kind: 'task', tab: L.tab, title: '', note: '', date: b.dataset.d || TODAY, time: '', weekly: false }; break;
-    case 'tedit': { const t = Y.tasks.find(x => x.id === id); L.form = { kind: 'task', tab: L.tab, id, title: t.title, note: t.note || '', date: t.wd != null ? (b.dataset.d || t.from) : t.date, time: t.time || '', weekly: t.wd != null }; break; }
-    case 'newLong': L.form = { kind: 'long', tab: 'long', title: '', note: '', start: TODAY, due: addD(TODAY, 30) }; break;
-    case 'ledit': { const l = Y.longs.find(x => x.id === id); L.form = { kind: 'long', tab: L.tab, id, title: l.title, note: l.note || '', start: l.start || TODAY, due: l.due }; L.tab = 'long'; L.form.tab = 'long'; break; }
-    case 'newRem': L.form = { kind: 'rem', tab: 'rem', title: '', date: TODAY, time: '', rep: 'none' }; break;
+    case 'newTask': L.form = { kind: 'task', tab: L.tab, title: '', note: '', date: b.dataset.d || TODAY, time: '', weekly: false, pre: [] }; break;
+    case 'tedit': { const t = Y.tasks.find(x => x.id === id); L.form = { kind: 'task', tab: L.tab, id, title: t.title, note: t.note || '', date: t.wd != null ? (b.dataset.d || t.from) : t.date, time: t.time || '', weekly: t.wd != null, pre: t.pre || [] }; break; }
+    case 'newLong': L.form = { kind: 'long', tab: 'long', title: '', note: '', start: TODAY, due: addD(TODAY, 30), pre: [] }; break;
+    case 'ledit': { const l = Y.longs.find(x => x.id === id); L.form = { kind: 'long', tab: L.tab, id, title: l.title, note: l.note || '', start: l.start || TODAY, due: l.due, pre: l.pre || [] }; L.tab = 'long'; L.form.tab = 'long'; break; }
+    case 'newRem': L.form = { kind: 'rem', tab: 'rem', title: '', date: TODAY, time: '', rep: 'none', pre: [] }; break;
     case 'redit': { const r = Y.rems.find(x => x.id === id); L.form = { kind: 'rem', tab: 'rem', id, ...r }; break; }
     case 'fcancel': L.form = null; break;
+    // الشرائح تتبدّل بلا إعادة رسم، وإلا ضاع اللي انكتب في النموذج
+    case 'fpre': b.classList.toggle('on'); return;
+    case 'icsItem': {
+      const F = L.form, x = Y[coll(F.kind)].find(i => i.id === F.id);
+      if (F.kind === 'task') {
+        let d = x.date || x.from;
+        if (x.wd != null) { d = TODAY; while (dow(d) !== x.wd) d = addD(d, 1); }
+        return ics('muhimma', [{ uid: x.id, title: x.title, desc: x.note, date: d, time: x.time || DEF_T, pre: x.pre, rrule: x.wd != null ? 'FREQ=WEEKLY' : '' }]);
+      }
+      if (F.kind === 'long') return ics('muhimma-baeeda', [{ uid: x.id, title: 'آخر موعد: ' + x.title, desc: x.note, date: x.due, time: DEF_T, pre: x.pre }]);
+      return ics('tadhkeer', [{ uid: x.id, title: x.title, date: nextOcc(x) || x.date, time: x.time, pre: x.pre, rrule: x.rep === 'daily' ? 'FREQ=DAILY' : x.rep === 'weekly' ? 'FREQ=WEEKLY' : '' }]);
+    }
     case 'fsave': {
       const F = L.form, val = readForm();
       if (!val) return;
@@ -1291,7 +1344,7 @@ document.addEventListener('click', ev => {
     case 'jump': { render(); document.getElementById('wd-' + v)?.scrollIntoView({ behavior: 'smooth', block: 'center' }); return; }
     case 'icsRem': {
       const r = Y.rems.find(x => x.id === id), d = nextOcc(r) || r.date;
-      return ics('tadhkeer', [{ uid: r.id, title: r.title, date: d, time: r.time, rrule: r.rep === 'daily' ? 'FREQ=DAILY' : r.rep === 'weekly' ? 'FREQ=WEEKLY' : '' }]);
+      return ics('tadhkeer', [{ uid: r.id, title: r.title, date: d, time: r.time, pre: r.pre, rrule: r.rep === 'daily' ? 'FREQ=DAILY' : r.rep === 'weekly' ? 'FREQ=WEEKLY' : '' }]);
     }
     case 'icsWeek': {
       const sat = dow(TODAY) === 6 ? TODAY : addD(wkStart(TODAY), 7);
