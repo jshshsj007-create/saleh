@@ -351,7 +351,7 @@ async function initDB() {
     DB = {
       onAuth: cb => cb({ uid: 'demo', displayName: localStorage.getItem('yawmi.demoName') || 'وضع التجربة', email: 'البيانات في هذا الجهاز فقط' }),
       login() { }, logout() { localStorage.removeItem(K); location.reload(); },
-      listen(u, h) { setTimeout(() => { h.profile(D.profile || null, false); h.logs({ ...D.logs }); h.y(D.y || null, false); h.img({ ...D.img }); }, 50); return []; },
+      listen(u, h) { if (localStorage.getItem('yawmi.demoHang')) return []; setTimeout(() => { h.profile(D.profile || null, false); h.logs({ ...D.logs }); h.y(D.y || null, false); h.img({ ...D.img }); }, 50); return []; },
       saveProfile: p => { D.profile = p; put(); },
       saveLog: (date, id, sets, day) => { const r = D.logs[date] = D.logs[date] || { items: {} }; r.items[id] = sets; if (day) r.day = day; put(); },
       saveY: y => { D.y = y; put(); },
@@ -373,7 +373,11 @@ async function initDB() {
   });
   const auth = A.getAuth(fb);
   let db;
-  try { db = F.initializeFirestore(fb, { localCache: F.persistentLocalCache({ tabManager: F.persistentMultipleTabManager() }) }); }
+  // النسخة المحلية في الجهاز تخلّي التسجيل يشتغل لو ضعفت الشبكة. بس الآيفون من أيقونة الشاشة
+  // الرئيسية يعلق أحيانًا وهو يفتحها، فلا يوصل شي. فلو علق مرة، نكمل بدونها (yawmi.nocache)
+  let noCache = false;
+  try { noCache = localStorage.getItem('yawmi.nocache') === '1'; } catch (e) { }
+  try { db = noCache ? F.initializeFirestore(fb, {}) : F.initializeFirestore(fb, { localCache: F.persistentLocalCache({ tabManager: F.persistentMultipleTabManager() }) }); }
   catch (e) { db = F.initializeFirestore(fb, {}); }
   const U = () => auth.currentUser.uid;
   DB = {
@@ -1255,7 +1259,7 @@ function renderLogin(err = '') {
     <p class="sub">نفس حسابك في «النادي»، وتمارينك تجيك كما هي.</p>
     ${err ? `<div class="err">${esc(err)}</div>` : ''}</div>`;
 }
-const renderLoading = () => { document.getElementById('app').innerHTML = `<div class="login"><img class="logo" src="${myIcon || DEF_ICON}" alt=""><div class="sub">جاري التحميل…</div></div>`; };
+const renderLoading = () => { document.getElementById('app').innerHTML = `<div class="login"><img class="logo" src="${myIcon || DEF_ICON}" alt=""><div class="sub">جاري التحميل…</div><div class="sub" id="loadSt" style="font-size:12px;opacity:.8"></div></div>`; loadStatus(); };
 function renderChoose() {
   const c = '#a78bfa';
   document.getElementById('app').innerHTML = `<div class="login" style="justify-content:flex-start;padding-top:calc(60px + env(safe-area-inset-top));gap:12px">
@@ -1313,14 +1317,30 @@ function ready() {
   refresh();
 }
 let loadTimer = null;
+// وش وصل ووش باقي، تحت «جاري التحميل»: لو علق يبان وين
+function loadStatus() {
+  const el = document.getElementById('loadSt');
+  if (!el || S) return;
+  el.textContent = [['الحساب', profile], ['السجل', gotLogs], ['المهام', Y]].map(([t, ok]) => `${ok ? '✓' : '…'} ${t}`).join('   ');
+}
 function watchLoad() {
-  clearTimeout(loadTimer);
-  loadTimer = setTimeout(() => {
-    if (S || choosing || !USER) return;
-    const miss = [!profile && 'الحساب', !gotLogs && 'السجل', !Y && 'المهام'].filter(Boolean).join('، ');
-    const el = document.querySelector('.login .sub');
-    if (el) el.innerHTML = `طوّل التحميل… ما وصل: ${esc(miss || '—')}<br>تأكد من النت، أو <button class="link" onclick="location.reload()">حدّث الصفحة</button>`;
-  }, 12000);
+  clearInterval(loadTimer);
+  const t0 = Date.now();
+  loadTimer = setInterval(() => {
+    if (S || choosing || !USER) return clearInterval(loadTimer);
+    loadStatus();
+    const sec = (Date.now() - t0) / 1000;
+    let nc = false;
+    try { nc = localStorage.getItem('yawmi.nocache') === '1'; } catch (e) { }
+    // علق ٨ ثواني والنسخة المحلية شغّالة: نعيد الفتح مرة وحدة بدونها
+    if (sec > 8 && !nc && !DEMO) { try { localStorage.setItem('yawmi.nocache', '1'); } catch (e) { } location.reload(); return; }
+    if (sec > 12) {
+      clearInterval(loadTimer);
+      const miss = [!profile && 'الحساب', !gotLogs && 'السجل', !Y && 'المهام'].filter(Boolean).join('، ');
+      const el = document.querySelector('.login .sub');
+      if (el) el.innerHTML = `طوّل التحميل… ما وصل: ${esc(miss || '—')}<br>تأكد من النت، أو <button class="link" onclick="location.reload()">حدّث الصفحة</button>`;
+    }
+  }, 500);
 }
 function listen(u) {
   watchLoad();
@@ -1333,7 +1353,7 @@ function listen(u) {
       if (fromCache) return;
       choosing = true; render();
     },
-    logs(o, mine) { if (mine && S) { logsByDate = o; S.logs = buildLogs(); return; } logsByDate = o; gotLogs = true; if (S) S.logs = buildLogs(); ready(); },
+    logs(o, mine) { setTimeout(loadStatus); if (mine && S) { logsByDate = o; S.logs = buildLogs(); return; } logsByDate = o; gotLogs = true; if (S) S.logs = buildLogs(); ready(); },
     y(d, fromCache, mine) {
       if (!d && fromCache) return;
       if (mine && Y) return;
