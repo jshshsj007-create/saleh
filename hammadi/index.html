@@ -459,7 +459,7 @@ function menuHtml() {
   ${isOwner() ? membersHtml() : ''}
   <label>الإشعارات على هذا الجهاز</label>
   <div class="btns">${pushOn() ? '<button data-act="pushoff">🔕 إيقاف الإشعارات</button>' : '<button class="ok" data-act="pushon">🔔 تفعيل الإشعارات</button>'}</div>
-  <div class="meta" style="margin-top:6px">تصلك والجوال مقفل: إذا أُسندت إليك مهمة، وقبل آخر يوم بيوم، وفي آخر يوم، وصباح كل يوم فيه متأخرة. ${isIOS && !standalone() ? '<br><b>في الآيفون:</b> أضف الموقع للشاشة الرئيسية أولًا (زر المشاركة ← «إضافة إلى الشاشة الرئيسية»)، وافتحه من أيقونته، ثم فعّلها.' : ''}</div>
+  <div class="meta" style="margin-top:6px">تصلك والجوال مقفل، ثلاثة لكل مهمة: لما تُسند لك، وقبل انتهاء مهلتها بيوم، وصباح اليوم التالي إن فاتت. ${isIOS && !standalone() ? '<br><b>في الآيفون:</b> أضف الموقع للشاشة الرئيسية أولًا (زر المشاركة ← «إضافة إلى الشاشة الرئيسية»)، وافتحه من أيقونته، ثم فعّلها.' : ''}</div>
   <div class="btns"><button data-act="logout">تسجيل الخروج</button></div>`;
 }
 function membersHtml() {
@@ -528,7 +528,7 @@ document.addEventListener('click', async e => {
       const it = items().find(i => i.key === k);
       if (it.who === v) return;
       put(k, { assignee: v }, it.who ? `أعاد إسنادها من ${it.who} إلى ${v}` : `أسندها إلى ${v}`);
-      if (v !== me()) pingNow(v, `📌 أُسندت إليك: ${it.title}`, `${it.caseNo ? 'القضية ' + it.caseNo + ' · ' : ''}من ${me()}`, it.kind, k);
+      if (v !== me()) pingNow(v, `📌 أُسندت لك مهمة: «${it.title}»${leftTxt(it) ? ' — ' + leftTxt(it) : ''}`, `${it.caseNo ? 'القضية ' + it.caseNo + ' · ' : ''}من ${me()}`, it.kind, k);
       toast(`أُسندت إلى ${v}`); return renderSheet();
     }
     case 'status': put(k, { status: v }, `غيّر الحالة إلى «${STATUS[v][0]}»`); return renderSheet();
@@ -546,7 +546,7 @@ document.addEventListener('click', async e => {
       const ek2 = `e|${it.caseNo}`;
       const doc = { kind: 'e', title: 'تنفيذ حكم', caseNo: it.caseNo, from: k, assignee: execWho(), status: 'new', log: [stamp(`أسندها للتنفيذ إلى ${execWho()} (حكم لصالح الحمادي)`)] };
       S.docs[ek2] = doc; DB.saveTask(ek2, doc);
-      if (execWho() !== me()) pingNow(execWho(), '⚖️ تنفيذ حكم جديد', `القضية ${it.caseNo} · حكم لصالح الحمادي · من ${me()}`, 'e', ek2);
+      if (execWho() !== me()) pingNow(execWho(), '📌 أُسندت لك مهمة: «تنفيذ حكم»', `القضية ${it.caseNo} · حكم لصالح الحمادي · من ${me()}`, 'e', ek2);
       if (it.status !== 'done') put(k, { status: 'done', doneDate: TODAY(), doneBy: me() }, 'صدر الحكم لصالح الحمادي وأُحيلت للتنفيذ');
       toast(`أُسندت للتنفيذ إلى ${execWho()}`); S.open = { type: 'task', k: ek2 }; render(); return;
     }
@@ -557,7 +557,7 @@ document.addEventListener('click', async e => {
       const who = document.getElementById('nw').value;
       const doc = { manual: true, kind: document.getElementById('nk').value, title, caseNo: document.getElementById('nc').value.trim(), due: document.getElementById('nd').value || null, assignee: who, status: 'new', note: document.getElementById('nn').value.trim(), log: [stamp(who === me() ? 'أضافها لنفسه' : `أضافها وأسندها إلى ${who}`)] };
       S.docs[key] = doc; DB.saveTask(key, doc);
-      if (who !== me()) pingNow(who, `📌 أُسندت إليك: ${title}`, `${doc.caseNo ? 'القضية ' + doc.caseNo + ' · ' : ''}من ${me()}`, doc.kind, key); else syncPush();
+      if (who !== me()) pingNow(who, `📌 أُسندت لك مهمة: «${title}»${doc.due ? ' — ' + leftTxt({ due: doc.due, left: diffD(doc.due, TODAY()) }) : ''}`, `${doc.caseNo ? 'القضية ' + doc.caseNo + ' · ' : ''}من ${me()}`, doc.kind, key); else syncPush();
       S.tab = doc.kind; S.open = null; document.querySelector('.sheet')?.remove(); toast('أُضيفت'); return render();
     }
     case 'savecfg': {
@@ -761,6 +761,8 @@ const hash = s => { let h = 0; for (const c of String(s)) h = (h * 31 + c.charCo
 let myEndpoint = '';
 try { myEndpoint = localStorage.getItem('hammadi.ep') || ''; } catch (e) { }
 const pushOn = () => !!myEndpoint && !!(S.cfg.subs?.[me()] || {})[hash(myEndpoint)];
+// «باقي ٧ أيام» لمهمةٍ لها مهلة، تُلحق بإشعار الإسناد
+const leftTxt = it => it && it.due ? (it.left < 0 ? `متأخرة ${days(-it.left)}` : it.left === 0 ? 'آخر يوم اليوم' : `باقي ${days(it.left)}`) : '';
 const at = (d, hm) => new Date(d + 'T' + hm).getTime();
 const addDays = (d, k) => { const t = P(d); t.setDate(t.getDate() + k); return iso(t); };
 // مواعيد عضوٍ واحد للأيام التسعة الجاية، من مهامه المفتوحة
@@ -768,14 +770,11 @@ function schedule(name) {
   const out = [], now = Date.now(), add = (ms, k, title, body, tab) => { if (ms > now) out.push({ at: ms, k, title, body, tab }); };
   const mine = items().filter(i => i.who === name && i.status !== 'done');
   const where = i => [i.caseNo && 'القضية ' + i.caseNo, i.row?.court].filter(Boolean).join(' · ');
+  // ثلاثة تنبيهات للمهمة لا أكثر: عند الإسناد (من pingNow)، وقبل المهلة بيوم، وصباح اليوم التالي لفواتها.
+  // لا ملخّصات يومية: كل تنبيهٍ يقول أيّ مهمةٍ بعينها
   for (const i of mine) if (i.due) {
-    if (i.kind === 'a') add(at(addDays(i.due, -3), '09:00'), `a3:${i.key}:${i.due}`, `⏳ باقي ٣ أيام: ${i.title}`, where(i), i.kind);
-    add(at(addDays(i.due, -1), '09:00'), `d1:${i.key}:${i.due}`, `⏰ باقي يوم: ${i.title}`, where(i), i.kind);
-    add(at(i.due, '08:30'), `d0:${i.key}:${i.due}`, `🔴 اليوم آخر يوم: ${i.title}`, where(i), i.kind);
-  }
-  for (let k = 0; k <= 8; k++) {
-    const d = addDays(TODAY(), k), late = mine.filter(i => i.due && i.due < d);
-    if (late.length) add(at(d, '08:00'), `late:${name}:${d}`, `عندك ${late.length == 1 ? 'مهمة متأخرة' : late.length == 2 ? 'مهمتان متأخرتان' : ar(late.length) + ' مهام متأخرة'}`, late.slice(0, 3).map(i => i.title + (i.caseNo ? ' — ' + i.caseNo : '')).join('، '), late[0].kind);
+    add(at(addDays(i.due, -1), '09:00'), `d1:${i.key}:${i.due}`, `⏰ تنتهي مهلة «${i.title}» — باقي يوم`, where(i), i.kind);
+    add(at(addDays(i.due, 1), '09:00'), `late:${i.key}:${i.due}`, `🔴 عندك «${i.title}» المفروض ${i.kind === 'e' ? 'تنفّذها' : 'تكتبها'} أمس`, where(i), i.kind);
   }
   return out.sort((a, b) => a.at - b.at).slice(0, 80);
 }
@@ -791,6 +790,8 @@ async function syncAll(extra = {}) {
     try { const r = await api('sync', { sub, items: list.map(({ now, ...x }) => x) }); if (r.ok) sent[sub.endpoint] = sig; } catch (e) { console.error('push', e); }
   }
 }
+// وضع التجربة: قائمة التنبيهات مكشوفة للفحص قبل النشر
+if (DEMO) window.__sched = schedule;
 function syncPush() { clearTimeout(pushT); pushT = setTimeout(() => syncAll(), 2500); }
 // إشعار فوري لعضو (أُسندت إليك…): يُضاف إلى قائمته ويُرسل الآن، فيصله خلال دقيقة
 function pingNow(name, title, body, tab, key) {
