@@ -252,8 +252,19 @@ function items() {
     it.left = it.due ? diffD(it.due, TODAY()) : null;
     out.push(it);
   };
-  for (const r of S.sheet.cases) if (r.memo) add({ key: `m|${r.caseNo}|${r.memo}`, kind: 'm', title: r.memo, caseNo: r.caseNo, lawyer: r.lawyer, due: pickDate(r.session), row: r });
+  // القضية الواحدة تتكرّر في الشيت: في تبويب «العام» وفي تبويب محكمتها. فتُجمع في مهمةٍ واحدة،
+  // وكل خانةٍ فارغة في صفٍّ تُكمَل من الصف الآخر
+  const memos = new Map();
+  for (const r of S.sheet.cases) if (r.memo) {
+    const k = `m|${r.caseNo}|${r.memo}`, o = memos.get(k);
+    if (!o) { memos.set(k, { ...r }); continue; }
+    for (const [f, v] of Object.entries(r)) if (v && !o[f]) o[f] = v;
+  }
+  // موعد المذكرة من «عداد المهلة» لا من الجلسة: هكذا يعتمده الفريق في الشيت
+  for (const [key, r] of memos) add({ key, kind: 'm', title: r.memo, caseNo: r.caseNo, lawyer: r.lawyer, due: pickDate(r.deadline), row: r, sheetLeft: r.remain });
+  const seenA = new Set();
   for (const r of S.sheet.appeals) {
+    if (seenA.has(r.caseNo)) continue; seenA.add(r.caseNo);
     const due = pickDate(r.deadline);
     add({ key: `a|${r.caseNo}`, kind: 'a', title: 'لائحة اعتراض', caseNo: r.caseNo, lawyer: r.lawyer, due, row: r, sheetLeft: r.remain });
   }
@@ -285,7 +296,7 @@ function dueChip(it) {
 function countBox(it) {
   if (it.status === 'done' || it.left == null) return dueChip(it);
   const c = it.left <= 3 ? 'r' : it.left <= 7 ? 'a' : 'g';
-  return `<div class="count ${c}"><b>${ar(Math.abs(it.left))}</b><span>${it.left < 0 ? 'متأخرة' : it.left === 0 ? 'اليوم' : 'يوم باقي'}</span></div>`;
+  return `<div class="count ${c}"><b>${ar(Math.abs(it.left))}</b><span>${it.left < 0 ? 'متأخرة' : it.left === 0 ? 'اليوم' : 'باقي'}</span></div>`;
 }
 const opp = r => { if (!r) return ''; const a = r.plaintiff || '', b = r.defendant || ''; return /حماد/.test(a) ? b : /حماد/.test(b) ? a : b || a; };
 function card(it) {
@@ -295,7 +306,7 @@ function card(it) {
   const st = STATUS[it.status] || STATUS.new;
   const whoTxt = it.who ? (it.who === me() ? 'أنا' : esc(it.who)) : it.outsider ? esc(it.outsider) + ' (خارج الفريق)' : 'غير مسندة';
   return `<button class="card ${cls}" data-act="open" data-k="${esc(it.key)}">
-    <div class="h"><div style="min-width:0"><h3>${esc(it.title)}</h3><div class="meta">${meta || '—'}</div></div>${it.kind === 'a' ? countBox(it) : dueChip(it)}</div>
+    <div class="h"><div style="min-width:0"><h3>${esc(it.title)}</h3><div class="meta">${meta || '—'}</div></div>${it.kind !== 'e' ? countBox(it) : dueChip(it)}</div>
     <div class="chips">${it.status !== 'done' ? `<span class="chip ${st[1]}">${st[0]}</span>` : ''}
       ${it.due && it.status !== 'done' ? `<span class="chip n">📅 ${hijri(it.due)}</span>` : ''}
       ${it.gone ? '<span class="chip n">لم تعد في الشيت</span>' : ''}${it.manual ? '<span class="chip n">يدوية</span>' : ''}
@@ -382,7 +393,7 @@ function taskHtml(k) {
   const r = it.row || {}, d = it.doc;
   const kv = [['رقم القضية', it.caseNo], ['المحكمة', [r.court, r.circuit && 'الدائرة ' + r.circuit].filter(Boolean).join(' · ')], ['الخصم', opp(r)], ['نوع القضية', r.type],
     ['المحامي في الشيت', r.lawyer], ['الجلسة', r.session], ['آخر إجراء', r.last], ['المطلوب', r.req], ['الملاحظة', r.note], ['حالة القضية', r.status],
-    ['المهلة تنتهي', r.deadline ? r.deadline : ''], ['المتبقي في الشيت', it.kind === 'a' && r.remain ? days(+r.remain) : ''], ['تبويب الشيت', r.tab]].filter(x => x[1]);
+    ['المهلة تنتهي', r.deadline ? r.deadline : ''], ['المتبقي في الشيت', it.kind !== 'e' && /^\d+$/.test(r.remain || '') ? days(+r.remain) : ''], ['تبويب الشيت', r.tab]].filter(x => x[1]);
   const team = S.cfg.team || [];
   // مسار القضية: كل ما يحمل رقمها، في الشيت أو في الموقع
   const path = items().filter(i => i.caseNo && i.caseNo === it.caseNo && i.key !== it.key);
@@ -676,8 +687,10 @@ async function initDB() {
 function demoSheet() {
   const T = (d) => hijri(iso(new Date(Date.now() + d * 864e5)));
   const H = ['رقم القضية', 'رقم الملف', 'السنة', 'المحامي', 'المحكمة', 'الدائرة', 'اسم المدعي', 'اسم المدعى عليه', 'قيمة المطالبة', 'المبلغ المحكوم', 'نوع القضية', 'تاريخ الجلسة', 'رابط الجلسة', 'عدد الجلسات', 'عدد المذكرات', 'آخر اجراء', 'المطلوب', 'نوع المذكرة', 'المتبقي', 'عداد المهلة', 'حالة القضية', 'التقرير المالي'];
-  const row = (c, law, court, opp, type, ses, memo, req, st = 'قيد النظر') => [c, '', '1447', law, court, '12', 'شركة الحمادي (تجريبي)', opp, '', '', type, ses ? `10:00:00 ص ${T(ses)}` : '', '', '2', '1', 'جلسة', req, memo, '', '', st, ''];
+  const row = (c, law, court, opp, type, ses, memo, req, st = 'قيد النظر') => [c, '', '1447', law, court, '12', 'شركة الحمادي (تجريبي)', opp, '', '', type, ses ? `10:00:00 ص ${T(ses + 3)}` : '', '', '2', '1', 'جلسة', req, memo, '', ses ? T(ses) : '', st, ''];
   return [
+    // القضية نفسها في «العام» أيضًا، كما في الشيت الحقيقي: يجب ألا تظهر مرتين
+    ['العام', [H, row('4870000101', 'الاحيدب', 'العامة', 'مؤسسة النور (تجريبي)', 'أجرة أعمال', 0, 'مذكرة جوابية', '')]],
     ['المطالبات المالية', [H,
       row('4870000101', 'الاحيدب', 'العامة', 'مؤسسة النور (تجريبي)', 'أجرة أعمال', 2, 'مذكرة جوابية', 'الرد على صحيفة الدعوى'),
       row('4870000102', 'الشلعان', 'العامة', 'شركة الأفق (تجريبي)', 'مقاولة', 6, 'مذكرة دفاع', 'الرد على الدفوع'),
