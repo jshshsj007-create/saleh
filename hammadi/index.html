@@ -185,6 +185,8 @@ const S = {
   user: null, cfg: {}, cfgReady: false, docs: {}, docsReady: false,
   sheet: { at: null, cases: [], appeals: [], archive: [], sessions: [], err: '', loading: false },
   draft: {}, back: [],
+  // الضغط على إشعار يفتح مهمته: مفتاحها يصل في الرابط (?open=) أو من عامل الخدمة
+  pendingOpen: new URLSearchParams(location.search).get('open') || '',
   tab: ['m', 'a', 'e'].includes(new URLSearchParams(location.search).get('tab')) ? new URLSearchParams(location.search).get('tab') : 'm',
   seg: 'mine', q: '', open: null, archN: 30,
   denied: false, asked: false, reqs: {},
@@ -340,7 +342,7 @@ function countBox(it) {
   const c = it.left <= 3 ? 'r' : it.left <= 7 ? 'a' : 'g';
   return `<div class="count ${c}"><b>${ar(Math.abs(it.left))}</b><span>${it.left < 0 ? 'متأخرة' : it.left === 0 ? 'اليوم' : 'باقي'}</span></div>`;
 }
-const opp = r => { if (!r) return ''; const a = r.plaintiff || '', b = r.defendant || ''; return /حماد/.test(a) ? b : /حماد/.test(b) ? a : b || a; };
+const opp = r => { if (!r) return ''; if (r.opp) return r.opp; const a = r.plaintiff || '', b = r.defendant || ''; return /حماد/.test(a) ? b : /حماد/.test(b) ? a : b || a; };
 function card(it) {
   const r = it.row || {};
   const cls = it.status === 'done' ? 'done' : it.left != null && it.left <= 3 ? 'late' : it.left != null && it.left <= 7 ? 'soon' : '';
@@ -406,6 +408,7 @@ function render() {
   <button class="fab" data-act="new">+ مهمة</button>`;
   // نافذةٌ مفتوحة يُكتب فيها: لا نعيد رسمها مع كل تحديثٍ يصل، وإلا ضاع ما يُكتب
   const f = document.activeElement;
+  tryOpen();
   if (S.open && !(f && f.closest && f.closest('.sheet') && /INPUT|TEXTAREA|SELECT/.test(f.tagName))) renderSheet();
 }
 function archiveHtml() {
@@ -425,6 +428,7 @@ function renderSheet() {
   if (o.type === 'task') html = taskHtml(o.k);
   else if (o.type === 'new') html = newHtml();
   else if (o.type === 'menu') html = menuHtml();
+  else if (o.type === 'case') html = caseHtml(o.c);
   if (!html) { S.open = null; return; }
   const el = document.createElement('div'); el.className = 'sheet'; el.dataset.act = 'close';
   el.innerHTML = `<div class="in"><button class="xbtn" data-act="back" aria-label="رجوع">✕</button><div class="grab"></div>${html}</div>`;
@@ -559,7 +563,7 @@ function remHtml(it) {
    إذن قراءة الشيت يعيش ساعة، والآيفون يطلب الضغط لتجديده. فمع كل تحميلٍ يُحفظ ملخّصٌ صغير
    لما تحتاجه المهام والتنبيهات: الرقم والنوع والمحامي والمهلة والمحكمة — بلا أسماء الخصوم ولا المبالغ.
    منه تظهر المهام وتُرسل التنبيهات وإن لم يُحمَّل الشيت، حتى يحمّله أحد */
-const slim = r => ({ tab: r.tab, caseNo: r.caseNo, memo: r.memo || '', lawyer: r.lawyer || '', court: r.court || '', ...(r.link ? { link: r.link } : {}), _due: dueOf(r), _dueT: dueTimeOf(r), _src: dueSrc(r) });
+const slim = r => ({ tab: r.tab, caseNo: r.caseNo, memo: r.memo || '', lawyer: r.lawyer || '', court: r.court || '', ...(r.link ? { link: r.link } : {}), ...(opp(r) ? { opp: opp(r) } : {}), _due: dueOf(r), _dueT: dueTimeOf(r), _src: dueSrc(r) });
 /* الجلسات القادمة لكل قضية فيها محامٍ، من عمود «تاريخ/موعد الجلسة» في تبويبات المحاكم.
    القضية تتكرّر بين «العام» وتبويب محكمتها، فتُجمع بالرقم والتاريخ، ويُفضَّل الصف الذي فيه الساعة */
 function sessionsFrom(rows) {
@@ -568,7 +572,7 @@ function sessionsFrom(rows) {
     const d = pickDate(r._session) || pickDate(r.session);
     if (!d || d < today || !r.lawyer) continue;
     const t = timeFrom(r._session, r.session), k = r.caseNo + '|' + d, o = m.get(k);
-    if (!o || (!o.t && t)) m.set(k, { caseNo: r.caseNo, lawyer: r.lawyer, court: r.court || '', circuit: r.circuit || '', d, t });
+    if (!o || (!o.t && t)) m.set(k, { caseNo: r.caseNo, lawyer: r.lawyer, court: r.court || '', circuit: r.circuit || '', opp: opp(r), d, t });
   }
   return [...m.values()].sort((a, b) => (a.d + (a.t || '')).localeCompare(b.d + (b.t || '')));
 }
@@ -616,7 +620,8 @@ const clean = h => String(h || '').replace(/[\\u064B-\\u0652\\u0640\\u200e\\u200
 function cols(head) {
   const f = re => head.findIndex(h => re.test(h));
   const std = (i, k) => i >= 0 ? i : (/^(العمود|Column)/.test(head[k] || '') ? k : -1);
-  return { caseNo: f(/رقم القضي/), lawyer: std(f(/^(المحامي|المسؤول)/), 3), memo: f(/نوع المذكر/), deadline: f(/عداد المه/) };
+  const def = f(/المدعى عليه/);
+  return { caseNo: f(/رقم القضي/), lawyer: std(f(/^(المحامي|المسؤول)/), 3), memo: f(/نوع المذكر/), deadline: f(/عداد المه/), pl: std(head.findIndex(h => /اسم المدعي/.test(h) && !/عليه/.test(h)), 6), df: std(def, 7) };
 }
 
 function scan(sh, r0, r1, P, silent) {
@@ -635,19 +640,22 @@ function scan(sh, r0, r1, P, silent) {
     const key = (appeal ? 'a|' : 'm|') + caseNo + '|' + memo, prev = JSON.parse(P.getProperty(key) || 'null');
     P.setProperty(key, JSON.stringify({ l: lawyer, d: dl }));
     if (silent) continue;
-    const t = appeal ? 'a' : exec ? 'e' : 'm', where = 'القضية ' + caseNo + (dl ? ' · المهلة ' + dl : '');
+    const pa = c.pl >= 0 ? String(row[c.pl] || '').trim() : '', pb = c.df >= 0 ? String(row[c.df] || '').trim() : '';
+    const op = /حماد/.test(pa) ? pb : /حماد/.test(pb) ? pa : pb || pa;
+    const t = appeal ? 'a' : exec ? 'e' : 'm', who = 'القضية ' + caseNo + (op ? ' · ' + op : ''), where = who + (dl ? ' · المهلة ' + dl : '');
+    const tk = (exec ? 'e|' + caseNo : key);
     if (!prev || prev.l !== lawyer) {
-      if (lawyer) send(lawyer, '📌 تم إسناد المهمة إليك: «' + memo + '»', where, t);
-      if (prev && prev.l) send(prev.l, '🔁 أُسندت «' + memo + '» إلى ' + (lawyer || 'لا أحد'), 'القضية ' + caseNo, t);
+      if (lawyer) send(lawyer, '📌 تم إسناد المهمة إليك: «' + memo + '»', where, t, tk);
+      if (prev && prev.l) send(prev.l, '🔁 أُسندت «' + memo + '» إلى ' + (lawyer || 'لا أحد'), who, t, tk);
     } else if (prev.d !== dl && lawyer) {
-      send(lawyer, '⏳ تعدّلت مهلة «' + memo + '»' + (dl ? ' — صارت ' + dl : ''), 'القضية ' + caseNo + (prev.d ? ' · كانت ' + prev.d : ''), t);
+      send(lawyer, '⏳ تعدّلت مهلة «' + memo + '»' + (dl ? ' — صارت ' + dl : ''), who + (prev.d ? ' · كانت ' + prev.d : ''), t, tk);
     }
   }
 }
 
-function send(to, title, body, tab) {
+function send(to, title, body, tab, key) {
   UrlFetchApp.fetch(HOOK, { method: 'post', contentType: 'application/json', muteHttpExceptions: true,
-    payload: JSON.stringify({ secret: SECRET, to: to, title: title, body: body, tab: tab, k: 'hook:' + Date.now() }) });
+    payload: JSON.stringify({ secret: SECRET, to: to, title: title, body: body, tab: tab, k: 'sh:' + (key || '') + ':' + Date.now() }) });
 }
 `;
 }
@@ -666,6 +674,39 @@ function hookHtml() {
     <div class="btns"><button class="pri" data-act="hookcopy">📋 نسخ السكربت</button></div>
     <div class="btns">${S.cfg.hookOn ? '<button data-act="hookon" data-v="0">✓ السكربت شغّال — إيقاف الاعتماد عليه</button>' : '<button class="ok" data-act="hookon" data-v="1">وصلني «✓ سكربت الشيت مربوط»</button>'}</div>
     <div class="meta">${S.cfg.hookOn ? 'الشيت يبلغ لحظيًا، والموقع يسجّل بلا تكرار.' : 'حتى تضغطه، يبقى الموقع يبلغ بنفسه لما يقرأ الشيت.'}</div>`}`;
+}
+
+/* ───────── فتح المهمة من الإشعار ─────────
+   وسم الإشعار يحمل مفتاحها: «d1:m|123|مذكرة رد:…» أو «sh:m|123|…:وقت» (سكربت الشيت) أو «ses12:123:تاريخ» (جلسة).
+   فيُفتح بالضغط عليه: المهمة إن وُجدت، وإلا مهمةٌ مفتوحة لرقم القضية، وإلا صفحة القضية */
+function tryOpen() {
+  const tag = S.pendingOpen;
+  if (!tag || !S.user || !me() || !S.docsReady || (!S.sheet.at && !S.sheet.cachedAt)) return;
+  S.pendingOpen = '';
+  try { const u = new URL(location.href); if (u.searchParams.has('open')) { u.searchParams.delete('open'); history.replaceState(null, '', u); } } catch (e) { }
+  const i = tag.indexOf(':'), pre = tag.slice(0, i), rest = tag.slice(i + 1);
+  const all = items();
+  let caseNo = '', key = '';
+  if (/^ses/.test(pre)) caseNo = rest.split(':')[0];
+  else { key = rest.split(':')[0]; caseNo = key.split('|')[1] || (S.docs[key] || {}).caseNo || ''; }
+  const hit = (key && all.find(x => x.key === key)) || (caseNo && (all.find(x => x.caseNo === caseNo && x.status !== 'done') || all.find(x => x.caseNo === caseNo)));
+  if (hit) { S.tab = hit.kind; S.back = []; S.open = { type: 'task', k: hit.key }; }
+  else if (caseNo) { S.back = []; S.open = { type: 'case', c: caseNo }; }
+  else return;
+  render();
+}
+// صفحة قضيةٍ بلا مهمة (تذكير جلسة): تفاصيلها، وجلساتها القادمة، وزرّ ملفها في الدرايف
+function caseHtml(c) {
+  const rows = caseIndex()[c] || [], r = rows[0] || {};
+  const link = rows.map(x => x.link).find(Boolean) || '';
+  const ses = (S.sheet.sessions || []).filter(g => g.caseNo === c);
+  const kv = [['المحكمة', [r.court, r.circuit && 'الدائرة ' + r.circuit].filter(Boolean).join(' · ')], ['الخصم', opp(r) || ses[0]?.opp], ['المحامي', r.lawyer || ses[0]?.lawyer],
+    ['نوع القضية', r.type], ['آخر إجراء', r.last], ['حالة القضية', r.status]].filter(x => x[1]);
+  return `<h2>القضية ${esc(c)}</h2>
+  ${link ? `<a class="drive" href="${esc(link)}" target="_blank" rel="noopener">📁 فتح ملف القضية</a>` : ''}
+  ${ses.length ? `<label>الجلسات القادمة</label><div class="kv">${ses.map(g => `<div><dt>⚖️ ${hijri(g.d)}</dt><dd>${g.t ? hm12(g.t) : 'الساعة غير مكتوبة'}</dd></div>`).join('')}</div>` : ''}
+  ${kv.length ? `<dl class="kv">${kv.map(([a, b]) => `<div><dt>${a}</dt><dd>${esc(b)}</dd></div>`).join('')}</dl>` : ''}
+  ${!S.sheet.at ? '<div class="meta" style="margin-top:10px">تفاصيل أكثر بعد «تحميل الشيت».</div>' : ''}`;
 }
 
 /* ───────── الكتابة ───────── */
@@ -721,7 +762,7 @@ document.addEventListener('click', async e => {
       if (it.who === v) return;
       put(k, { assignee: v }, it.who ? `أعاد إسنادها من ${it.who} إلى ${v}` : `أسندها إلى ${v}`);
       markSeen(k, v);
-      if (v !== me()) pingNow(v, `📌 أُسندت لك مهمة: «${it.title}»${leftTxt(it) ? ' — ' + leftTxt(it) : ''}`, `${it.caseNo ? 'القضية ' + it.caseNo + ' · ' : ''}من ${me()}`, it.kind, k);
+      if (v !== me()) pingNow(v, `📌 أُسندت لك مهمة: «${it.title}»${leftTxt(it) ? ' — ' + leftTxt(it) : ''}`, [it.caseNo && 'القضية ' + it.caseNo, opp(it.row), 'من ' + me()].filter(Boolean).join(' · '), it.kind, k);
       toast(`أُسندت إلى ${v}`); return renderSheet();
     }
     case 'status': put(k, { status: v }, `غيّر الحالة إلى «${STATUS[v][0]}»`); return renderSheet();
@@ -740,7 +781,7 @@ document.addEventListener('click', async e => {
       const doc = { kind: 'e', title: 'تنفيذ حكم', caseNo: it.caseNo, from: k, assignee: execWho(), status: 'new', log: [stamp(`أسندها للتنفيذ إلى ${execWho()} (حكم لصالح الحمادي)`)] };
       S.docs[ek2] = doc; DB.saveTask(ek2, doc);
       markSeen(ek2, execWho());
-      if (execWho() !== me()) pingNow(execWho(), '📌 أُسندت لك مهمة: «تنفيذ حكم»', `القضية ${it.caseNo} · حكم لصالح الحمادي · من ${me()}`, 'e', ek2);
+      if (execWho() !== me()) pingNow(execWho(), '📌 أُسندت لك مهمة: «تنفيذ حكم»', ['القضية ' + it.caseNo, opp(it.row), 'من ' + me()].filter(Boolean).join(' · '), 'e', ek2);
       if (it.status !== 'done') put(k, { status: 'done', doneDate: TODAY(), doneBy: me() }, 'صدر الحكم لصالح الحمادي وأُحيلت للتنفيذ');
       toast(`أُسندت للتنفيذ إلى ${execWho()}`); S.open = { type: 'task', k: ek2 }; render(); return;
     }
@@ -752,7 +793,7 @@ document.addEventListener('click', async e => {
       const doc = { manual: true, kind: document.getElementById('nk').value, title, caseNo: document.getElementById('nc').value.trim(), due: document.getElementById('nd').value || null, dueT: document.getElementById('ndt').value || null, assignee: who, status: 'new', note: document.getElementById('nn').value.trim(), log: [stamp(who === me() ? 'أضافها لنفسه' : `أضافها وأسندها إلى ${who}`)] };
       S.docs[key] = doc; DB.saveTask(key, doc);
       markSeen(key, who);
-      if (who !== me()) pingNow(who, `📌 أُسندت لك مهمة: «${title}»${doc.due ? ' — ' + leftTxt({ due: doc.due, left: diffD(doc.due, TODAY()) }) : ''}`, `${doc.caseNo ? 'القضية ' + doc.caseNo + ' · ' : ''}من ${me()}`, doc.kind, key); else syncPush();
+      if (who !== me()) pingNow(who, `📌 أُسندت لك مهمة: «${title}»${doc.due ? ' — ' + leftTxt({ due: doc.due, left: diffD(doc.due, TODAY()) }) : ''}`, [doc.caseNo && 'القضية ' + doc.caseNo, opp((caseIndex()[doc.caseNo] || [])[0]), 'من ' + me()].filter(Boolean).join(' · '), doc.kind, key); else syncPush();
       S.tab = doc.kind; S.open = null; document.querySelector('.sheet')?.remove(); toast('أُضيفت'); return render();
     }
     case 'savecfg': {
@@ -1011,7 +1052,7 @@ const standalone = () => navigator.standalone === true || matchMedia('(display-m
 const pushOK = () => !DEMO && 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
 let swReg = null;
 if ('serviceWorker' in navigator && !DEMO) navigator.serviceWorker.register('sw.js').then(r => { swReg = r; }).catch(() => { });
-navigator.serviceWorker?.addEventListener('message', e => { if (e.data && e.data.tab) { S.tab = e.data.tab; render(); } });
+navigator.serviceWorker?.addEventListener('message', e => { if (e.data && e.data.tab) { S.tab = e.data.tab; if (e.data.open) S.pendingOpen = e.data.open; render(); } });
 const b64 = s => { const p = '='.repeat((4 - s.length % 4) % 4), r = atob((s + p).replace(/-/g, '+').replace(/_/g, '/')); return Uint8Array.from(r, c => c.charCodeAt(0)); };
 // بمهلة ٢٠ ثانية: طلبٌ معلّق على شبكة الجوال كان يوقف الإرسال كله بلا كلمة
 const api = (path, body) => { const c = new AbortController(), t = setTimeout(() => c.abort(), 20000); return fetch(PUSH + path, { signal: c.signal, ...(body ? { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) } : {}) }).then(r => r.json()).finally(() => clearTimeout(t)); };
@@ -1027,7 +1068,8 @@ const addDays = (d, k) => { const t = P(d); t.setDate(t.getDate() + k); return i
 function schedule(name) {
   const out = [], now = Date.now(), add = (ms, k, title, body, tab) => { if (ms > now) out.push({ at: ms, k, title, body, tab }); };
   const mine = items().filter(i => i.who === name && i.status !== 'done');
-  const where = i => [i.caseNo && 'القضية ' + i.caseNo, i.row?.court].filter(Boolean).join(' · ');
+  // تحت العنوان: رقم القضية واسم الخصم وحدهما، فيُعرف من شاشة القفل أيّ قضية
+  const where = i => [i.caseNo && 'القضية ' + i.caseNo, opp(i.row)].filter(Boolean).join(' · ');
   // ثلاثة تنبيهات للمهمة لا أكثر: عند الإسناد (من pingNow)، وقبل المهلة بيوم، وصباح اليوم التالي لفواتها.
   // لا ملخّصات يومية: كل تنبيهٍ يقول أيّ مهمةٍ بعينها
   for (const i of mine) if (i.due) {
@@ -1039,12 +1081,13 @@ function schedule(name) {
   for (const i of mine) for (const r of remsOf(i.doc)) if (r.at) add(r.at, `t:${i.key}:${r.at}`, `🔔 تذكير: «${i.title}»`, where(i) + (i.due ? ' · ' + leftTxt({ due: i.due, left: diffD(i.due, iso(new Date(r.at))) }) : ''), i.kind);
   // قبل كل جلسةٍ بساعة، لمن اسمه في «المحامي» لقضيتها. وجلسةٌ بلا ساعة: الثامنة صباح يومها
   for (const g of S.sheet.sessions || []) if (matchTeam(g.lawyer) === name) {
-    const place = [g.court, g.circuit && 'الدائرة ' + g.circuit].filter(Boolean).join(' · ');
+    // العنوان قصير والوقت فيه (الطويل يُقصّ في شاشة القفل)، وتحته رقم القضية واسم الخصم فقط
+    const who = ['القضية ' + g.caseNo, g.opp].filter(Boolean).join(' · ');
+    const at0 = new Date(g.d + 'T' + (g.t || '09:00')).getTime();
     // وقبلها باثنتي عشرة ساعة أيضًا (من ٩ ص إن لم تُكتب ساعتها): تذكيرٌ من الليلة قبلها
-    const at0 = new Date(g.d + 'T' + (g.t || '09:00')).getTime(), when = g.t ? 'الساعة ' + hm12(g.t) : 'ساعتها غير مكتوبة';
-    add(at0 - 12 * 3600e3, `ses12:${g.caseNo}:${g.d}`, `⚖️ جلسة بعد ١٢ ساعة — القضية ${g.caseNo}`, [place, hijri(g.d), when].filter(Boolean).join(' · '), 'm');
-    if (g.t) add(new Date(g.d + 'T' + g.t).getTime() - 60 * 6e4, `ses:${g.caseNo}:${g.d}`, `⚖️ جلسة بعد ساعة — القضية ${g.caseNo}`, [place, 'الساعة ' + hm12(g.t)].filter(Boolean).join(' · '), 'm');
-    else add(at(g.d, '08:00'), `ses:${g.caseNo}:${g.d}`, `⚖️ عندك جلسة اليوم — القضية ${g.caseNo}`, place, 'm');
+    add(at0 - 12 * 3600e3, `ses12:${g.caseNo}:${g.d}`, `⚖️ جلسة بعد ١٢ ساعة — ${g.t ? hm12(g.t) : 'بكرة'}`, who, 'm');
+    if (g.t) add(at0 - 60 * 6e4, `ses:${g.caseNo}:${g.d}`, `⚖️ جلسة بعد ساعة — ${hm12(g.t)}`, who, 'm');
+    else add(at(g.d, '08:00'), `ses:${g.caseNo}:${g.d}`, `⚖️ عندك جلسة اليوم`, who, 'm');
   }
   return out.sort((a, b) => a.at - b.at).slice(0, 80);
 }
@@ -1067,7 +1110,7 @@ function freshAssignments() {
   const out = {}, upd = {};
   for (const i of open) if (seen[i.key] !== i.who) {
     upd[i.key] = i.who;
-    if (!quiet) (out[i.who] = out[i.who] || []).push({ at: Date.now() + 5000, k: `as:${i.key}:${i.who}`, title: `📌 أُسندت لك مهمة: «${i.title}»${leftTxt(i) ? ' — ' + leftTxt(i) : ''}`, body: [i.caseNo && 'القضية ' + i.caseNo, i.row?.court, !i.doc.assignee && 'من الشيت'].filter(Boolean).join(' · '), tab: i.kind, now: true });
+    if (!quiet) (out[i.who] = out[i.who] || []).push({ at: Date.now() + 5000, k: `as:${i.key}:${i.who}`, title: `📌 أُسندت لك مهمة: «${i.title}»${leftTxt(i) ? ' — ' + leftTxt(i) : ''}`, body: [i.caseNo && 'القضية ' + i.caseNo, opp(i.row), !i.doc.assignee && 'من الشيت'].filter(Boolean).join(' · '), tab: i.kind, now: true });
   }
   if (Object.keys(upd).length) { S.cfg.seen = { ...seen, ...upd }; DB.saveCfg({ seen: upd }); }
   // تعديل المهلة: لكل مهمة آخر موعدٍ أُبلغ به صاحبها. تغيّر؟ يُبلَّغ، أيًّا كان من عدّله في الشيت.
@@ -1084,10 +1127,10 @@ function freshAssignments() {
     updD[i.key] = v;
     if (upd[i.key]) continue;  // جديدةٌ عليه: يكفيه إشعار الإسناد وفيه كم باقي
     // مهمةٌ معروفة بلا مهلة، ثم كُتبت لها مهلة أول مرة: «تحددت مهلة»
-    if (!was) { if (seen[i.key] === i.who && !quiet) (out[i.who] = out[i.who] || []).push({ at: Date.now() + 5000, k: `dn:${i.key}:${v}`, title: `📅 تحددت مهلة «${i.title}» — ${hijri(i.due)}${i.dueT ? ' ' + hm12(i.dueT) : ''}`, body: [i.caseNo && 'القضية ' + i.caseNo, leftTxt(i)].filter(Boolean).join(' · '), tab: i.kind, now: true }); continue; }
+    if (!was) { if (seen[i.key] === i.who && !quiet) (out[i.who] = out[i.who] || []).push({ at: Date.now() + 5000, k: `dn:${i.key}:${v}`, title: `📅 تحددت مهلة «${i.title}» — ${hijri(i.due)}${i.dueT ? ' ' + hm12(i.dueT) : ''}`, body: [i.caseNo && 'القضية ' + i.caseNo, opp(i.row), leftTxt(i)].filter(Boolean).join(' · '), tab: i.kind, now: true }); continue; }
     const moved = Math.abs(diffD(i.due, was.slice(0, 10)));
     if (i.dueSrc === 'remain' && moved <= 1 && was.slice(11) === (i.dueT || '')) continue;
-    if (!quiet) (out[i.who] = out[i.who] || []).push({ at: Date.now() + 5000, k: `dc:${i.key}:${v}`, title: `⏳ تعدّلت مهلة «${i.title}» — صارت ${hijri(i.due)}${i.dueT ? ' ' + hm12(i.dueT) : ''}`, body: [i.caseNo && 'القضية ' + i.caseNo, leftTxt(i), 'كانت ' + hijri(was.slice(0, 10))].filter(Boolean).join(' · '), tab: i.kind, now: true });
+    if (!quiet) (out[i.who] = out[i.who] || []).push({ at: Date.now() + 5000, k: `dc:${i.key}:${v}`, title: `⏳ تعدّلت مهلة «${i.title}» — صارت ${hijri(i.due)}${i.dueT ? ' ' + hm12(i.dueT) : ''}`, body: [i.caseNo && 'القضية ' + i.caseNo, opp(i.row), 'كانت ' + hijri(was.slice(0, 10))].filter(Boolean).join(' · '), tab: i.kind, now: true });
   }
   if (Object.keys(updD).length) { S.cfg.seenDue = { ...sd, ...updD }; DB.saveCfg({ seenDue: updD }); }
   return out;

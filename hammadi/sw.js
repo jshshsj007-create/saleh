@@ -11,17 +11,18 @@ self.addEventListener('push', e => {
   e.waitUntil(self.registration.showNotification(d.title || 'مشروع الحمادي', {
     body: d.body || '', icon, badge: icon, dir: 'rtl', lang: 'ar',
     // بوسم الموعد نفسه: لو وصل مرتين ما يتكرّر على الشاشة
-    tag: d.tag || 'hammadi', data: { tab: d.tab || 'm' },
+    // والوسم يحمل مفتاح المهمة، فالضغط يفتحها هي لا الموقع وحده
+    tag: d.tag || 'hammadi', data: { tab: d.tab || 'm', open: d.tag || '' },
   }));
 });
 
 self.addEventListener('notificationclick', e => {
   e.notification.close();
-  const tab = (e.notification.data && e.notification.data.tab) || 'm';
-  const url = new URL('./?tab=' + tab, self.registration.scope).href;
+  const tab = (e.notification.data && e.notification.data.tab) || 'm', open = (e.notification.data && e.notification.data.open) || '';
+  const url = new URL('./?tab=' + tab + (open ? '&open=' + encodeURIComponent(open) : ''), self.registration.scope).href;
   e.waitUntil((async () => {
     const all = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
-    for (const c of all) if (c.url.startsWith(self.registration.scope)) { await c.focus(); c.postMessage({ tab }); return; }
+    for (const c of all) if (c.url.startsWith(self.registration.scope)) { await c.focus(); c.postMessage({ tab, open }); return; }
     await self.clients.openWindow(url);
   })());
 });
