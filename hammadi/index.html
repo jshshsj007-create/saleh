@@ -11,8 +11,8 @@
 <meta name="apple-mobile-web-app-title" content="الحمادي">
 <meta name="robots" content="noindex">
 <!-- شعار المكتب، لا أيقونة «النادي» التي في جذر المستودع -->
-<link rel="icon" href="icon.png">
-<link rel="apple-touch-icon" href="icon.png">
+<link rel="icon" type="image/png" href="wael-icon.png?v=3">
+<link rel="apple-touch-icon" href="wael-icon-512.png?v=3">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
@@ -114,6 +114,9 @@ label{display:block;font-size:12.5px;font-weight:600;color:var(--mute);margin:12
 .toast{position:fixed;bottom:calc(86px + env(safe-area-inset-bottom));left:50%;transform:translateX(-50%);background:#1d2433;color:#fff;padding:10px 16px;border-radius:12px;font-size:14px;z-index:30;max-width:90vw;text-align:center}
 .toast.bad{background:#7f1d1d}
 .more{display:block;margin:4px auto 0}
+.mem{display:flex;align-items:center;gap:8px;padding:8px 12px;border-top:1px solid var(--line);font-size:13.5px}
+.mem:first-child{border-top:0}
+.mem span{flex:1;word-break:break-all}
 </style>
 </head>
 <body>
@@ -175,7 +178,11 @@ const S = {
   user: null, cfg: {}, cfgReady: false, docs: {}, docsReady: false,
   sheet: { at: null, cases: [], appeals: [], archive: [], err: '', loading: false },
   tab: 'm', seg: 'mine', q: '', open: null, archN: 30,
+  denied: false, asked: false, reqs: {},
 };
+const myEmail = () => String(S.user?.email || '').toLowerCase();
+// صاحب الموقع وحده يضيف الأعضاء ويقبل الطلبات؛ والقواعد في Firebase تفرض هذا لا الواجهة وحدها
+const isOwner = () => !!S.cfg.owner && S.cfg.owner === myEmail();
 const me = () => S.user && (S.cfg.members || {})[ek(S.user.email)] || null;
 const execWho = () => S.cfg.exec || '';
 const KIND = { m: 'المذكرات', a: 'لوائح الاستئناف', e: 'التنفيذ' };
@@ -297,8 +304,9 @@ function card(it) {
 }
 function render() {
   if (!S.user) return renderLogin();
+  if (S.denied) return renderAsk();
   if (!S.cfgReady) return $app().innerHTML = '<div class="login"><p>جاري التحميل…</p></div>';
-  if (!S.cfg.sheetId || !(S.cfg.team || []).length) return renderSetup();
+  if (!S.cfg.owner || !S.cfg.sheetId || !(S.cfg.team || []).length) return renderSetup();
   if (!me()) return renderWho();
   const all = items().filter(matchQ);
   const inTab = all.filter(i => i.kind === S.tab);
@@ -333,7 +341,7 @@ function render() {
   const banner = sh.err ? `<div class="banner bad"><span>${esc(sh.err)}</span><button class="sm" data-act="sheet">إعادة</button></div>`
     : !sh.at && !sh.loading ? `<div class="banner info"><span>المهام تُقرأ من الشيت. اضغط لتحميلها.</span><button class="sm pri" data-act="sheet">تحميل الشيت</button></div>` : '';
   $app().innerHTML = `
-  <div class="top"><div class="wrap"><div class="row"><div class="brand"><img src="icon.png" alt=""><div><h1>مشروع الحمادي</h1><small>مرحبًا ${esc(me())}${DEMO ? ' · وضع التجربة' : ''}</small></div></div>
+  <div class="top"><div class="wrap"><div class="row"><div class="brand"><img src="wael-icon.png?v=3" alt=""><div><h1>مشروع الحمادي</h1><small>مرحبًا ${esc(me())}${DEMO ? ' · وضع التجربة' : ''}</small></div></div>
     <button class="av" data-act="menu" aria-label="القائمة">${esc(me().replace(/^ال/, '')[0])}</button></div>
     <div class="tabs">${['m', 'a', 'e'].map(k => `<button class="tab ${S.tab === k ? 'on' : ''}" data-act="tab" data-v="${k}">${KIND[k]} <b>${ar(n(k))}</b></button>`).join('')}</div></div></div>
   <div class="wrap">
@@ -420,7 +428,16 @@ function menuHtml() {
   <label>الفريق (يفصل بينهم «،»)</label><input id="steam" value="${esc((S.cfg.team || []).join('، '))}">
   <label>مسؤول التنفيذ</label><select id="sexec">${(S.cfg.team || []).map(t => `<option ${t === S.cfg.exec ? 'selected' : ''}>${esc(t)}</option>`).join('')}</select>
   <div class="btns"><button class="pri" data-act="savecfg">حفظ</button><button data-act="iam">لست ${esc(me())}؟</button></div>
+  ${isOwner() ? membersHtml() : ''}
   <div class="btns"><button data-act="logout">تسجيل الخروج</button></div>`;
+}
+function membersHtml() {
+  const reqs = Object.values(S.reqs).sort((a, b) => (a.t || 0) - (b.t || 0));
+  const al = (S.cfg.allowed || []);
+  return `${reqs.length ? `<label>طلبات دخول (${ar(reqs.length)})</label><div class="kv">${reqs.map(r => `<div class="mem"><span><b>${esc(r.name || '')}</b><br>${esc(r.email)}</span><button class="sm ok" data-act="accept" data-v="${esc(r.email)}">قبول</button><button class="sm" data-act="reject" data-v="${esc(r.email)}">رفض</button></div>`).join('')}</div>` : ''}
+  <label>المسموح لهم بالدخول (${ar(al.length)})</label>
+  <div class="kv">${al.map(e => `<div class="mem"><span>${esc(e)}${e === S.cfg.owner ? ' — المالك' : ''}</span>${e !== S.cfg.owner ? `<button class="sm" data-act="unallow" data-v="${esc(e)}" style="color:var(--r)">إزالة</button>` : ''}</div>`).join('')}</div>
+  <div style="display:flex;gap:8px;margin-top:8px"><input id="newmail" type="email" placeholder="إيميل جديد — أي إيميل Google" dir="ltr"><button class="pri" style="flex:none" data-act="allow">إضافة</button></div>`;
 }
 function renderLogin(err = '') {
   $app().innerHTML = `<div class="login"><img class="logo" src="logo.jpg" alt="شعار المكتب"><h1>مشروع الحمادي</h1>
@@ -429,11 +446,18 @@ function renderLogin(err = '') {
     ${err ? `<div class="err">${esc(err)}</div>` : ''}</div>`;
 }
 function renderSetup() {
-  $app().innerHTML = `<div class="login" style="text-align:start"><h1>الإعداد الأول</h1><p>مرة واحدة للفريق كله. ما يُكتب هنا يُحفظ في قاعدة البيانات لا في الشيفرة.</p>
+  $app().innerHTML = `<div class="login" style="text-align:start"><h1>الإعداد الأول</h1><p>مرة واحدة للفريق كله، ومن يحفظها يصير صاحب الموقع: هو وحده يضيف الأعضاء ويقبل طلباتهم. ما يُكتب هنا يُحفظ في قاعدة البيانات لا في الشيفرة.</p>
     <label>رابط شيت «جدول قضايا الحمادي»</label><input id="sid" value="${esc(S.cfg.sheetId || '')}" placeholder="https://docs.google.com/spreadsheets/d/…">
     <label>أسماء الفريق كما تُكتب في عمود «المحامي» (يفصل بينها «،»)</label><input id="steam" value="${esc((S.cfg.team || []).join('، '))}">
     <label>مسؤول التنفيذ (يُكتب اسمه كما في الفريق)</label><input id="sexec" value="${esc(S.cfg.exec || '')}">
     <div class="btns"><button class="pri" data-act="savecfg">حفظ</button></div></div>`;
+}
+function renderAsk() {
+  $app().innerHTML = `<div class="login"><img class="logo" src="logo.jpg" alt=""><h1>حسابك غير مضاف بعد</h1>
+    <p dir="ltr">${esc(myEmail())}</p>
+    ${S.asked ? '<p>✓ وصل طلبك. أول ما يقبله صاحب الموقع اضغط «تحقّق».</p><button class="pri" style="width:100%" data-act="recheck">تحقّق</button>'
+      : '<p>اطلب الدخول، ويوصل طلبك لصاحب الموقع يقبله من عنده.</p><button class="pri" style="width:100%" data-act="ask">اطلب الدخول</button>'}
+    <div class="btns"><button data-act="logout">الدخول بحساب آخر</button></div></div>`;
 }
 function renderWho() {
   $app().innerHTML = `<div class="login"><h1>من أنت؟</h1><p>${esc(S.user.email)}<br>اختر اسمك مرة واحدة، ومنه تُعرف «مهامي».</p>
@@ -441,6 +465,7 @@ function renderWho() {
 }
 
 /* ───────── الكتابة ───────── */
+function setAllowed(list) { S.cfg.allowed = list; DB.setAllowed(list); }
 const stamp = (m) => ({ d: TODAY(), by: me() || '', m, t: Date.now() });
 function base(it) { return { kind: it.kind, title: it.title, caseNo: it.caseNo || '' }; }
 function put(k, patch, logMsg) {
@@ -508,10 +533,22 @@ document.addEventListener('click', async e => {
       if (!id || !team.length) return toast('الرابط والأسماء مطلوبة', true);
       const changed = id !== S.cfg.sheetId;
       S.cfg = { ...S.cfg, sheetId: id, team, exec: team.includes(ex) ? ex : team[0] };
-      DB.saveCfg({ sheetId: S.cfg.sheetId, team: S.cfg.team, exec: S.cfg.exec });
+      const first = !S.cfg.owner ? { owner: myEmail(), allowed: [...new Set([...(S.cfg.allowed || []), myEmail()])] } : {};
+      Object.assign(S.cfg, first);
+      DB.saveCfg({ sheetId: S.cfg.sheetId, team: S.cfg.team, exec: S.cfg.exec, ...first });
       S.open = null; document.querySelector('.sheet')?.remove(); render(); toast('انحفظ');
       if (changed) loadSheet(false); return;
     }
+    case 'allow': {
+      const e2 = document.getElementById('newmail').value.trim().toLowerCase();
+      if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e2)) return toast('اكتب إيميلًا صحيحًا', true);
+      setAllowed([...new Set([...(S.cfg.allowed || []), e2])]); toast('أُضيف ' + e2); return renderSheet();
+    }
+    case 'accept': setAllowed([...new Set([...(S.cfg.allowed || []), v])]); DB.dropReq(v); delete S.reqs[v]; toast('قُبل ' + v); return renderSheet();
+    case 'reject': DB.dropReq(v); delete S.reqs[v]; return renderSheet();
+    case 'unallow': if (!confirm('تزيل ' + v + '؟')) return; setAllowed((S.cfg.allowed || []).filter(x => x !== v)); return renderSheet();
+    case 'ask': await DB.ask({ email: myEmail(), name: S.user.displayName || '', t: Date.now() }); S.asked = true; return render();
+    case 'recheck': return location.reload();
     case 'setme': S.cfg.members = { ...(S.cfg.members || {}), [ek(S.user.email)]: v }; DB.saveCfg({ members: { [ek(S.user.email)]: v } }); render(); return loadSheet(false);
     case 'iam': { const m = { ...(S.cfg.members || {}) }; delete m[ek(S.user.email)]; S.cfg.members = m; DB.saveCfg({ members: { [ek(S.user.email)]: null } }); S.open = null; document.querySelector('.sheet')?.remove(); return render(); }
   }
@@ -539,12 +576,16 @@ async function initDB() {
     const K = 'hammadi.demo';
     let D; try { D = JSON.parse(localStorage.getItem(K)) || {}; } catch (e) { D = {}; }
     D.tasks = D.tasks || {};
-    D.cfg = D.cfg || { sheetId: 'demo', team: ['الأحيدب', 'الشلعان', 'القاسم', 'باوزير'], exec: 'القاسم', members: { [ek('demo@demo')]: 'القاسم' } };
+    D.cfg = D.cfg || { sheetId: 'demo', team: ['الأحيدب', 'الشلعان', 'القاسم', 'باوزير'], exec: 'القاسم', members: { [ek('demo@demo')]: 'القاسم' }, owner: 'demo@demo', allowed: ['demo@demo', 'shalaan.demo@gmail.com'] };
+    D.reqs = D.reqs || { 'bawazir.demo@gmail.com': { email: 'bawazir.demo@gmail.com', name: 'باوزير (تجريبي)', t: 1 } };
     const save = () => { try { localStorage.setItem(K, JSON.stringify(D)); } catch (e) { } };
     DB = {
       onAuth: cb => cb({ uid: 'demo', email: 'demo@demo' }),
       login() { }, logout() { localStorage.removeItem(K); location.reload(); },
-      listen(h) { setTimeout(() => { h.cfg(D.cfg); h.tasks({ ...D.tasks }); }, 30); },
+      listen(h) { setTimeout(() => { h.cfg(D.cfg); h.tasks({ ...D.tasks }); h.reqs({ ...D.reqs }); }, 30); },
+      setAllowed: list => { D.cfg.allowed = list; save(); },
+      dropReq: e => { delete D.reqs[e]; save(); },
+      ask: () => { },
       saveCfg: p => { for (const [k, v] of Object.entries(p)) { if (k === 'members') { D.cfg.members = { ...D.cfg.members, ...v }; for (const [a, b] of Object.entries(v)) if (b == null) delete D.cfg.members[a]; } else D.cfg[k] = v; } save(); },
       saveTask: (k, d) => { D.tasks[k] = d; save(); },
       readSheet: async () => { await new Promise(r => setTimeout(r, 250)); return demoSheet(); },
@@ -587,14 +628,21 @@ async function initDB() {
     onAuth: cb => A.onAuthStateChanged(auth, cb),
     async login() { try { await popup(() => A.signInWithPopup(auth, prov())); } catch (e) { renderLogin(why(e)); } },
     logout: () => { sessionStorage.removeItem(TK); return A.signOut(auth); },
+    // الإعداد أولًا: منه يُعرف هل الداخل من الفريق. والمهام والطلبات لا تُطلب إلا بعده، وإلا رفضتها القواعد
     listen(h) {
-      const bad = what => e => { console.error(e); toast(e.code === 'permission-denied' ? `قواعد Firebase لا تسمح بقراءة ${what} — راجع الإعداد` : `ما قدرت أقرأ ${what}: ${e.code || e.message}`, true); };
-      return [
-        F.onSnapshot(DOC, s => h.cfg(s.exists() ? s.data() : {}), e => { bad('الإعداد')(e); h.cfg({}); }),
-        F.onSnapshot(F.collection(db, 'hammadi', 'main', 'tasks'), qs => { const o = {}; qs.forEach(d => { o[d.id.replace(/∕/g, '/')] = d.data(); }); h.tasks(o); }, bad('المهام')),
-      ];
+      const bad = what => e => { console.error(e); toast(`ما قدرت أقرأ ${what}: ${e.code || e.message}`, true); };
+      let tasks = null, reqs = null;
+      F.onSnapshot(DOC, s => {
+        const c = s.exists() ? s.data() : {}; h.cfg(c);
+        const em = String(auth.currentUser?.email || '').toLowerCase();
+        if (!tasks && (c.allowed || []).includes(em)) tasks = F.onSnapshot(F.collection(db, 'hammadi', 'main', 'tasks'), qs => { const o = {}; qs.forEach(d => { o[d.id.replace(/∕/g, '/')] = d.data(); }); h.tasks(o); }, bad('المهام'));
+        if (!reqs && c.owner === em) reqs = F.onSnapshot(F.collection(db, 'hammadi_requests'), qs => { const o = {}; qs.forEach(d => { o[d.id] = d.data(); }); h.reqs(o); }, bad('الطلبات'));
+      }, e => { if (e.code === 'permission-denied') return h.denied(); bad('الإعداد')(e); h.cfg({}); });
     },
     saveCfg: p => F.setDoc(DOC, p, { merge: true }).catch(fail),
+    setAllowed: list => F.updateDoc(DOC, { allowed: list }).catch(fail),
+    dropReq: e => F.deleteDoc(F.doc(db, 'hammadi_requests', e)).catch(fail),
+    ask: r => F.setDoc(F.doc(db, 'hammadi_requests', r.email), r).catch(fail),
     saveTask: (k, d) => F.setDoc(F.doc(db, 'hammadi', 'main', 'tasks', k.replace(/\//g, '∕')), d).catch(fail),
     async readSheet(id, interactive) {
       let t = token();
@@ -655,13 +703,15 @@ function demoSheet() {
 /* ───────── البدء ───────── */
 await initDB();
 DB.onAuth(u => {
-  S.user = u; S.cfgReady = false; S.docs = {};
+  S.user = u; S.cfgReady = false; S.docs = {}; S.denied = false; S.reqs = {};
   if (!u) return render();
   render();
   let first = true;
   DB.listen({
     cfg: c => { S.cfg = c || {}; S.cfgReady = true; render(); if (first && me()) { first = false; loadSheet(false); } },
     tasks: o => { S.docs = o; S.docsReady = true; render(); },
+    reqs: o => { const n = Object.keys(o).length, was = Object.keys(S.reqs).length; S.reqs = o; if (n > was) toast(`طلب دخول جديد — من الإعدادات`); if (S.open?.type === 'menu') renderSheet(); render(); },
+    denied: () => { S.denied = true; render(); },
   });
 });
 </script>
