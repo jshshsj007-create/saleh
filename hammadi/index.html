@@ -116,6 +116,7 @@ label{display:block;font-size:12.5px;font-weight:600;color:var(--mute);margin:12
 .toast{position:fixed;bottom:calc(86px + env(safe-area-inset-bottom));left:50%;transform:translateX(-50%);background:#1d2433;color:#fff;padding:10px 16px;border-radius:12px;font-size:14px;z-index:30;max-width:90vw;text-align:center}
 .toast.bad{background:#7f1d1d}
 .more{display:block;margin:4px auto 0}
+.drive{display:flex;align-items:center;justify-content:center;gap:6px;margin-top:10px;padding:11px;border-radius:12px;background:var(--bbg);color:var(--b);font-weight:700;text-decoration:none;border:1px solid color-mix(in srgb,var(--b) 25%,transparent)}
 .mem{display:flex;align-items:center;gap:8px;padding:8px 12px;border-top:1px solid var(--line);font-size:13.5px}
 .mem:first-child{border-top:0}
 .mem span{flex:1;word-break:break-all}
@@ -206,7 +207,7 @@ const HEAD = {
 };
 // تبويب «لوائح الاستئناف» منسوخٌ من تبويبات المحاكم وأغلب عناوينه «العمود ٢…»؛ فما لم يُسمَّ يؤخذ بموضعه هناك
 const STD = { caseNo: 0, lawyer: 3, court: 4, circuit: 5, plaintiff: 6, defendant: 7, type: 10, session: 11, last: 15 };
-function parseTab(title, rows, raw) {
+function parseTab(title, rows, raw, links) {
   // العنوان قد يُكتب «عدّاد» بشدّة أو بتطويلٍ أو علامة اتجاه مخفية: نطابق بعد نزعها كلها
   const head = (rows[0] || []).map(h => String(h || '').replace(/[\u064B-\u0652\u0640\u200e\u200f\u061c\u202a-\u202e\u2066-\u2069]/g, '').replace(/[أإآ]/g, 'ا').replace(/\s+/g, ' ').trim());
   const col = {};
@@ -221,6 +222,8 @@ function parseTab(title, rows, raw) {
     const o = { tab: title, rowNo: n + 2 };
     for (const [k, i] of Object.entries(col)) o[k] = String(r[i] ?? '').trim();
     // القيمة الخام للتواريخ، إن وُجدت: أوثق من النص المعروض
+    // رابط مجلد القضية في الدرايف، من رقمها في الشيت
+    if (links && /^https?:\/\//.test(links[n + 1] || '')) o.link = links[n + 1];
     const rr = raw && raw[n + 1];
     if (rr) for (const k of ['deadline', 'session']) if (col[k] != null && typeof rr[col[k]] === 'number') o['_' + k] = rr[col[k]];
     if (o.caseNo) out.push(o);
@@ -231,7 +234,7 @@ const isAppeals = t => /استئناف/.test(t);
 const isExec = t => /^\s*التنفيذ\s*$/.test(t);
 function ingest(tabs) {
   const cases = [], appeals = [], archive = [];
-  for (const [title, rows, raw] of tabs) {
+  for (const [title, rows, raw, links] of tabs) {
     if (isExec(title)) {
       const head = (rows[0] || []).map(h => String(h || '').trim());
       const f = re => head.findIndex(h => re.test(h));
@@ -242,7 +245,7 @@ function ingest(tabs) {
       });
       continue;
     }
-    const p = parseTab(title, rows, raw);
+    const p = parseTab(title, rows, raw, links);
     if (p.col.caseNo == null) continue;
     (isAppeals(title) ? appeals : cases).push(...p.rows);
   }
@@ -437,12 +440,15 @@ function taskHtml(k) {
   // مسار القضية: كل ما يحمل رقمها، في الشيت أو في الموقع
   const path = items().filter(i => i.caseNo && i.caseNo === it.caseNo && i.key !== it.key);
   const execKey = `e|${it.caseNo}`;
+  // رابط مجلد القضية: من صفّها، أو من أي صفٍّ آخر للرقم نفسه (القضية تتكرّر بين التبويبات)
+  const link = r.link || (caseIndex()[it.caseNo] || []).map(x => x.link).find(Boolean) || '';
   const canExec = it.kind !== 'e' && it.caseNo && !S.docs[execKey];
   const log = (d.log || []).slice().reverse();
   // بلا الشيت ولا ملخّصه لا تُرسل التنبيهات: الزرّ هنا حيث يُضاف التنبيه، لا في الشاشة الرئيسية وحدها
   const noSheet = !S.sheet.at && !S.sheet.cachedAt ? `<div class="banner warn" style="margin:0 0 12px"><span>التنبيهات ما تنرسل حتى يتحمّل الشيت هنا في الموقع</span><button class="sm pri" data-act="sheet">تحميل الشيت</button></div>` : '';
   return `${noSheet}<h2>${esc(it.title)}</h2>
   <div class="meta">${KIND[it.kind]}${it.caseNo ? ' · القضية ' + esc(it.caseNo) : ''}</div>
+  ${link ? `<a class="drive" href="${esc(link)}" target="_blank" rel="noopener">📁 فتح ملف القضية</a>` : ''}
   <div class="chips">${dueChip(it)}${it.due ? `<span class="chip n">📅 ${hijri(it.due)}${it.dueT ? ' · ' + hm12(it.dueT) : ''}</span>` : ''}${it.outsider ? `<span class="chip a">في الشيت: ${esc(it.outsider)}</span>` : ''}
    ${d.assignee && it.lawyer && matchTeam(it.lawyer) && matchTeam(it.lawyer) !== d.assignee ? `<span class="chip a">الشيت: ${esc(matchTeam(it.lawyer))} ← الآن: ${esc(d.assignee)}</span>` : ''}</div>
   ${kv.length ? `<dl class="kv">${kv.map(([a, b]) => `<div><dt>${a}</dt><dd>${esc(b)}</dd></div>`).join('')}</dl>` : ''}
@@ -553,7 +559,7 @@ function remHtml(it) {
    إذن قراءة الشيت يعيش ساعة، والآيفون يطلب الضغط لتجديده. فمع كل تحميلٍ يُحفظ ملخّصٌ صغير
    لما تحتاجه المهام والتنبيهات: الرقم والنوع والمحامي والمهلة والمحكمة — بلا أسماء الخصوم ولا المبالغ.
    منه تظهر المهام وتُرسل التنبيهات وإن لم يُحمَّل الشيت، حتى يحمّله أحد */
-const slim = r => ({ tab: r.tab, caseNo: r.caseNo, memo: r.memo || '', lawyer: r.lawyer || '', court: r.court || '', _due: dueOf(r), _dueT: dueTimeOf(r), _src: dueSrc(r) });
+const slim = r => ({ tab: r.tab, caseNo: r.caseNo, memo: r.memo || '', lawyer: r.lawyer || '', court: r.court || '', ...(r.link ? { link: r.link } : {}), _due: dueOf(r), _dueT: dueTimeOf(r), _src: dueSrc(r) });
 /* الجلسات القادمة لكل قضية فيها محامٍ، من عمود «تاريخ/موعد الجلسة» في تبويبات المحاكم.
    القضية تتكرّر بين «العام» وتبويب محكمتها، فتُجمع بالرقم والتاريخ، ويُفضَّل الصف الذي فيه الساعة */
 function sessionsFrom(rows) {
@@ -854,7 +860,7 @@ async function initDB() {
       saveTask: (k, d) => { D.tasks[k] = d; save(); },
       patchTask: (k, p, entry) => { D.tasks[k] = applyPatch(D.tasks[k] || {}, p, entry); save(); },
       // ?demo&nosheet: كأن إذن الشيت انتهى، لفحص العرض من الملخّص المحفوظ
-      readSheet: async () => { await new Promise(r => setTimeout(r, 250)); return /nosheet/.test(location.search) ? null : demoSheet(); },
+      readSheet: async () => { await new Promise(r => setTimeout(r, 250)); if (/nosheet/.test(location.search)) return null; return demoSheet().map(([t, rows]) => [t, rows, [], rows.map(r => r[0] === '4870000107' ? 'https://drive.google.com/drive/folders/demo-4870000107' : '')]); },
     };
     return;
   }
@@ -944,7 +950,23 @@ async function initDB() {
         get(`${B}/values:batchGet?${qs}&valueRenderOption=FORMATTED_VALUE`),
         get(`${B}/values:batchGet?${qs}&valueRenderOption=UNFORMATTED_VALUE&dateTimeRenderOption=SERIAL_NUMBER`),
       ]);
-      return vals.valueRanges.map((v, i) => [titles[i], v.values || [], raws.valueRanges[i]?.values || []]);
+      // روابط رقم القضية (تفتح مجلدها في الدرايف): القراءة العادية تجيب النص بلا الرابط، فتُطلب الخلايا
+      // نفسها من عمود الرقم وحده. وإن تعذّرت، تبقى القضايا بلا رابط ولا يفشل التحميل
+      const out = vals.valueRanges.map((v, i) => [titles[i], v.values || [], raws.valueRanges[i]?.values || [], []]);
+      try {
+        const col = out.map(([t, rows]) => { const h = (rows[0] || []).findIndex(x => /رقم القضي/.test(String(x || ''))); return h; });
+        const letter = n => { let s = ''; n++; while (n) { const m = (n - 1) % 26; s = String.fromCharCode(65 + m) + s; n = Math.floor((n - 1) / 26); } return s; };
+        const want = out.map(([t], i) => col[i] >= 0 ? i : -1).filter(i => i >= 0);
+        if (want.length) {
+          const rq = want.map(i => 'ranges=' + encodeURIComponent(`'${titles[i].replace(/'/g, "''")}'!${letter(col[i])}1:${letter(col[i])}`)).join('&');
+          const g = await get(`${B}?${rq}&fields=${encodeURIComponent('sheets(properties(title),data(rowData(values(hyperlink,textFormatRuns(format(link(uri)))))))')}`);
+          for (const sh of g.sheets || []) {
+            const i = titles.indexOf(sh.properties.title); if (i < 0) continue;
+            out[i][3] = ((sh.data || [])[0]?.rowData || []).map(r => { const c = (r.values || [])[0] || {}; return c.hyperlink || (c.textFormatRuns || []).map(x => x.format?.link?.uri).find(Boolean) || ''; });
+          }
+        }
+      } catch (e) { console.error('links', e); }
+      return out;
     },
   };
 }
@@ -1060,7 +1082,9 @@ function freshAssignments() {
     const v = val(i), was = sd[i.key];
     if (was === v) continue;
     updD[i.key] = v;
-    if (!was || upd[i.key]) continue;  // جديدةٌ عليه: يكفيه إشعار الإسناد وفيه كم باقي
+    if (upd[i.key]) continue;  // جديدةٌ عليه: يكفيه إشعار الإسناد وفيه كم باقي
+    // مهمةٌ معروفة بلا مهلة، ثم كُتبت لها مهلة أول مرة: «تحددت مهلة»
+    if (!was) { if (seen[i.key] === i.who && !quiet) (out[i.who] = out[i.who] || []).push({ at: Date.now() + 5000, k: `dn:${i.key}:${v}`, title: `📅 تحددت مهلة «${i.title}» — ${hijri(i.due)}${i.dueT ? ' ' + hm12(i.dueT) : ''}`, body: [i.caseNo && 'القضية ' + i.caseNo, leftTxt(i)].filter(Boolean).join(' · '), tab: i.kind, now: true }); continue; }
     const moved = Math.abs(diffD(i.due, was.slice(0, 10)));
     if (i.dueSrc === 'remain' && moved <= 1 && was.slice(11) === (i.dueT || '')) continue;
     if (!quiet) (out[i.who] = out[i.who] || []).push({ at: Date.now() + 5000, k: `dc:${i.key}:${v}`, title: `⏳ تعدّلت مهلة «${i.title}» — صارت ${hijri(i.due)}${i.dueT ? ' ' + hm12(i.dueT) : ''}`, body: [i.caseNo && 'القضية ' + i.caseNo, leftTxt(i), 'كانت ' + hijri(was.slice(0, 10))].filter(Boolean).join(' · '), tab: i.kind, now: true });
