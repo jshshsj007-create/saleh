@@ -476,8 +476,9 @@ function menuHtml() {
   ${isOwner() ? membersHtml() : ''}
   <label>التنبيهات الجاية لك</label>
   ${(() => { const L = S.sheet.at || S.sheet.cachedAt ? schedule(me()) : null; if (!L) return '<div class="meta">حمّل الشيت لتظهر</div>'; if (!L.length) return '<div class="meta">لا شيء في الأيام العشرة الجاية</div>';
-    return `<div class="kv">${L.slice(0, 12).map(x => `<div class="mem"><span>${esc(x.title)}<br><small class="meta">${hijri(iso(new Date(x.at)))} · ${hm12(new Date(x.at).toTimeString().slice(0, 5))}</small></span></div>`).join('')}</div>`; })()}
-  <div class="meta" style="margin-top:6px">${!S.cfg.subs?.[me()] || !Object.values(S.cfg.subs[me()]).some(Boolean) ? '⚠️ ما فعّلت الإشعارات على أي جهاز، فما يوصلك شيء.' : pushLog.err ? '⚠️ آخر إرسال للخادم فشل: ' + esc(pushLog.err) : pushLog.at ? '✓ أُرسلت للخادم الساعة ' + hm12(pushLog.at.toTimeString().slice(0, 5)) : 'تُرسل للخادم بعد ثوانٍ من أي تعديل'}</div>
+    return `<div class="kv">${L.slice(0, 12).map(x => `<div class="mem"><span>${esc(x.title)}<br><small class="meta">${hijri(iso(new Date(x.at)))} · ${hm12(new Date(x.at).toTimeString().slice(0, 5))}${x.body ? ' · ' + esc(x.body.split(' · ')[0]) : ''}</small></span></div>`).join('')}</div>`; })()}
+  <div class="meta" style="margin-top:6px">${!S.cfg.subs?.[me()] || !Object.values(S.cfg.subs[me()]).some(Boolean) ? '⚠️ ما فعّلت الإشعارات على أي جهاز، فما يوصلك شيء.' : pushLog.err ? '⚠️ آخر إرسال للخادم فشل: ' + esc(pushLog.err) : pushLog.at ? `✓ أُرسلت للخادم الساعة ${hm12(pushLog.at.toTimeString().slice(0, 5))} — عنده لك ${ar(pushLog.count || 0)}${pushLog.next ? '، أقربها ' + hm12(new Date(pushLog.next).toTimeString().slice(0, 5)) + ' ' + hijri(iso(new Date(pushLog.next))) : ''}` : pushLog.why ? '⚠️ ما أُرسلت: ' + esc(pushLog.why) : 'لم تُرسل بعد في هذه الفتحة'}</div>
+  <div class="btns"><button class="sm" data-act="pushnow">📤 أرسل التنبيهات للخادم الآن</button></div>
   <label>الإشعارات على هذا الجهاز</label>
   <div class="btns">${pushOn() ? '<button data-act="pushoff">🔕 إيقاف الإشعارات</button>' : '<button class="ok" data-act="pushon">🔔 تفعيل الإشعارات</button>'}</div>
   <div class="meta" style="margin-top:6px">تصلك والجوال مقفل، ثلاثة لكل مهمة: لما تُسند لك، وقبل انتهاء مهلتها بيوم، وصباح اليوم التالي إن فاتت. ${isIOS && !standalone() ? '<br><b>في الآيفون:</b> أضف الموقع للشاشة الرئيسية أولًا (زر المشاركة ← «إضافة إلى الشاشة الرئيسية»)، وافتحه من أيقونته، ثم فعّلها.' : ''}</div>
@@ -654,6 +655,7 @@ document.addEventListener('click', async e => {
     }
     case 'remdel': { const it = items().find(i => i.key === k), R = (it.doc.rem || []).filter((_, n) => n !== +v); put(k, { rem: R }, 'حذف تنبيهًا'); return renderSheet(); }
     case 'recheck': return location.reload();
+    case 'pushnow': { t.disabled = true; t.textContent = '⏳ جاري الإرسال…'; await syncAll({}, true); return renderSheet(); }
     case 'pushon': return enablePush();
     case 'pushoff': return disablePush();
     case 'setme': S.cfg.members = { ...(S.cfg.members || {}), [ek(S.user.email)]: v }; DB.saveCfg({ members: { [ek(S.user.email)]: v } }); render(); return loadSheet(false);
@@ -831,7 +833,8 @@ let swReg = null;
 if ('serviceWorker' in navigator && !DEMO) navigator.serviceWorker.register('sw.js').then(r => { swReg = r; }).catch(() => { });
 navigator.serviceWorker?.addEventListener('message', e => { if (e.data && e.data.tab) { S.tab = e.data.tab; render(); } });
 const b64 = s => { const p = '='.repeat((4 - s.length % 4) % 4), r = atob((s + p).replace(/-/g, '+').replace(/_/g, '/')); return Uint8Array.from(r, c => c.charCodeAt(0)); };
-const api = (path, body) => fetch(PUSH + path, body ? { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) } : {}).then(r => r.json());
+// بمهلة ٢٠ ثانية: طلبٌ معلّق على شبكة الجوال كان يوقف الإرسال كله بلا كلمة
+const api = (path, body) => { const c = new AbortController(), t = setTimeout(() => c.abort(), 20000); return fetch(PUSH + path, { signal: c.signal, ...(body ? { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) } : {}) }).then(r => r.json()).finally(() => clearTimeout(t)); };
 const hash = s => { let h = 0; for (const c of String(s)) h = (h * 31 + c.charCodeAt(0)) | 0; return 'd' + (h >>> 0).toString(36); };
 let myEndpoint = '';
 try { myEndpoint = localStorage.getItem('hammadi.ep') || ''; } catch (e) { }
@@ -880,13 +883,14 @@ function freshAssignments() {
 }
 // الإرسال لا يحتاج أن يدعم هذا الجهاز الإشعارات: يكفيه أن يصل للخادم. فيُرسَل من أي متصفح،
 // وحتى من سفاري الآيفون خارج أيقونة الشاشة الرئيسية
-const pushLog = { at: null, n: 0, err: '' };
+const pushLog = { at: null, n: 0, err: '', why: '', next: null, count: 0 };
 let pendingPush = false;
-async function syncAll(extra = {}) {
-  if (DEMO || !S.cfg.subs) return;
+async function syncAll(extra = {}, force) {
+  if (DEMO) return;
+  if (!S.cfg.subs || !Object.values(S.cfg.subs).some(d => Object.values(d || {}).some(Boolean))) { pushLog.why = 'لا أحد فعّل الإشعارات'; return; }
   // بلا الشيت تنقص المواعيد، فإرسالها يمسح ما عند الخادم. نؤجّل حتى يُحمَّل، وهو يرسل حينها
-  if (!S.sheet.at && !S.sheet.cachedAt) { if (!pendingPush) toast('اضغط «تحميل الشيت» هنا في الموقع عشان توصل التنبيهات', true); pendingPush = true; return; }
-  pendingPush = false;
+  if (!S.sheet.at && !S.sheet.cachedAt) { if (!pendingPush) toast('اضغط «تحميل الشيت» هنا في الموقع عشان توصل التنبيهات', true); pendingPush = true; pushLog.why = 'الشيت غير محمّل'; return; }
+  pendingPush = false; pushLog.why = '';
   let fresh = {};
   try { fresh = freshAssignments(); } catch (e) { console.error('fresh', e); }
   extra = { ...extra }; for (const [n, L] of Object.entries(fresh)) extra[n] = [...(extra[n] || []), ...L];
@@ -894,11 +898,11 @@ async function syncAll(extra = {}) {
     if (!sub || !sub.endpoint) continue;
     try {
       const list = schedule(name).concat(extra[name] || []), sig = JSON.stringify(list.filter(x => !x.now));
-      if (!extra[name] && sent[sub.endpoint] === sig) continue;
+      if (!force && !extra[name] && sent[sub.endpoint] === sig) continue;
       const r = await api('sync', { sub, items: list.map(({ now, ...x }) => x) });
-      if (r.ok) { sent[sub.endpoint] = sig; pushLog.at = new Date(); pushLog.n++; pushLog.err = ''; }
+      if (r.ok) { sent[sub.endpoint] = sig; pushLog.at = new Date(); pushLog.n++; pushLog.err = ''; if (name === me()) { pushLog.count = r.count; pushLog.next = r.next; } }
       else pushLog.err = r.error || 'رفض الخادم';
-    } catch (e) { console.error('push', e); pushLog.err = e.message || String(e); }
+    } catch (e) { console.error('push', e); pushLog.err = e.name === 'AbortError' ? 'الخادم ما ردّ خلال ٢٠ ثانية' : e.message || String(e); }
   }
   if (S.open?.type === 'menu') renderSheet();
 }
