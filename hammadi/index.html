@@ -251,6 +251,7 @@ function ingest(tabs) {
 // المحفوظ في Firebase الإسنادُ والحالة والسجلّ فقط، بمفتاح رقم القضية؛ وتفاصيل القضية تُقرأ من الشيت ساعة الفتح
 // موعد المهلة: من قيمة الخلية الخام، ثم من نصّها، ثم من عمود «المتبقي» (عدد الأيام) إن لم يُفهم التاريخ
 function dueOf(r) {
+  if (r._due !== undefined) return r._due;
   const d = pickDate(r._deadline) || pickDate(r.deadline);
   if (d) return d;
   const k = String(r.remain || '').replace(/[٠-٩]/g, c => AR.indexOf(c)).trim();
@@ -259,6 +260,7 @@ function dueOf(r) {
 }
 // ساعة المهلة إن كُتبت في الشيت (٩:٠٠ ص): من كسر القيمة الخام، أو من النص. وإلا فلا ساعة
 function dueTimeOf(r) {
+  if (r._dueT !== undefined) return r._dueT;
   const n = r._deadline;
   if (typeof n === 'number' && n % 1 > 0.0001) { const m = Math.round((n % 1) * 1440); return String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0'); }
   const t = String(r.deadline || '').replace(/[٠-٩]/g, c => AR.indexOf(c)).match(/(\d{1,2}):(\d{2})(?::\d{2})?\s*(ص|م|AM|PM)?/i);
@@ -379,7 +381,7 @@ function render() {
   }
   const sh = S.sheet;
   const banner = sh.err ? `<div class="banner bad"><span>${esc(sh.err)}</span><button class="sm" data-act="sheet">إعادة</button></div>`
-    : !sh.at && !sh.loading ? `<div class="banner info"><span>المهام تُقرأ من الشيت. اضغط لتحميلها.</span><button class="sm pri" data-act="sheet">تحميل الشيت</button></div>` : '';
+    : !sh.at && !sh.loading ? `<div class="banner info"><span>${sh.cachedAt ? `معروضة من آخر تحميل (${hijri(iso(new Date(sh.cachedAt)))} · ${hm12(new Date(sh.cachedAt).toTimeString().slice(0, 5))}). حمّل الشيت لآخر التعديلات والتفاصيل.` : 'المهام تُقرأ من الشيت. اضغط لتحميلها.'}</span><button class="sm pri" data-act="sheet">تحميل الشيت</button></div>` : '';
   $app().innerHTML = `
   <div class="top"><div class="wrap"><div class="row"><div class="brand"><img src="wael-icon.png?v=3" alt=""><div><h1>مشروع الحمادي</h1><small>مرحبًا ${esc(me())}${DEMO ? ' · وضع التجربة' : ''}</small></div></div>
     <button class="av" data-act="menu" aria-label="القائمة">${esc(me().replace(/^ال/, '')[0])}</button></div>
@@ -471,7 +473,7 @@ function menuHtml() {
   <div class="btns"><button class="pri" data-act="savecfg">حفظ</button><button data-act="iam">لست ${esc(me())}؟</button></div>
   ${isOwner() ? membersHtml() : ''}
   <label>التنبيهات الجاية لك</label>
-  ${(() => { const L = S.sheet.at ? schedule(me()) : null; if (!L) return '<div class="meta">حمّل الشيت لتظهر</div>'; if (!L.length) return '<div class="meta">لا شيء في الأيام العشرة الجاية</div>';
+  ${(() => { const L = S.sheet.at || S.sheet.cachedAt ? schedule(me()) : null; if (!L) return '<div class="meta">حمّل الشيت لتظهر</div>'; if (!L.length) return '<div class="meta">لا شيء في الأيام العشرة الجاية</div>';
     return `<div class="kv">${L.slice(0, 12).map(x => `<div class="mem"><span>${esc(x.title)}<br><small class="meta">${hijri(iso(new Date(x.at)))} · ${hm12(new Date(x.at).toTimeString().slice(0, 5))}</small></span></div>`).join('')}</div>`; })()}
   <div class="meta" style="margin-top:6px">${!S.cfg.subs?.[me()] || !Object.values(S.cfg.subs[me()]).some(Boolean) ? '⚠️ ما فعّلت الإشعارات على أي جهاز، فما يوصلك شيء.' : pushLog.err ? '⚠️ آخر إرسال للخادم فشل: ' + esc(pushLog.err) : pushLog.at ? '✓ أُرسلت للخادم الساعة ' + hm12(pushLog.at.toTimeString().slice(0, 5)) : 'تُرسل للخادم بعد ثوانٍ من أي تعديل'}</div>
   <label>الإشعارات على هذا الجهاز</label>
@@ -529,6 +531,24 @@ function remHtml(it) {
     <select id="remk" style="flex:1;min-width:150px">${it.due ? REM_OPTS.map(([m, l]) => `<option value="${m}">${l}${it.dueT ? '' : ' (من ٩ ص)'}</option>`).join('') : ''}<option value="at">وقت أحدّده…</option></select>
     <input type="datetime-local" id="remat" value="${localDT(Date.now() + 15 * 6e4)}" min="${localDT(Date.now())}" style="flex:1;min-width:180px;${it.due ? 'display:none' : ''}">
     <button class="sm pri" data-act="remadd" data-k="${esc(it.key)}">+ تنبيه</button></div>`;
+}
+
+/* ───────── ملخّص الشيت المحفوظ ─────────
+   إذن قراءة الشيت يعيش ساعة، والآيفون يطلب الضغط لتجديده. فمع كل تحميلٍ يُحفظ ملخّصٌ صغير
+   لما تحتاجه المهام والتنبيهات: الرقم والنوع والمحامي والمهلة والمحكمة — بلا أسماء الخصوم ولا المبالغ.
+   منه تظهر المهام وتُرسل التنبيهات وإن لم يُحمَّل الشيت، حتى يحمّله أحد */
+const slim = r => ({ tab: r.tab, caseNo: r.caseNo, memo: r.memo || '', lawyer: r.lawyer || '', court: r.court || '', _due: dueOf(r), _dueT: dueTimeOf(r) });
+function saveSheetCache() {
+  const m = S.sheet.cases.filter(r => r.memo).map(slim), a = S.sheet.appeals.map(slim);
+  const sig = JSON.stringify([m, a]);
+  if (S.cfg.sheetCache && JSON.stringify([S.cfg.sheetCache.m, S.cfg.sheetCache.a]) === sig) return;
+  S.cfg.sheetCache = { at: Date.now(), m, a };
+  DB.saveCfg({ sheetCache: S.cfg.sheetCache });
+}
+function hydrate() {
+  const c = S.cfg.sheetCache;
+  if (S.sheet.at || !c) return;
+  S.sheet.cases = c.m || []; S.sheet.appeals = c.a || []; S.sheet.cachedAt = c.at;
 }
 
 /* ───────── الكتابة ───────── */
@@ -650,7 +670,8 @@ async function loadSheet(interactive) {
   try {
     const tabs = await DB.readSheet(S.cfg.sheetId, interactive);
     if (!tabs) { S.sheet.loading = false; return render(); }
-    Object.assign(S.sheet, ingest(tabs), { at: new Date(), err: '' });
+    Object.assign(S.sheet, ingest(tabs), { at: new Date(), err: '', cachedAt: null });
+    saveSheetCache();
     syncPush();
   } catch (e) { console.error(e); S.sheet.err = e.message || String(e); }
   S.sheet.loading = false; render();
@@ -676,7 +697,8 @@ async function initDB() {
       // دمجٌ كدمج Firebase (merge): الخرائط تُضاف إليها لا تُستبدل، وnull يحذف المفتاح
       saveCfg: p => { for (const [k, v] of Object.entries(p)) { if (v && typeof v === 'object' && !Array.isArray(v)) { D.cfg[k] = { ...(D.cfg[k] || {}), ...v }; for (const [a, b] of Object.entries(v)) if (b == null) delete D.cfg[k][a]; } else D.cfg[k] = v; } save(); },
       saveTask: (k, d) => { D.tasks[k] = d; save(); },
-      readSheet: async () => { await new Promise(r => setTimeout(r, 250)); return demoSheet(); },
+      // ?demo&nosheet: كأن إذن الشيت انتهى، لفحص العرض من الملخّص المحفوظ
+      readSheet: async () => { await new Promise(r => setTimeout(r, 250)); return /nosheet/.test(location.search) ? null : demoSheet(); },
     };
     return;
   }
@@ -696,8 +718,8 @@ async function initDB() {
   // قراءة الشيت بإذن الداخل نفسه: الشيت يبقى خاصًّا بالمكتب، ولا يصل الموقعَ إلا ما يراه صاحب الحساب أصلًا
   const SCOPE = 'https://www.googleapis.com/auth/spreadsheets.readonly';
   const TK = 'hammadi.tk';
-  const keep = res => { const c = res && A.GoogleAuthProvider.credentialFromResult(res); if (c && c.accessToken) sessionStorage.setItem(TK, JSON.stringify({ t: c.accessToken, x: Date.now() + 55 * 60e3 })); return c; };
-  const token = () => { try { const o = JSON.parse(sessionStorage.getItem(TK)); return o && o.x > Date.now() ? o.t : null; } catch (e) { return null; } };
+  const keep = res => { const c = res && A.GoogleAuthProvider.credentialFromResult(res); if (c && c.accessToken) localStorage.setItem(TK, JSON.stringify({ t: c.accessToken, x: Date.now() + 55 * 60e3 })); return c; };
+  const token = () => { try { const o = JSON.parse(localStorage.getItem(TK)); return o && o.x > Date.now() ? o.t : null; } catch (e) { return null; } };
   const prov = () => { const p = new A.GoogleAuthProvider(); p.addScope(SCOPE); const u = auth.currentUser; p.setCustomParameters(u ? { login_hint: u.email } : { prompt: 'select_account' }); return p; };
   try { keep(await A.getRedirectResult(auth)); } catch (e) { console.error(e); }
   const why = e => e.code === 'auth/unauthorized-domain' ? 'هذا الرابط غير مسموح في إعدادات Firebase (Authorized domains).' : 'ما زبط الدخول: ' + (e.code || e.message);
@@ -715,7 +737,7 @@ async function initDB() {
   DB = {
     onAuth: cb => A.onAuthStateChanged(auth, cb),
     async login() { try { await popup(() => A.signInWithPopup(auth, prov())); } catch (e) { renderLogin(why(e)); } },
-    logout: () => { sessionStorage.removeItem(TK); return A.signOut(auth); },
+    logout: () => { localStorage.removeItem(TK); return A.signOut(auth); },
     // الإعداد أولًا: منه يُعرف هل الداخل من الفريق. والمهام والطلبات لا تُطلب إلا بعده، وإلا رفضتها القواعد
     listen(h) {
       const bad = what => e => { console.error(e); toast(`ما قدرت أقرأ ${what}: ${e.code || e.message}`, true); };
@@ -742,7 +764,7 @@ async function initDB() {
       }
       const get = async u => {
         const r = await fetch(u, { headers: { Authorization: 'Bearer ' + t } });
-        if (r.status === 401) { sessionStorage.removeItem(TK); throw new Error('انتهت جلسة الشيت — اضغط «إعادة»'); }
+        if (r.status === 401) { localStorage.removeItem(TK); throw new Error('انتهت جلسة الشيت — اضغط «إعادة»'); }
         if (!r.ok) {
           let m = ''; try { m = (await r.json()).error.message; } catch (e) { }
           if (/has not been used|disabled/i.test(m)) throw new Error('Google Sheets API غير مفعّل في مشروع Firebase — فعّله من Google Cloud Console');
@@ -839,7 +861,7 @@ const sent = {};
    وأول تشغيلٍ يسجّل الموجود كله بلا إشعار، وإلا انهالت على الفريق مهام قديمة دفعةً واحدة */
 function markSeen(key, who) { S.cfg.seen = { ...(S.cfg.seen || {}), [key]: who }; DB.saveCfg({ seen: { [key]: who } }); }
 function freshAssignments() {
-  if (!S.sheet.at || !S.docsReady) return {};
+  if ((!S.sheet.at && !S.sheet.cachedAt) || !S.docsReady) return {};
   const seen = S.cfg.seen || {}, open = items().filter(i => i.who && i.status !== 'done');
   if (!S.cfg.seenInit) {
     const all = {}; for (const i of open) all[i.key] = i.who;
@@ -860,7 +882,7 @@ let pendingPush = false;
 async function syncAll(extra = {}) {
   if (DEMO || !S.cfg.subs) return;
   // بلا الشيت تنقص المواعيد، فإرسالها يمسح ما عند الخادم. نؤجّل حتى يُحمَّل، وهو يرسل حينها
-  if (!S.sheet.at) { if (!pendingPush) toast('حمّل الشيت عشان توصل التنبيهات', true); pendingPush = true; return; }
+  if (!S.sheet.at && !S.sheet.cachedAt) { if (!pendingPush) toast('حمّل الشيت عشان توصل التنبيهات', true); pendingPush = true; return; }
   pendingPush = false;
   let fresh = {};
   try { fresh = freshAssignments(); } catch (e) { console.error('fresh', e); }
@@ -920,7 +942,7 @@ DB.onAuth(u => {
   render();
   let first = true;
   DB.listen({
-    cfg: c => { S.cfg = c || {}; S.cfgReady = true; render(); if (first && me()) { first = false; loadSheet(false); } },
+    cfg: c => { S.cfg = c || {}; S.cfgReady = true; const was = !!S.sheet.cachedAt; hydrate(); render(); if (first && me()) { first = false; loadSheet(false); } if (!was && S.sheet.cachedAt) syncPush(); },
     tasks: o => { S.docs = o; S.docsReady = true; render(); },
     reqs: o => { const n = Object.keys(o).length, was = Object.keys(S.reqs).length; S.reqs = o; if (n > was) toast(`طلب دخول جديد — من الإعدادات`); if (S.open?.type === 'menu') renderSheet(); render(); },
     denied: () => { S.denied = true; render(); },
