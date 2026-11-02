@@ -1,0 +1,15 @@
+{
+  "name": "مشروع الحمادي",
+  "short_name": "الحمادي",
+  "lang": "ar",
+  "dir": "rtl",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f4f1ea",
+  "theme_color": "#1f3a5f",
+  "icons": [
+    { "src": "wael-icon.png?v=3", "sizes": "180x180", "type": "image/png" },
+    { "src": "wael-icon-512.png?v=3", "sizes": "512x512", "type": "image/png" }
+  ]
+}

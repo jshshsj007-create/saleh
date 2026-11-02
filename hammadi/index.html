@@ -13,6 +13,7 @@
 <!-- شعار المكتب، لا أيقونة «النادي» التي في جذر المستودع -->
 <link rel="icon" type="image/png" href="wael-icon.png?v=3">
 <link rel="apple-touch-icon" href="wael-icon-512.png?v=3">
+<link rel="manifest" href="manifest.json">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
@@ -151,8 +152,11 @@ function fromHijri(y, m, d) {
   return null;
 }
 // يلتقط تاريخًا من نصّ الخلية: «11:00:00 ص 1448/05/28» أو «1448/5/28» أو تاريخ ميلادي
+// الشيت يعرض التاريخ بالهجري، لكن قيمته الحقيقية رقمٌ تسلسلي (أيام منذ ١٨٩٩/١٢/٣٠) لا يتأثر بالتقويم ولا بالتنسيق
+const serial = n => { const d = new Date(Date.UTC(1899, 11, 30) + Math.floor(n) * 864e5); return iso(new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate())); };
 function pickDate(v) {
-  const s = String(v || '').replace(/[٠-٩]/g, c => AR.indexOf(c));
+  if (typeof v === 'number' && v > 20000 && v < 80000) return serial(v);
+  const s = String(v || '').replace(/[\u200e\u200f\u061c\u202a-\u202e\u2066-\u2069]/g, '').replace(/[٠-٩]/g, c => AR.indexOf(c));
   let m = s.match(/(\d{4})[\/-](\d{1,2})[\/-](\d{1,2})/);
   if (m) { const y = +m[1]; return y > 1900 ? `${y}-${m[2].padStart(2, '0')}-${m[3].padStart(2, '0')}` : fromHijri(y, +m[2], +m[3]); }
   m = s.match(/(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})/);
@@ -177,7 +181,8 @@ const fail = e => { console.error(e); toast('ما انحفظ: ' + (e.code || e.m
 const S = {
   user: null, cfg: {}, cfgReady: false, docs: {}, docsReady: false,
   sheet: { at: null, cases: [], appeals: [], archive: [], err: '', loading: false },
-  tab: 'm', seg: 'mine', q: '', open: null, archN: 30,
+  tab: ['m', 'a', 'e'].includes(new URLSearchParams(location.search).get('tab')) ? new URLSearchParams(location.search).get('tab') : 'm',
+  seg: 'mine', q: '', open: null, archN: 30,
   denied: false, asked: false, reqs: {},
 };
 const myEmail = () => String(S.user?.email || '').toLowerCase();
@@ -194,12 +199,13 @@ const HEAD = {
   caseNo: /رقم القضي/, lawyer: /^(المحامي|المسؤول)/, memo: /نوع المذكر/, req: /^المطلوب/,
   session: /(تاريخ|موعد) الجلس|تار+يخ انتها/, court: /^المحكمة/, circuit: /^الدائرة/,
   plaintiff: /اسم المدعي/, defendant: /المدعى عليه|اسم المدعى/, type: /نوع القضي/,
-  last: /آخر (اجراء|إجراء)/, status: /^حالة/, remain: /^المتبقي/, deadline: /عداد المه/, note: /^ملاحظ/,
+  last: /[اآ]خر (اجراء|إجراء)/, status: /^حالة/, remain: /^المتبقي/, deadline: /عداد المه/, note: /^ملاحظ/,
 };
 // تبويب «لوائح الاستئناف» منسوخٌ من تبويبات المحاكم وأغلب عناوينه «العمود ٢…»؛ فما لم يُسمَّ يؤخذ بموضعه هناك
 const STD = { caseNo: 0, lawyer: 3, court: 4, circuit: 5, plaintiff: 6, defendant: 7, type: 10, session: 11, last: 15 };
-function parseTab(title, rows) {
-  const head = (rows[0] || []).map(h => String(h || '').replace(/\s+/g, ' ').trim());
+function parseTab(title, rows, raw) {
+  // العنوان قد يُكتب «عدّاد» بشدّة أو بتطويلٍ أو علامة اتجاه مخفية: نطابق بعد نزعها كلها
+  const head = (rows[0] || []).map(h => String(h || '').replace(/[\u064B-\u0652\u0640\u200e\u200f\u061c\u202a-\u202e\u2066-\u2069]/g, '').replace(/[أإآ]/g, 'ا').replace(/\s+/g, ' ').trim());
   const col = {};
   for (const [k, re] of Object.entries(HEAD)) {
     let i = head.findIndex(h => re.test(h));
@@ -211,6 +217,9 @@ function parseTab(title, rows) {
   rows.slice(1).forEach((r, n) => {
     const o = { tab: title, rowNo: n + 2 };
     for (const [k, i] of Object.entries(col)) o[k] = String(r[i] ?? '').trim();
+    // القيمة الخام للتواريخ، إن وُجدت: أوثق من النص المعروض
+    const rr = raw && raw[n + 1];
+    if (rr) for (const k of ['deadline', 'session']) if (col[k] != null && typeof rr[col[k]] === 'number') o['_' + k] = rr[col[k]];
     if (o.caseNo) out.push(o);
   });
   return { col, rows: out, head };
@@ -219,7 +228,7 @@ const isAppeals = t => /استئناف/.test(t);
 const isExec = t => /^\s*التنفيذ\s*$/.test(t);
 function ingest(tabs) {
   const cases = [], appeals = [], archive = [];
-  for (const [title, rows] of tabs) {
+  for (const [title, rows, raw] of tabs) {
     if (isExec(title)) {
       const head = (rows[0] || []).map(h => String(h || '').trim());
       const f = re => head.findIndex(h => re.test(h));
@@ -230,7 +239,7 @@ function ingest(tabs) {
       });
       continue;
     }
-    const p = parseTab(title, rows);
+    const p = parseTab(title, rows, raw);
     if (p.col.caseNo == null) continue;
     (isAppeals(title) ? appeals : cases).push(...p.rows);
   }
@@ -239,6 +248,14 @@ function ingest(tabs) {
 
 /* ───────── المهام: الشيت + ما يُحفظ في الموقع ───────── */
 // المحفوظ في Firebase الإسنادُ والحالة والسجلّ فقط، بمفتاح رقم القضية؛ وتفاصيل القضية تُقرأ من الشيت ساعة الفتح
+// موعد المهلة: من قيمة الخلية الخام، ثم من نصّها، ثم من عمود «المتبقي» (عدد الأيام) إن لم يُفهم التاريخ
+function dueOf(r) {
+  const d = pickDate(r._deadline) || pickDate(r.deadline);
+  if (d) return d;
+  const k = String(r.remain || '').replace(/[٠-٩]/g, c => AR.indexOf(c)).trim();
+  if (/^-?\d+$/.test(k)) { const t = new Date(); t.setDate(t.getDate() + +k); return iso(t); }
+  return null;
+}
 const caseIndex = () => { const m = {}; for (const r of [...S.sheet.cases, ...S.sheet.appeals]) (m[r.caseNo] = m[r.caseNo] || []).push(r); return m; };
 function items() {
   const out = [], seen = new Set(), idx = caseIndex();
@@ -261,11 +278,11 @@ function items() {
     for (const [f, v] of Object.entries(r)) if (v && !o[f]) o[f] = v;
   }
   // موعد المذكرة من «عداد المهلة» لا من الجلسة: هكذا يعتمده الفريق في الشيت
-  for (const [key, r] of memos) add({ key, kind: 'm', title: r.memo, caseNo: r.caseNo, lawyer: r.lawyer, due: pickDate(r.deadline), row: r, sheetLeft: r.remain });
+  for (const [key, r] of memos) add({ key, kind: 'm', title: r.memo, caseNo: r.caseNo, lawyer: r.lawyer, due: dueOf(r), row: r, sheetLeft: r.remain });
   const seenA = new Set();
   for (const r of S.sheet.appeals) {
     if (seenA.has(r.caseNo)) continue; seenA.add(r.caseNo);
-    const due = pickDate(r.deadline);
+    const due = dueOf(r);
     add({ key: `a|${r.caseNo}`, kind: 'a', title: 'لائحة اعتراض', caseNo: r.caseNo, lawyer: r.lawyer, due, row: r, sheetLeft: r.remain });
   }
   // مهام التنفيذ والمهام اليدوية، وما خرج من الشيت وبقي له سجلّ
@@ -440,6 +457,9 @@ function menuHtml() {
   <label>مسؤول التنفيذ</label><select id="sexec">${(S.cfg.team || []).map(t => `<option ${t === S.cfg.exec ? 'selected' : ''}>${esc(t)}</option>`).join('')}</select>
   <div class="btns"><button class="pri" data-act="savecfg">حفظ</button><button data-act="iam">لست ${esc(me())}؟</button></div>
   ${isOwner() ? membersHtml() : ''}
+  <label>الإشعارات على هذا الجهاز</label>
+  <div class="btns">${pushOn() ? '<button data-act="pushoff">🔕 إيقاف الإشعارات</button>' : '<button class="ok" data-act="pushon">🔔 تفعيل الإشعارات</button>'}</div>
+  <div class="meta" style="margin-top:6px">تصلك والجوال مقفل: إذا أُسندت إليك مهمة، وقبل آخر يوم بيوم، وفي آخر يوم، وصباح كل يوم فيه متأخرة. ${isIOS && !standalone() ? '<br><b>في الآيفون:</b> أضف الموقع للشاشة الرئيسية أولًا (زر المشاركة ← «إضافة إلى الشاشة الرئيسية»)، وافتحه من أيقونته، ثم فعّلها.' : ''}</div>
   <div class="btns"><button data-act="logout">تسجيل الخروج</button></div>`;
 }
 function membersHtml() {
@@ -485,6 +505,7 @@ function put(k, patch, logMsg) {
   const doc = { ...(it ? base(it) : {}), ...prev, ...patch, log: [...(prev.log || []), ...(logMsg ? [stamp(logMsg)] : [])] };
   S.docs[k] = doc; render();
   DB.saveTask(k, doc);
+  syncPush();
 }
 
 /* ───────── الأحداث ───────── */
@@ -507,6 +528,7 @@ document.addEventListener('click', async e => {
       const it = items().find(i => i.key === k);
       if (it.who === v) return;
       put(k, { assignee: v }, it.who ? `أعاد إسنادها من ${it.who} إلى ${v}` : `أسندها إلى ${v}`);
+      if (v !== me()) pingNow(v, `📌 أُسندت إليك: ${it.title}`, `${it.caseNo ? 'القضية ' + it.caseNo + ' · ' : ''}من ${me()}`, it.kind, k);
       toast(`أُسندت إلى ${v}`); return renderSheet();
     }
     case 'status': put(k, { status: v }, `غيّر الحالة إلى «${STATUS[v][0]}»`); return renderSheet();
@@ -524,6 +546,7 @@ document.addEventListener('click', async e => {
       const ek2 = `e|${it.caseNo}`;
       const doc = { kind: 'e', title: 'تنفيذ حكم', caseNo: it.caseNo, from: k, assignee: execWho(), status: 'new', log: [stamp(`أسندها للتنفيذ إلى ${execWho()} (حكم لصالح الحمادي)`)] };
       S.docs[ek2] = doc; DB.saveTask(ek2, doc);
+      if (execWho() !== me()) pingNow(execWho(), '⚖️ تنفيذ حكم جديد', `القضية ${it.caseNo} · حكم لصالح الحمادي · من ${me()}`, 'e', ek2);
       if (it.status !== 'done') put(k, { status: 'done', doneDate: TODAY(), doneBy: me() }, 'صدر الحكم لصالح الحمادي وأُحيلت للتنفيذ');
       toast(`أُسندت للتنفيذ إلى ${execWho()}`); S.open = { type: 'task', k: ek2 }; render(); return;
     }
@@ -534,6 +557,7 @@ document.addEventListener('click', async e => {
       const who = document.getElementById('nw').value;
       const doc = { manual: true, kind: document.getElementById('nk').value, title, caseNo: document.getElementById('nc').value.trim(), due: document.getElementById('nd').value || null, assignee: who, status: 'new', note: document.getElementById('nn').value.trim(), log: [stamp(who === me() ? 'أضافها لنفسه' : `أضافها وأسندها إلى ${who}`)] };
       S.docs[key] = doc; DB.saveTask(key, doc);
+      if (who !== me()) pingNow(who, `📌 أُسندت إليك: ${title}`, `${doc.caseNo ? 'القضية ' + doc.caseNo + ' · ' : ''}من ${me()}`, doc.kind, key); else syncPush();
       S.tab = doc.kind; S.open = null; document.querySelector('.sheet')?.remove(); toast('أُضيفت'); return render();
     }
     case 'savecfg': {
@@ -560,6 +584,8 @@ document.addEventListener('click', async e => {
     case 'unallow': if (!confirm('تزيل ' + v + '؟')) return; setAllowed((S.cfg.allowed || []).filter(x => x !== v)); return renderSheet();
     case 'ask': await DB.ask({ email: myEmail(), name: S.user.displayName || '', t: Date.now() }); S.asked = true; return render();
     case 'recheck': return location.reload();
+    case 'pushon': return enablePush();
+    case 'pushoff': return disablePush();
     case 'setme': S.cfg.members = { ...(S.cfg.members || {}), [ek(S.user.email)]: v }; DB.saveCfg({ members: { [ek(S.user.email)]: v } }); render(); return loadSheet(false);
     case 'iam': { const m = { ...(S.cfg.members || {}) }; delete m[ek(S.user.email)]; S.cfg.members = m; DB.saveCfg({ members: { [ek(S.user.email)]: null } }); S.open = null; document.querySelector('.sheet')?.remove(); return render(); }
   }
@@ -576,6 +602,7 @@ async function loadSheet(interactive) {
     const tabs = await DB.readSheet(S.cfg.sheetId, interactive);
     if (!tabs) { S.sheet.loading = false; return render(); }
     Object.assign(S.sheet, ingest(tabs), { at: new Date(), err: '' });
+    syncPush();
   } catch (e) { console.error(e); S.sheet.err = e.message || String(e); }
   S.sheet.loading = false; render();
 }
@@ -678,8 +705,12 @@ async function initDB() {
       const meta = await get(B + '?fields=sheets.properties.title');
       const titles = meta.sheets.map(s => s.properties.title);
       const qs = titles.map(x => 'ranges=' + encodeURIComponent(`'${x.replace(/'/g, "''")}'`)).join('&');
-      const vals = await get(`${B}/values:batchGet?${qs}&valueRenderOption=FORMATTED_VALUE`);
-      return vals.valueRanges.map((v, i) => [titles[i], v.values || []]);
+      // مرتين: النص كما يُعرض، والقيمة الخام (التاريخ رقمًا) لنحسب منها المهلة بلا اعتمادٍ على تنسيق العرض
+      const [vals, raws] = await Promise.all([
+        get(`${B}/values:batchGet?${qs}&valueRenderOption=FORMATTED_VALUE`),
+        get(`${B}/values:batchGet?${qs}&valueRenderOption=UNFORMATTED_VALUE&dateTimeRenderOption=SERIAL_NUMBER`),
+      ]);
+      return vals.valueRanges.map((v, i) => [titles[i], v.values || [], raws.valueRanges[i]?.values || []]);
     },
   };
 }
@@ -711,6 +742,86 @@ function demoSheet() {
       ['1447/8/13', '40100000002', '', 'شركة الحمادي', 'منفذ ضده ٢ (تجريبي)', '213,712', '', 'حكم', '', 'رفض السند', '', 'لم ينفذ', ''],
     ]],
   ];
+}
+
+/* ───────── الإشعارات والجوال مقفل ─────────
+   خادم «يومي» نفسه: يحفظ لكل جهاز قائمة مواعيد، ويصحى كل دقيقة ويرسل ما حان، وكل إرسالٍ جديد
+   يستبدل قائمة ذلك الجهاز. فأي جهازٍ في الفريق يقدر يحسب مواعيد أي عضو — البيانات مشتركة —
+   ويرسلها لاشتراكاته المحفوظة في الإعداد. هكذا يصل إشعار الإسناد لمن أُسندت إليه وإن لم يفتح الموقع. */
+const PUSH = 'https://dynamic-churros-f6908c.netlify.app/yawmi/';
+const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1);
+const standalone = () => navigator.standalone === true || matchMedia('(display-mode: standalone)').matches;
+const pushOK = () => !DEMO && 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+let swReg = null;
+if ('serviceWorker' in navigator && !DEMO) navigator.serviceWorker.register('sw.js').then(r => { swReg = r; }).catch(() => { });
+navigator.serviceWorker?.addEventListener('message', e => { if (e.data && e.data.tab) { S.tab = e.data.tab; render(); } });
+const b64 = s => { const p = '='.repeat((4 - s.length % 4) % 4), r = atob((s + p).replace(/-/g, '+').replace(/_/g, '/')); return Uint8Array.from(r, c => c.charCodeAt(0)); };
+const api = (path, body) => fetch(PUSH + path, body ? { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) } : {}).then(r => r.json());
+const hash = s => { let h = 0; for (const c of String(s)) h = (h * 31 + c.charCodeAt(0)) | 0; return 'd' + (h >>> 0).toString(36); };
+let myEndpoint = '';
+try { myEndpoint = localStorage.getItem('hammadi.ep') || ''; } catch (e) { }
+const pushOn = () => !!myEndpoint && !!(S.cfg.subs?.[me()] || {})[hash(myEndpoint)];
+const at = (d, hm) => new Date(d + 'T' + hm).getTime();
+const addDays = (d, k) => { const t = P(d); t.setDate(t.getDate() + k); return iso(t); };
+// مواعيد عضوٍ واحد للأيام التسعة الجاية، من مهامه المفتوحة
+function schedule(name) {
+  const out = [], now = Date.now(), add = (ms, k, title, body, tab) => { if (ms > now) out.push({ at: ms, k, title, body, tab }); };
+  const mine = items().filter(i => i.who === name && i.status !== 'done');
+  const where = i => [i.caseNo && 'القضية ' + i.caseNo, i.row?.court].filter(Boolean).join(' · ');
+  for (const i of mine) if (i.due) {
+    if (i.kind === 'a') add(at(addDays(i.due, -3), '09:00'), `a3:${i.key}:${i.due}`, `⏳ باقي ٣ أيام: ${i.title}`, where(i), i.kind);
+    add(at(addDays(i.due, -1), '09:00'), `d1:${i.key}:${i.due}`, `⏰ باقي يوم: ${i.title}`, where(i), i.kind);
+    add(at(i.due, '08:30'), `d0:${i.key}:${i.due}`, `🔴 اليوم آخر يوم: ${i.title}`, where(i), i.kind);
+  }
+  for (let k = 0; k <= 8; k++) {
+    const d = addDays(TODAY(), k), late = mine.filter(i => i.due && i.due < d);
+    if (late.length) add(at(d, '08:00'), `late:${name}:${d}`, `عندك ${late.length == 1 ? 'مهمة متأخرة' : late.length == 2 ? 'مهمتان متأخرتان' : ar(late.length) + ' مهام متأخرة'}`, late.slice(0, 3).map(i => i.title + (i.caseNo ? ' — ' + i.caseNo : '')).join('، '), late[0].kind);
+  }
+  return out.sort((a, b) => a.at - b.at).slice(0, 80);
+}
+// المواعيد تُحسب من الشيت، فلا نرسل قبل تحميله: وإلا مُسحت مواعيد الناس بقائمةٍ ناقصة
+let pushT = null;
+const sent = {};
+async function syncAll(extra = {}) {
+  if (!pushOK() || !S.sheet.at || !S.cfg.subs) return;
+  for (const [name, devs] of Object.entries(S.cfg.subs)) for (const sub of Object.values(devs || {})) {
+    if (!sub || !sub.endpoint) continue;
+    const list = schedule(name).concat(extra[name] || []), sig = JSON.stringify(list.filter(x => !x.now));
+    if (!extra[name] && sent[sub.endpoint] === sig) continue;
+    try { const r = await api('sync', { sub, items: list.map(({ now, ...x }) => x) }); if (r.ok) sent[sub.endpoint] = sig; } catch (e) { console.error('push', e); }
+  }
+}
+function syncPush() { clearTimeout(pushT); pushT = setTimeout(() => syncAll(), 2500); }
+// إشعار فوري لعضو (أُسندت إليك…): يُضاف إلى قائمته ويُرسل الآن، فيصله خلال دقيقة
+function pingNow(name, title, body, tab, key) {
+  if (!S.cfg.subs?.[name]) return;
+  clearTimeout(pushT);
+  setTimeout(() => syncAll({ [name]: [{ at: Date.now() + 5000, k: `as:${key}:${Date.now()}`, title, body, tab, now: true }] }), 300);
+}
+async function enablePush() {
+  if (!pushOK()) return toast('هذا المتصفح لا يدعم الإشعارات', true);
+  if (isIOS && !standalone()) return toast('أضف الموقع للشاشة الرئيسية أولًا، وافتحه من أيقونته', true);
+  try {
+    const p = await Notification.requestPermission();
+    if (p !== 'granted') return toast('ما سمحت بالإشعارات', true);
+    const reg = swReg || await navigator.serviceWorker.ready;
+    const { key } = await api('key');
+    const sub = (await reg.pushManager.getSubscription()) || await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64(key) });
+    const j = sub.toJSON();
+    myEndpoint = j.endpoint; localStorage.setItem('hammadi.ep', myEndpoint);
+    S.cfg.subs = { ...(S.cfg.subs || {}), [me()]: { ...(S.cfg.subs?.[me()] || {}), [hash(j.endpoint)]: j } };
+    await DB.saveCfg({ subs: { [me()]: { [hash(j.endpoint)]: j } } });
+    const t = await api('test', { sub: j });
+    toast(t.ok ? '✓ تفعّلت، وجاك إشعار تجربة' : 'تفعّلت، بس التجربة ما وصلت: ' + t.error, !t.ok);
+    syncAll();
+  } catch (e) { console.error(e); toast('ما زبط التفعيل: ' + e.message, true); }
+  renderSheet();
+}
+async function disablePush() {
+  try { const r = swReg || await navigator.serviceWorker.ready; const sub = await r.pushManager.getSubscription(); if (sub) { await api('off', { endpoint: sub.endpoint }); await sub.unsubscribe(); } } catch (e) { console.error(e); }
+  if (myEndpoint) { const m = { ...(S.cfg.subs?.[me()] || {}) }; delete m[hash(myEndpoint)]; S.cfg.subs = { ...S.cfg.subs, [me()]: m }; DB.saveCfg({ subs: { [me()]: { [hash(myEndpoint)]: null } } }); }
+  myEndpoint = ''; localStorage.removeItem('hammadi.ep');
+  toast('وقفت الإشعارات'); renderSheet();
 }
 
 /* ───────── البدء ───────── */
