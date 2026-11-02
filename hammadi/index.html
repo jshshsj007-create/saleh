@@ -497,6 +497,8 @@ function menuHtml() {
     return `<div class="kv">${L.slice(0, 12).map(x => `<div class="mem"><span>${esc(x.title)}<br><small class="meta">${hijri(iso(new Date(x.at)))} · ${hm12(new Date(x.at).toTimeString().slice(0, 5))}${x.body ? ' · ' + esc(x.body.split(' · ')[0]) : ''}</small></span></div>`).join('')}</div>`; })()}
   <div class="meta" style="margin-top:6px">${!S.cfg.subs?.[me()] || !Object.values(S.cfg.subs[me()]).some(Boolean) ? '⚠️ ما فعّلت الإشعارات على أي جهاز، فما يوصلك شيء.' : pushLog.err ? '⚠️ آخر إرسال للخادم فشل: ' + esc(pushLog.err) : pushLog.at ? `✓ أُرسلت للخادم الساعة ${hm12(pushLog.at.toTimeString().slice(0, 5))} — عنده لك ${ar(pushLog.count || 0)}${pushLog.next ? '، أقربها ' + hm12(new Date(pushLog.next).toTimeString().slice(0, 5)) + ' ' + hijri(iso(new Date(pushLog.next))) : ''}` : pushLog.why ? '⚠️ ما أُرسلت: ' + esc(pushLog.why) : 'لم تُرسل بعد في هذه الفتحة'}</div>
   <div class="btns"><button class="sm" data-act="pushnow">📤 أرسل التنبيهات للخادم الآن</button></div>
+  <label>تقويم الجوال</label>
+  ${(() => { const n = S.sheet.at || S.sheet.cachedAt ? calEvents().length : 0; return n ? `<div class="btns"><button class="pri" data-act="ics">📅 أضف جلساتي ومهلي للتقويم (${ar(n)})</button></div><div class="meta">الجلسات بساعتها، والمهل يومًا كاملًا. اضغطه من جديد متى تغيّر شيء.</div>` : '<div class="meta">لا جلسات ولا مهل قادمة لك، أو الشيت غير محمّل.</div>'; })()}
   <label>الإشعارات على هذا الجهاز</label>
   <div class="btns">${pushOn() ? '<button data-act="pushoff">🔕 إيقاف الإشعارات</button>' : '<button class="ok" data-act="pushon">🔔 تفعيل الإشعارات</button>'}</div>
   <div class="meta" style="margin-top:6px">تصلك والجوال مقفل: لما تُسند لك مهمة، وقبل انتهاء مهلتها بيوم، وصباح اليوم التالي إن فاتت، وقبل كل جلسةٍ لقضاياك بـ١٢ ساعة وبساعة. ${isIOS && !standalone() ? '<br><b>في الآيفون:</b> أضف الموقع للشاشة الرئيسية أولًا (زر المشاركة ← «إضافة إلى الشاشة الرئيسية»)، وافتحه من أيقونته، ثم فعّلها.' : ''}</div>
@@ -709,6 +711,48 @@ function caseHtml(c) {
   ${!S.sheet.at ? '<div class="meta" style="margin-top:10px">تفاصيل أكثر بعد «تحميل الشيت».</div>' : ''}`;
 }
 
+/* ───────── تقويم الجوال ─────────
+   ملف تقويم (ics) بجلساتي ومهلي القادمة يضيفه الآيفون لتقويمه. لكل موعدٍ معرّفٌ ثابت (UID)،
+   فإعادة إضافته تُحدِّث الموعد نفسه حيث يدعم التقويم ذلك، بدل أن يتكرّر. ولا تنبيه فيه: الإشعارات تكفي */
+function calEvents() {
+  const ev = [], who = me(), base = location.origin + location.pathname;
+  for (const g of S.sheet.sessions || []) if (matchTeam(g.lawyer) === who)
+    ev.push({ uid: `ses-${g.caseNo}-${g.d}`, d: g.d, t: g.t, mins: 60, title: `⚖️ جلسة — القضية ${g.caseNo}${g.opp ? ' · ' + g.opp : ''}`, desc: [g.court, g.circuit && 'الدائرة ' + g.circuit].filter(Boolean).join(' · '), url: base + '?open=' + encodeURIComponent(`ses:${g.caseNo}:${g.d}`) });
+  for (const i of items()) if (i.who === who && i.status !== 'done' && i.due && i.due >= TODAY())
+    ev.push({ uid: `due-${hash(i.key)}`, d: i.due, t: null, title: `⏰ آخر يوم: ${i.title} — القضية ${i.caseNo}${opp(i.row) ? ' · ' + opp(i.row) : ''}`, desc: KIND[i.kind] + (i.dueT ? ' · المهلة ' + hm12(i.dueT) : ''), url: base + '?open=' + encodeURIComponent(`d1:${i.key}:${i.due}`) });
+  return ev;
+}
+function buildIcs(ev) {
+  const z = n => String(n).padStart(2, '0');
+  const utc = ms => { const d = new Date(ms); return `${d.getUTCFullYear()}${z(d.getUTCMonth() + 1)}${z(d.getUTCDate())}T${z(d.getUTCHours())}${z(d.getUTCMinutes())}00Z`; };
+  const day = s => s.replace(/-/g, '');
+  const tx = s => String(s || '').replace(/\\/g, '\\\\').replace(/;/g, '\;').replace(/,/g, '\\,').replace(/\n/g, '\\n');
+  // سطور التقويم لا تتجاوز ٧٥ بايتًا، والعربي حرفه بايتان: يُطوى السطر على حدود الحروف
+  const enc = new TextEncoder(), fold = line => { const out = []; let cur = ''; for (const ch of line) { if (enc.encode(cur + ch).length > 73) { out.push(cur); cur = ' '; } cur += ch; } out.push(cur); return out.join('\r\n'); };
+  const L = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//hammadi//ar', 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH', 'X-WR-CALNAME:مشروع الحمادي'];
+  const now = utc(Date.now());
+  for (const e of ev) {
+    L.push('BEGIN:VEVENT', `UID:${e.uid}@hammadi`, `DTSTAMP:${now}`);
+    if (e.t) { const s0 = new Date(e.d + 'T' + e.t).getTime(); L.push(`DTSTART:${utc(s0)}`, `DTEND:${utc(s0 + (e.mins || 60) * 6e4)}`); }
+    else { const n = new Date(e.d + 'T12:00'); n.setDate(n.getDate() + 1); L.push(`DTSTART;VALUE=DATE:${day(e.d)}`, `DTEND;VALUE=DATE:${day(iso(n))}`); }
+    L.push(`SUMMARY:${tx(e.title)}`); if (e.desc) L.push(`DESCRIPTION:${tx(e.desc)}`); if (e.url) L.push(`URL:${e.url}`);
+    L.push('END:VEVENT');
+  }
+  L.push('END:VCALENDAR');
+  return L.map(fold).join('\r\n') + '\r\n';
+}
+function downloadIcs() {
+  const ev = calEvents();
+  if (!ev.length) return toast('ما فيه مواعيد قادمة لك', true);
+  const blob = new Blob([buildIcs(ev)], { type: 'text/calendar;charset=utf-8' }), url = URL.createObjectURL(blob);
+  // الآيفون: فتح الملف نفسه يعرض «إضافة الكل» للتقويم. وغيره: تنزيله ثم فتحه
+  const a = document.createElement('a'); a.href = url;
+  if (!isIOS) a.download = 'hammadi.ics';
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 60000);
+  toast(`📅 ${ev.length} موعد — اختر «إضافة الكل»`);
+}
+
 /* ───────── الكتابة ───────── */
 function setAllowed(list) { S.cfg.allowed = list; DB.setAllowed(list); }
 const stamp = (m) => ({ d: TODAY(), by: me() || '', m, t: Date.now() });
@@ -851,6 +895,7 @@ document.addEventListener('click', async e => {
     case 'hookcopy': { const ta = document.getElementById('hookcode'); ta.select(); try { await navigator.clipboard.writeText(ta.value); toast('✓ نُسخ السكربت'); } catch (e2) { document.execCommand('copy'); toast('✓ نُسخ'); } return; }
     case 'hookon': S.cfg.hookOn = v === '1'; DB.saveCfg({ hookOn: S.cfg.hookOn }); toast(S.cfg.hookOn ? '✓ السكربت يبلغ لحظيًا، والموقع ما يكرّر' : 'رجع الموقع يبلغ بنفسه'); return renderSheet();
     case 'pushnow': { t.disabled = true; t.textContent = '⏳ جاري الإرسال…'; await syncAll({}, true); return renderSheet(); }
+    case 'ics': return downloadIcs();
     case 'pushon': return enablePush();
     case 'pushoff': return disablePush();
     case 'setme': S.cfg.members = { ...(S.cfg.members || {}), [ek(S.user.email)]: v }; DB.saveCfg({ members: { [ek(S.user.email)]: v } }); render(); return loadSheet(false);
