@@ -182,6 +182,7 @@ const fail = e => { console.error(e); toast('ما انحفظ: ' + (e.code || e.m
 const S = {
   user: null, cfg: {}, cfgReady: false, docs: {}, docsReady: false,
   sheet: { at: null, cases: [], appeals: [], archive: [], err: '', loading: false },
+  draft: {},
   tab: ['m', 'a', 'e'].includes(new URLSearchParams(location.search).get('tab')) ? new URLSearchParams(location.search).get('tab') : 'm',
   seg: 'mine', q: '', open: null, archN: 30,
   denied: false, asked: false, reqs: {},
@@ -527,12 +528,14 @@ const baseAt = i => new Date(i.due + 'T' + (i.dueT || '09:00')).getTime();
 function remHtml(it) {
   if (it.status === 'done') return '';
   const R = it.doc.rem || [];
+  // ما اختاره ولم يضغط «+ تنبيه» بعد: يبقى وإن أُعيد رسم النافذة بتحديثٍ وصل من القاعدة
+  const dr = S.draft.k === it.key ? S.draft : {};
   return `<label>التنبيهات</label>
   <div class="chips" style="margin-top:2px"><span class="chip n">📌 عند الإسناد</span>${it.due ? '<span class="chip n">⏰ قبل المهلة بيوم</span><span class="chip n">🔴 بعد فواتها بيوم</span>' : ''}
   ${R.map((r, n) => `<span class="chip b">🔔 ${esc(remLabel(r))} <button class="link" style="color:inherit;font-weight:700;margin-inline-start:4px" data-act="remdel" data-k="${esc(it.key)}" data-v="${n}" aria-label="حذف">✕</button></span>`).join('')}</div>
   <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
-    <select id="remk" style="flex:1;min-width:150px">${it.due ? REM_OPTS.map(([m, l]) => `<option value="${m}">${l}${it.dueT ? '' : ' (من ٩ ص)'}</option>`).join('') : ''}<option value="at">وقت أحدّده…</option></select>
-    <input type="datetime-local" id="remat" value="${localDT(Date.now() + 15 * 6e4)}" min="${localDT(Date.now())}" style="flex:1;min-width:180px;${it.due ? 'display:none' : ''}">
+    <select id="remk" style="flex:1;min-width:150px">${it.due ? REM_OPTS.map(([m, l]) => `<option value="${m}" ${dr.remk == m ? 'selected' : ''}>${l}${it.dueT ? '' : ' (من ٩ ص)'}</option>`).join('') : ''}<option value="at" ${dr.remk === 'at' ? 'selected' : ''}>وقت أحدّده…</option></select>
+    <input type="datetime-local" id="remat" value="${dr.remat || localDT(Date.now() + 15 * 6e4)}" min="${localDT(Date.now())}" style="flex:1;min-width:180px;${it.due && dr.remk !== 'at' ? 'display:none' : ''}">
     <button class="sm pri" data-act="remadd" data-k="${esc(it.key)}">+ تنبيه</button></div>`;
 }
 
@@ -651,6 +654,7 @@ document.addEventListener('click', async e => {
       if (sel === 'at') { const v2 = document.getElementById('remat').value; if (!v2) return toast('اختر التاريخ والساعة', true); r = { at: new Date(v2).getTime() }; if (r.at < Date.now() - 6e4) return toast('هذا الوقت فات — اختر وقتًا بعد الآن', true); if (r.at < Date.now() + 3e4) r.at = Date.now() + 3e4; }
       else r = { mins: +sel };
       if ((it.doc.rem || []).some(x => x.at === r.at && x.mins === r.mins)) return toast('موجود من قبل');
+      S.draft = {};
       put(k, { rem: [...(it.doc.rem || []), r] }, `أضاف تنبيهًا: ${remLabel(r)}`); toast('🔔 أُضيف التنبيه'); return renderSheet();
     }
     case 'remdel': { const it = items().find(i => i.key === k), R = (it.doc.rem || []).filter((_, n) => n !== +v); put(k, { rem: R }, 'حذف تنبيهًا'); return renderSheet(); }
@@ -662,7 +666,8 @@ document.addEventListener('click', async e => {
     case 'iam': { const m = { ...(S.cfg.members || {}) }; delete m[ek(S.user.email)]; S.cfg.members = m; DB.saveCfg({ members: { [ek(S.user.email)]: null } }); S.open = null; document.querySelector('.sheet')?.remove(); return render(); }
   }
 });
-document.addEventListener('change', e => { if (e.target.id === 'remk') { const a = document.getElementById('remat'); if (a) a.style.display = e.target.value === 'at' ? '' : 'none'; } });
+document.addEventListener('change', e => { if (['remk', 'remat'].includes(e.target.id) && S.open?.type === 'task') S.draft = { ...(S.draft.k === S.open.k ? S.draft : { k: S.open.k }), [e.target.id]: e.target.value }; if (e.target.id === 'remk') { const a = document.getElementById('remat'); if (a) a.style.display = e.target.value === 'at' ? '' : 'none'; } });
+document.addEventListener('input', e => { if (e.target.id === 'remat' && S.open?.type === 'task') S.draft = { ...(S.draft.k === S.open.k ? S.draft : { k: S.open.k }), remat: e.target.value }; });
 document.addEventListener('input', e => {
   if (e.target.id === 'q') { S.q = e.target.value; const pos = e.target.selectionStart; render(); const q = document.getElementById('q'); q.focus(); q.setSelectionRange(pos, pos); }
   if (e.target.id === 'doneDate') { const h = document.getElementById('hd'); if (h) h.textContent = ' — ' + hijri(e.target.value || TODAY()); }
