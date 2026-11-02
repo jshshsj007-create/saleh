@@ -402,7 +402,7 @@ function render() {
   <div class="wrap">
   <div class="seg">${[['mine', 'مهامي'], ['team', 'الفريق'], ['all', 'الكل'], ['done', S.tab === 'e' ? 'تم التنفيذ' : 'المنجزة']].map(([k, l]) => `<button class="${S.seg === k ? 'on' : ''}" data-act="seg" data-v="${k}">${l}${k === 'mine' ? ` (${ar(open.filter(i => i.who === me()).length)})` : ''}</button>`).join('')}</div>
   ${banner}
-  <div class="bar"><span>${sh.loading ? '⏳ جاري القراءة من الشيت…' : sh.at ? `🔄 آخر تحميل من الشيت: ${sh.at.toLocaleTimeString('ar-SA', { hour: 'numeric', minute: '2-digit' })}` : ''}</span>${sh.at && !sh.loading ? '<button class="link" data-act="sheet">تحديث</button>' : ''}</div>
+  <div class="bar"><span>${sh.loading ? '⏳ جاري القراءة من الشيت…' : sh.at ? `🔄 آخر تحميل من الشيت: ${sh.at.toLocaleTimeString('ar-SA', { hour: 'numeric', minute: '2-digit' })}` : ''}</span><span style="display:flex;gap:14px;align-items:center">${(sh.at || sh.cachedAt) && !sh.loading && calEvents().length ? '<button class="link" data-act="ics">📅 حدّث التقويم</button>' : ''}${sh.at && !sh.loading ? '<button class="link" data-act="sheet">تحديث</button>' : ''}</span></div>
   <div class="search"><input type="search" id="q" placeholder="بحث برقم القضية أو الخصم أو المحكمة…" value="${esc(S.q)}"></div>
   <div class="list">${body}</div></div>
   <button class="fab" data-act="new">+ مهمة</button>`;
@@ -497,8 +497,6 @@ function menuHtml() {
     return `<div class="kv">${L.slice(0, 12).map(x => `<div class="mem"><span>${esc(x.title)}<br><small class="meta">${hijri(iso(new Date(x.at)))} · ${hm12(new Date(x.at).toTimeString().slice(0, 5))}${x.body ? ' · ' + esc(x.body.split(' · ')[0]) : ''}</small></span></div>`).join('')}</div>`; })()}
   <div class="meta" style="margin-top:6px">${!S.cfg.subs?.[me()] || !Object.values(S.cfg.subs[me()]).some(Boolean) ? '⚠️ ما فعّلت الإشعارات على أي جهاز، فما يوصلك شيء.' : pushLog.err ? '⚠️ آخر إرسال للخادم فشل: ' + esc(pushLog.err) : pushLog.at ? `✓ أُرسلت للخادم الساعة ${hm12(pushLog.at.toTimeString().slice(0, 5))} — عنده لك ${ar(pushLog.count || 0)}${pushLog.next ? '، أقربها ' + hm12(new Date(pushLog.next).toTimeString().slice(0, 5)) + ' ' + hijri(iso(new Date(pushLog.next))) : ''}` : pushLog.why ? '⚠️ ما أُرسلت: ' + esc(pushLog.why) : 'لم تُرسل بعد في هذه الفتحة'}</div>
   <div class="btns"><button class="sm" data-act="pushnow">📤 أرسل التنبيهات للخادم الآن</button></div>
-  <label>تقويم الجوال</label>
-  ${(() => { const n = S.sheet.at || S.sheet.cachedAt ? calEvents().length : 0; return n ? `<div class="btns"><button class="pri" data-act="ics">📅 أضف جلساتي ومهلي للتقويم (${ar(n)})</button></div><div class="meta">الجلسات بساعتها، والمهل يومًا كاملًا. اضغطه من جديد متى تغيّر شيء.</div>` : '<div class="meta">لا جلسات ولا مهل قادمة لك، أو الشيت غير محمّل.</div>'; })()}
   <label>الإشعارات على هذا الجهاز</label>
   <div class="btns">${pushOn() ? '<button data-act="pushoff">🔕 إيقاف الإشعارات</button>' : '<button class="ok" data-act="pushon">🔔 تفعيل الإشعارات</button>'}</div>
   <div class="meta" style="margin-top:6px">تصلك والجوال مقفل: لما تُسند لك مهمة، وقبل انتهاء مهلتها بيوم، وصباح اليوم التالي إن فاتت، وقبل كل جلسةٍ لقضاياك بـ١٢ ساعة وبساعة. ${isIOS && !standalone() ? '<br><b>في الآيفون:</b> أضف الموقع للشاشة الرئيسية أولًا (زر المشاركة ← «إضافة إلى الشاشة الرئيسية»)، وافتحه من أيقونته، ثم فعّلها.' : ''}</div>
