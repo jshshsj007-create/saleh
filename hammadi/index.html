@@ -10,8 +10,9 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="الحمادي">
 <meta name="robots" content="noindex">
-<link rel="icon" href="../icon.png">
-<link rel="apple-touch-icon" href="../icon.png">
+<!-- شعار المكتب، لا أيقونة «النادي» التي في جذر المستودع -->
+<link rel="icon" href="icon.png">
+<link rel="apple-touch-icon" href="icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
@@ -45,6 +46,9 @@ label{display:block;font-size:12.5px;font-weight:600;color:var(--mute);margin:12
 .top{background:var(--navy);color:var(--on-navy);padding:calc(14px + env(safe-area-inset-top)) 16px 0;position:sticky;top:0;z-index:5}
 .top .row{display:flex;justify-content:space-between;align-items:center;gap:10px}
 .top h1{font-size:19px;font-weight:700}
+.brand{display:flex;align-items:center;gap:10px}
+.brand img{width:40px;height:40px;border-radius:10px;flex:none}
+.login .logo{width:240px;max-width:80%;border-radius:18px;display:block;margin:0 auto}
 .top small{opacity:.75;font-size:12.5px}
 .av{width:36px;height:36px;border-radius:50%;background:var(--gold);color:#fff;display:grid;place-items:center;font-weight:700;border:0;padding:0;flex:none}
 .tabs{display:flex;margin-top:10px}
@@ -329,7 +333,7 @@ function render() {
   const banner = sh.err ? `<div class="banner bad"><span>${esc(sh.err)}</span><button class="sm" data-act="sheet">إعادة</button></div>`
     : !sh.at && !sh.loading ? `<div class="banner info"><span>المهام تُقرأ من الشيت. اضغط لتحميلها.</span><button class="sm pri" data-act="sheet">تحميل الشيت</button></div>` : '';
   $app().innerHTML = `
-  <div class="top"><div class="wrap"><div class="row"><div><h1>مشروع الحمادي</h1><small>مرحبًا ${esc(me())}${DEMO ? ' · وضع التجربة' : ''}</small></div>
+  <div class="top"><div class="wrap"><div class="row"><div class="brand"><img src="icon.png" alt=""><div><h1>مشروع الحمادي</h1><small>مرحبًا ${esc(me())}${DEMO ? ' · وضع التجربة' : ''}</small></div></div>
     <button class="av" data-act="menu" aria-label="القائمة">${esc(me().replace(/^ال/, '')[0])}</button></div>
     <div class="tabs">${['m', 'a', 'e'].map(k => `<button class="tab ${S.tab === k ? 'on' : ''}" data-act="tab" data-v="${k}">${KIND[k]} <b>${ar(n(k))}</b></button>`).join('')}</div></div></div>
   <div class="wrap">
@@ -419,9 +423,9 @@ function menuHtml() {
   <div class="btns"><button data-act="logout">تسجيل الخروج</button></div>`;
 }
 function renderLogin(err = '') {
-  $app().innerHTML = `<div class="login"><div style="font-size:46px">⚖️</div><h1>مشروع الحمادي</h1>
+  $app().innerHTML = `<div class="login"><img class="logo" src="logo.jpg" alt="شعار المكتب"><h1>مشروع الحمادي</h1>
     <p>المذكرات ولوائح الاستئناف والتنفيذ، من جدول القضايا، مع الإسناد بين الفريق.</p>
-    <button class="pri" data-act="login" style="width:100%">الدخول بحساب المكتب (Google)</button>
+    <button class="pri" data-act="login" style="width:100%">الدخول بحساب Google</button>
     ${err ? `<div class="err">${esc(err)}</div>` : ''}</div>`;
 }
 function renderSetup() {
