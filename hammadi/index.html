@@ -252,6 +252,7 @@ function ingest(tabs) {
 /* ───────── المهام: الشيت + ما يُحفظ في الموقع ───────── */
 // المحفوظ في Firebase الإسنادُ والحالة والسجلّ فقط، بمفتاح رقم القضية؛ وتفاصيل القضية تُقرأ من الشيت ساعة الفتح
 // موعد المهلة: من قيمة الخلية الخام، ثم من نصّها، ثم من عمود «المتبقي» (عدد الأيام) إن لم يُفهم التاريخ
+const dueSrc = r => r._src !== undefined ? r._src : (pickDate(r._deadline) || pickDate(r.deadline)) ? 'date' : 'remain';
 function dueOf(r) {
   if (r._due !== undefined) return r._due;
   const d = pickDate(r._deadline) || pickDate(r.deadline);
@@ -294,12 +295,12 @@ function items() {
     for (const [f, v] of Object.entries(r)) if (v && !o[f]) o[f] = v;
   }
   // موعد المذكرة من «عداد المهلة» لا من الجلسة: هكذا يعتمده الفريق في الشيت
-  for (const [key, r] of memos) add({ key, kind: 'm', title: r.memo, caseNo: r.caseNo, lawyer: r.lawyer, due: dueOf(r), row: r, sheetLeft: r.remain });
+  for (const [key, r] of memos) add({ key, kind: 'm', title: r.memo, caseNo: r.caseNo, lawyer: r.lawyer, due: dueOf(r), dueSrc: dueSrc(r), row: r, sheetLeft: r.remain });
   const seenA = new Set();
   for (const r of S.sheet.appeals) {
     if (seenA.has(r.caseNo)) continue; seenA.add(r.caseNo);
     const due = dueOf(r);
-    add({ key: `a|${r.caseNo}`, kind: 'a', title: 'لائحة اعتراض', caseNo: r.caseNo, lawyer: r.lawyer, due, row: r, sheetLeft: r.remain });
+    add({ key: `a|${r.caseNo}`, kind: 'a', title: 'لائحة اعتراض', caseNo: r.caseNo, lawyer: r.lawyer, due, dueSrc: dueSrc(r), row: r, sheetLeft: r.remain });
   }
   // مهام التنفيذ والمهام اليدوية، وما خرج من الشيت وبقي له سجلّ
   for (const [key, d] of Object.entries(S.docs)) {
@@ -544,7 +545,7 @@ function remHtml(it) {
    إذن قراءة الشيت يعيش ساعة، والآيفون يطلب الضغط لتجديده. فمع كل تحميلٍ يُحفظ ملخّصٌ صغير
    لما تحتاجه المهام والتنبيهات: الرقم والنوع والمحامي والمهلة والمحكمة — بلا أسماء الخصوم ولا المبالغ.
    منه تظهر المهام وتُرسل التنبيهات وإن لم يُحمَّل الشيت، حتى يحمّله أحد */
-const slim = r => ({ tab: r.tab, caseNo: r.caseNo, memo: r.memo || '', lawyer: r.lawyer || '', court: r.court || '', _due: dueOf(r), _dueT: dueTimeOf(r) });
+const slim = r => ({ tab: r.tab, caseNo: r.caseNo, memo: r.memo || '', lawyer: r.lawyer || '', court: r.court || '', _due: dueOf(r), _dueT: dueTimeOf(r), _src: dueSrc(r) });
 function saveSheetCache() {
   const m = S.sheet.cases.filter(r => r.memo).map(slim), a = S.sheet.appeals.map(slim);
   const sig = JSON.stringify([m, a]);
@@ -886,6 +887,24 @@ function freshAssignments() {
     (out[i.who] = out[i.who] || []).push({ at: Date.now() + 5000, k: `as:${i.key}:${i.who}`, title: `📌 أُسندت لك مهمة: «${i.title}»${leftTxt(i) ? ' — ' + leftTxt(i) : ''}`, body: [i.caseNo && 'القضية ' + i.caseNo, i.row?.court, !i.doc.assignee && 'من الشيت'].filter(Boolean).join(' · '), tab: i.kind, now: true });
   }
   if (Object.keys(upd).length) { S.cfg.seen = { ...seen, ...upd }; DB.saveCfg({ seen: upd }); }
+  // تعديل المهلة: لكل مهمة آخر موعدٍ أُبلغ به صاحبها. تغيّر؟ يُبلَّغ، أيًّا كان من عدّله في الشيت.
+  // والموعد المحسوب من «المتبقي» يتزحزح يومًا حول منتصف الليل، فيومٌ واحد فيه ليس تعديلًا
+  const sd = S.cfg.seenDue || {}, updD = {}, val = i => i.due + (i.dueT ? ' ' + i.dueT : '');
+  const withDue = open.filter(i => i.due);
+  if (!S.cfg.seenDueInit) {
+    for (const i of withDue) updD[i.key] = val(i);
+    S.cfg.seenDue = updD; S.cfg.seenDueInit = true; DB.saveCfg({ seenDue: updD, seenDueInit: true }); return out;
+  }
+  for (const i of withDue) {
+    const v = val(i), was = sd[i.key];
+    if (was === v) continue;
+    updD[i.key] = v;
+    if (!was || upd[i.key]) continue;  // جديدةٌ عليه: يكفيه إشعار الإسناد وفيه كم باقي
+    const moved = Math.abs(diffD(i.due, was.slice(0, 10)));
+    if (i.dueSrc === 'remain' && moved <= 1 && was.slice(11) === (i.dueT || '')) continue;
+    (out[i.who] = out[i.who] || []).push({ at: Date.now() + 5000, k: `dc:${i.key}:${v}`, title: `⏳ تعدّلت مهلة «${i.title}» — صارت ${hijri(i.due)}${i.dueT ? ' ' + hm12(i.dueT) : ''}`, body: [i.caseNo && 'القضية ' + i.caseNo, leftTxt(i), 'كانت ' + hijri(was.slice(0, 10))].filter(Boolean).join(' · '), tab: i.kind, now: true });
+  }
+  if (Object.keys(updD).length) { S.cfg.seenDue = { ...sd, ...updD }; DB.saveCfg({ seenDue: updD }); }
   return out;
 }
 // الإرسال لا يحتاج أن يدعم هذا الجهاز الإشعارات: يكفيه أن يصل للخادم. فيُرسَل من أي متصفح،
@@ -917,6 +936,11 @@ async function syncAll(extra = {}, force) {
 if (DEMO) { window.__sched = schedule; window.__fresh = freshAssignments; }
 // كل رجوعٍ للتطبيق يرسل المواعيد من جديد: الآيفون يوقف الصفحة في الخلفية، فقد يفوتها إرسالٌ بدأ قبلها
 document.addEventListener('visibilitychange', () => { if (!document.hidden && S.user && me()) syncPush(); });
+// الشيت يُقرأ من جديد كل ٥ دقائق والموقع مفتوح، وعند الرجوع إليه بعد دقيقتين: فيُلحظ تعديلٌ فيه
+// (مهمة جديدة أو مهلةٌ تغيّرت) خلال دقائق. وبلا إذنٍ صالح لا يفعل شيئًا، ولا يفتح نافذة دخول
+const autoRead = () => { if (!document.hidden && S.user && me() && S.cfg.sheetId && !S.sheet.loading && (!S.sheet.at || Date.now() - S.sheet.at > 2 * 60e3)) loadSheet(false); };
+setInterval(autoRead, 5 * 60e3);
+document.addEventListener('visibilitychange', autoRead);
 function syncPush() { clearTimeout(pushT); pushT = setTimeout(() => syncAll(), 2500); }
 // إشعار فوري لعضو (أُسندت إليك…): يُضاف إلى قائمته ويُرسل الآن، فيصله خلال دقيقة
 function pingNow(name, title, body, tab, key) {
