@@ -431,7 +431,9 @@ function taskHtml(k) {
   const execKey = `e|${it.caseNo}`;
   const canExec = it.kind !== 'e' && it.caseNo && !S.docs[execKey];
   const log = (d.log || []).slice().reverse();
-  return `<h2>${esc(it.title)}</h2>
+  // بلا الشيت ولا ملخّصه لا تُرسل التنبيهات: الزرّ هنا حيث يُضاف التنبيه، لا في الشاشة الرئيسية وحدها
+  const noSheet = !S.sheet.at && !S.sheet.cachedAt ? `<div class="banner warn" style="margin:0 0 12px"><span>التنبيهات ما تنرسل حتى يتحمّل الشيت هنا في الموقع</span><button class="sm pri" data-act="sheet">تحميل الشيت</button></div>` : '';
+  return `${noSheet}<h2>${esc(it.title)}</h2>
   <div class="meta">${KIND[it.kind]}${it.caseNo ? ' · القضية ' + esc(it.caseNo) : ''}</div>
   <div class="chips">${dueChip(it)}${it.due ? `<span class="chip n">📅 ${hijri(it.due)}${it.dueT ? ' · ' + hm12(it.dueT) : ''}</span>` : ''}${it.outsider ? `<span class="chip a">في الشيت: ${esc(it.outsider)}</span>` : ''}
    ${d.assignee && it.lawyer && matchTeam(it.lawyer) && matchTeam(it.lawyer) !== d.assignee ? `<span class="chip a">الشيت: ${esc(matchTeam(it.lawyer))} ← الآن: ${esc(d.assignee)}</span>` : ''}</div>
@@ -672,6 +674,7 @@ async function loadSheet(interactive) {
     if (!tabs) { S.sheet.loading = false; return render(); }
     Object.assign(S.sheet, ingest(tabs), { at: new Date(), err: '', cachedAt: null });
     saveSheetCache();
+    if (S.open) renderSheet();
     syncPush();
   } catch (e) { console.error(e); S.sheet.err = e.message || String(e); }
   S.sheet.loading = false; render();
@@ -882,7 +885,7 @@ let pendingPush = false;
 async function syncAll(extra = {}) {
   if (DEMO || !S.cfg.subs) return;
   // بلا الشيت تنقص المواعيد، فإرسالها يمسح ما عند الخادم. نؤجّل حتى يُحمَّل، وهو يرسل حينها
-  if (!S.sheet.at && !S.sheet.cachedAt) { if (!pendingPush) toast('حمّل الشيت عشان توصل التنبيهات', true); pendingPush = true; return; }
+  if (!S.sheet.at && !S.sheet.cachedAt) { if (!pendingPush) toast('اضغط «تحميل الشيت» هنا في الموقع عشان توصل التنبيهات', true); pendingPush = true; return; }
   pendingPush = false;
   let fresh = {};
   try { fresh = freshAssignments(); } catch (e) { console.error('fresh', e); }
