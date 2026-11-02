@@ -158,7 +158,8 @@ function pickDate(v) {
   if (typeof v === 'number' && v > 20000 && v < 80000) return serial(v);
   const s = String(v || '').replace(/[\u200e\u200f\u061c\u202a-\u202e\u2066-\u2069]/g, '').replace(/[٠-٩]/g, c => AR.indexOf(c));
   let m = s.match(/(\d{4})[\/-](\d{1,2})[\/-](\d{1,2})/);
-  if (m) { const y = +m[1]; return y > 1900 ? `${y}-${m[2].padStart(2, '0')}-${m[3].padStart(2, '0')}` : fromHijri(y, +m[2], +m[3]); }
+  // بعض الصفوف تكتب اليوم قبل الشهر (١٤٤٨/٣٠/٠٥): شهرٌ فوق ١٢ يعني أنهما مقلوبان
+  if (m) { let y = +m[1], mo = +m[2], d = +m[3]; if (mo > 12 && d <= 12) [mo, d] = [d, mo]; return y > 1900 ? `${y}-${String(mo).padStart(2, '0')}-${String(d).padStart(2, '0')}` : fromHijri(y, mo, d); }
   m = s.match(/(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})/);
   if (m) { const y = +m[3]; return y > 1900 ? `${y}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}` : fromHijri(y, +m[2], +m[1]); }
   return null;
@@ -514,6 +515,7 @@ function renderWho() {
 /* ───────── تنبيهات المهمة ─────────
    ثلاثة ثابتة لكل مهمة لا تُلغى: عند الإسناد، وقبل المهلة بيوم، وبعد فواتها بيوم.
    ويضاف عليها ما يختاره صاحبها: قبل المهلة بمدّة، أو في وقتٍ يحدّده. تُحفظ في المهمة وتصل لمن أُسندت إليه */
+const localDT = ms => { const d = new Date(ms); return iso(d) + 'T' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); };
 const REM_OPTS = [[60, 'قبل ساعة'], [180, 'قبل ٣ ساعات'], [720, 'قبل ١٢ ساعة'], [2880, 'قبل يومين'], [4320, 'قبل ٣ أيام'], [10080, 'قبل أسبوع']];
 const remLabel = r => r.at ? `${hijri(iso(new Date(r.at)))} · ${hm12(new Date(r.at).toTimeString().slice(0, 5))}` : (REM_OPTS.find(o => o[0] === r.mins) || [0, `قبل ${r.mins} دقيقة`])[1];
 const baseAt = i => new Date(i.due + 'T' + (i.dueT || '09:00')).getTime();
@@ -525,7 +527,7 @@ function remHtml(it) {
   ${R.map((r, n) => `<span class="chip b">🔔 ${esc(remLabel(r))} <button class="link" style="color:inherit;font-weight:700;margin-inline-start:4px" data-act="remdel" data-k="${esc(it.key)}" data-v="${n}" aria-label="حذف">✕</button></span>`).join('')}</div>
   <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
     <select id="remk" style="flex:1;min-width:150px">${it.due ? REM_OPTS.map(([m, l]) => `<option value="${m}">${l}${it.dueT ? '' : ' (من ٩ ص)'}</option>`).join('') : ''}<option value="at">وقت أحدّده…</option></select>
-    <input type="datetime-local" id="remat" style="flex:1;min-width:180px;${it.due ? 'display:none' : ''}">
+    <input type="datetime-local" id="remat" value="${localDT(Date.now() + 15 * 6e4)}" min="${localDT(Date.now())}" style="flex:1;min-width:180px;${it.due ? 'display:none' : ''}">
     <button class="sm pri" data-act="remadd" data-k="${esc(it.key)}">+ تنبيه</button></div>`;
 }
 
@@ -623,7 +625,7 @@ document.addEventListener('click', async e => {
     case 'remadd': {
       const it = items().find(i => i.key === k), sel = document.getElementById('remk').value;
       let r;
-      if (sel === 'at') { const v2 = document.getElementById('remat').value; if (!v2) return toast('اختر التاريخ والساعة', true); r = { at: new Date(v2).getTime() }; if (r.at < Date.now()) return toast('هذا الوقت فات', true); }
+      if (sel === 'at') { const v2 = document.getElementById('remat').value; if (!v2) return toast('اختر التاريخ والساعة', true); r = { at: new Date(v2).getTime() }; if (r.at < Date.now() - 6e4) return toast('هذا الوقت فات — اختر وقتًا بعد الآن', true); if (r.at < Date.now() + 3e4) r.at = Date.now() + 3e4; }
       else r = { mins: +sel };
       if ((it.doc.rem || []).some(x => x.at === r.at && x.mins === r.mins)) return toast('موجود من قبل');
       put(k, { rem: [...(it.doc.rem || []), r] }, `أضاف تنبيهًا: ${remLabel(r)}`); toast('🔔 أُضيف التنبيه'); return renderSheet();
