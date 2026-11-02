@@ -529,12 +529,12 @@ const remLabel = r => r.at ? `${hijri(iso(new Date(r.at)))} · ${hm12(new Date(r
 const baseAt = i => new Date(i.due + 'T' + (i.dueT || '09:00')).getTime();
 function remHtml(it) {
   if (it.status === 'done') return '';
-  const R = it.doc.rem || [];
+  const R = remsOf(it.doc);
   // ما اختاره ولم يضغط «+ تنبيه» بعد: يبقى وإن أُعيد رسم النافذة بتحديثٍ وصل من القاعدة
   const dr = S.draft.k === it.key ? S.draft : {};
   return `<label>التنبيهات</label>
   <div class="chips" style="margin-top:2px"><span class="chip n">📌 عند الإسناد</span>${it.due ? '<span class="chip n">⏰ قبل المهلة بيوم</span><span class="chip n">🔴 بعد فواتها بيوم</span>' : ''}
-  ${R.map((r, n) => `<span class="chip b">🔔 ${esc(remLabel(r))} <button class="link" style="color:inherit;font-weight:700;margin-inline-start:4px" data-act="remdel" data-k="${esc(it.key)}" data-v="${n}" aria-label="حذف">✕</button></span>`).join('')}</div>
+  ${R.map((r, n) => `<span class="chip b">🔔 ${esc(remLabel(r))} <button class="link" style="color:inherit;font-weight:700;margin-inline-start:4px" data-act="remdel" data-k="${esc(it.key)}" data-v="${esc(r.id)}" aria-label="حذف">✕</button></span>`).join('')}</div>
   <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
     <select id="remk" style="flex:1;min-width:150px">${it.due ? REM_OPTS.map(([m, l]) => `<option value="${m}" ${dr.remk == m ? 'selected' : ''}>${l}${it.dueT ? '' : ' (من ٩ ص)'}</option>`).join('') : ''}<option value="at" ${dr.remk === 'at' ? 'selected' : ''}>وقت أحدّده…</option></select>
     <input type="datetime-local" id="remat" value="${dr.remat || localDT(Date.now() + 15 * 6e4)}" min="${localDT(Date.now())}" style="flex:1;min-width:180px;${it.due && dr.remk !== 'at' ? 'display:none' : ''}">
@@ -644,14 +644,32 @@ function hookHtml() {
 function setAllowed(list) { S.cfg.allowed = list; DB.setAllowed(list); }
 const stamp = (m) => ({ d: TODAY(), by: me() || '', m, t: Date.now() });
 function base(it) { return { kind: it.kind, title: it.title, caseNo: it.caseNo || '' }; }
+// الحفظ يكتب ما تغيّر وحده (دمجًا)، لا المهمة كلها: نسخةٌ قديمة مفتوحة في جهازٍ آخر كانت
+// تكتب المهمة كاملةً فتمحو تنبيهًا أضافه غيرها. والسجلّ يُضاف إليه ولا يُستبدل
+function applyPatch(prev, patch, entry) {
+  const d = { ...prev };
+  for (const [f, v] of Object.entries(patch)) {
+    if (f === 'rem' && v && typeof v === 'object' && !Array.isArray(v)) {
+      const m = Array.isArray(d.rem) ? {} : { ...(d.rem || {}) };
+      for (const [id, r] of Object.entries(v)) { if (r == null) delete m[id]; else m[id] = r; }
+      d.rem = m;
+    } else d[f] = v;
+  }
+  if (entry) d.log = [...(d.log || []), entry];
+  return d;
+}
 function put(k, patch, logMsg) {
   const it = items().find(i => i.key === k);
-  const prev = S.docs[k] || {};
-  const doc = { ...(it ? base(it) : {}), ...prev, ...patch, log: [...(prev.log || []), ...(logMsg ? [stamp(logMsg)] : [])] };
-  S.docs[k] = doc; render();
-  DB.saveTask(k, doc);
+  const prev = S.docs[k] || {}, entry = logMsg ? stamp(logMsg) : null;
+  const full = { ...(it ? base(it) : {}), ...patch };
+  S.docs[k] = applyPatch({ ...(it ? base(it) : {}), ...prev }, patch, entry); render();
+  // تنبيهات بالشكل القديم (قائمة): تُحوَّل مرةً بكتابة المهمة كاملة، وبعدها كل شيءٍ دمج
+  if (Array.isArray(prev.rem) && patch.rem && !Array.isArray(patch.rem)) DB.saveTask(k, S.docs[k]);
+  else DB.patchTask(k, full, entry);
   syncPush();
 }
+// التنبيهات الإضافية: خريطةٌ بمعرّف لكل تنبيه، فيُضاف واحدٌ أو يُحذف دون أن يمسّ غيره
+const remsOf = doc => Array.isArray(doc.rem) ? doc.rem.map((r, n) => ({ ...r, id: 'L' + n })) : Object.entries(doc.rem || {}).filter(([, r]) => r).map(([id, r]) => ({ ...r, id })).sort((a, b) => (a.at || 0) - (b.at || 0) || (a.mins || 0) - (b.mins || 0));
 
 /* ───────── الأحداث ───────── */
 document.addEventListener('click', async e => {
@@ -737,11 +755,16 @@ document.addEventListener('click', async e => {
       let r;
       if (sel === 'at') { const v2 = document.getElementById('remat').value; if (!v2) return toast('اختر التاريخ والساعة', true); r = { at: new Date(v2).getTime() }; if (r.at < Date.now() - 6e4) return toast('هذا الوقت فات — اختر وقتًا بعد الآن', true); if (r.at < Date.now() + 3e4) r.at = Date.now() + 3e4; }
       else r = { mins: +sel };
-      if ((it.doc.rem || []).some(x => x.at === r.at && x.mins === r.mins)) return toast('موجود من قبل');
+      if (remsOf(it.doc).some(x => x.at === r.at && x.mins === r.mins)) return toast('موجود من قبل');
       S.draft = {};
-      put(k, { rem: [...(it.doc.rem || []), r] }, `أضاف تنبيهًا: ${remLabel(r)}`); toast('🔔 أُضيف التنبيه'); return renderSheet();
+      const legacy = Array.isArray(it.doc.rem) ? Object.fromEntries(remsOf(it.doc).map(({ id, ...x }) => ['r' + id, x])) : {};
+      put(k, { rem: { ...legacy, ['r' + Date.now().toString(36)]: r } }, `أضاف تنبيهًا: ${remLabel(r)}`); toast('🔔 أُضيف التنبيه'); return renderSheet();
     }
-    case 'remdel': { const it = items().find(i => i.key === k), R = (it.doc.rem || []).filter((_, n) => n !== +v); put(k, { rem: R }, 'حذف تنبيهًا'); return renderSheet(); }
+    case 'remdel': {
+      const it = items().find(i => i.key === k);
+      const patch = Array.isArray(it.doc.rem) ? Object.fromEntries(remsOf(it.doc).filter(x => x.id !== v).map(({ id, ...x }) => ['r' + id, x])) : { [v]: null };
+      put(k, { rem: patch }, 'حذف تنبيهًا'); return renderSheet();
+    }
     case 'recheck': return location.reload();
     case 'hookmake': {
       const b = new Uint8Array(24); crypto.getRandomValues(b);
@@ -801,6 +824,7 @@ async function initDB() {
       // دمجٌ كدمج Firebase (merge): الخرائط تُضاف إليها لا تُستبدل، وnull يحذف المفتاح
       saveCfg: p => { for (const [k, v] of Object.entries(p)) { if (v && typeof v === 'object' && !Array.isArray(v)) { D.cfg[k] = { ...(D.cfg[k] || {}), ...v }; for (const [a, b] of Object.entries(v)) if (b == null) delete D.cfg[k][a]; } else D.cfg[k] = v; } save(); },
       saveTask: (k, d) => { D.tasks[k] = d; save(); },
+      patchTask: (k, p, entry) => { D.tasks[k] = applyPatch(D.tasks[k] || {}, p, entry); save(); },
       // ?demo&nosheet: كأن إذن الشيت انتهى، لفحص العرض من الملخّص المحفوظ
       readSheet: async () => { await new Promise(r => setTimeout(r, 250)); return /nosheet/.test(location.search) ? null : demoSheet(); },
     };
@@ -858,6 +882,12 @@ async function initDB() {
     dropReq: e => F.deleteDoc(F.doc(db, 'hammadi_requests', e)).catch(fail),
     ask: r => F.setDoc(F.doc(db, 'hammadi_requests', r.email), r).catch(fail),
     saveTask: (k, d) => F.setDoc(F.doc(db, 'hammadi', 'main', 'tasks', k.replace(/\//g, '∕')), d).catch(fail),
+    patchTask: (k, patch, entry) => {
+      const p = { ...patch };
+      if (p.rem && typeof p.rem === 'object' && !Array.isArray(p.rem)) p.rem = Object.fromEntries(Object.entries(p.rem).map(([id, r]) => [id, r == null ? F.deleteField() : r]));
+      if (entry) p.log = F.arrayUnion(entry);
+      return F.setDoc(F.doc(db, 'hammadi', 'main', 'tasks', k.replace(/\//g, '∕')), p, { merge: true }).catch(fail);
+    },
     async readSheet(id, interactive) {
       let t = token();
       if (!t) {
@@ -951,11 +981,11 @@ function schedule(name) {
   // لا ملخّصات يومية: كل تنبيهٍ يقول أيّ مهمةٍ بعينها
   for (const i of mine) if (i.due) {
     add(at(addDays(i.due, -1), '09:00'), `d1:${i.key}:${i.due}`, `⏰ تنتهي مهلة «${i.title}» — باقي يوم`, where(i), i.kind);
-    for (const r of i.doc.rem || []) if (r.mins) add(baseAt(i) - r.mins * 6e4, `r:${i.key}:${i.due}:${r.mins}`, `⏰ «${i.title}» — ${r.mins < 1440 ? 'باقي ' + (r.mins === 60 ? 'ساعة' : r.mins === 180 ? '٣ ساعات' : ar(r.mins / 60) + ' ساعة') : 'باقي ' + days(r.mins / 1440)}`, where(i) + (i.dueT ? ' · المهلة ' + hm12(i.dueT) : ''), i.kind);
+    for (const r of remsOf(i.doc)) if (r.mins) add(baseAt(i) - r.mins * 6e4, `r:${i.key}:${i.due}:${r.mins}`, `⏰ «${i.title}» — ${r.mins < 1440 ? 'باقي ' + (r.mins === 60 ? 'ساعة' : r.mins === 180 ? '٣ ساعات' : ar(r.mins / 60) + ' ساعة') : 'باقي ' + days(r.mins / 1440)}`, where(i) + (i.dueT ? ' · المهلة ' + hm12(i.dueT) : ''), i.kind);
     add(at(addDays(i.due, 1), '09:00'), `late:${i.key}:${i.due}`, `🔴 عندك «${i.title}» المفروض ${i.kind === 'e' ? 'تنفّذها' : 'تكتبها'} أمس`, where(i), i.kind);
   }
   // ما حدّده صاحب المهمة بوقته، وإن لم يكن لها مهلة
-  for (const i of mine) for (const r of i.doc.rem || []) if (r.at) add(r.at, `t:${i.key}:${r.at}`, `🔔 تذكير: «${i.title}»`, where(i) + (i.due ? ' · ' + leftTxt({ due: i.due, left: diffD(i.due, iso(new Date(r.at))) }) : ''), i.kind);
+  for (const i of mine) for (const r of remsOf(i.doc)) if (r.at) add(r.at, `t:${i.key}:${r.at}`, `🔔 تذكير: «${i.title}»`, where(i) + (i.due ? ' · ' + leftTxt({ due: i.due, left: diffD(i.due, iso(new Date(r.at))) }) : ''), i.kind);
   return out.sort((a, b) => a.at - b.at).slice(0, 80);
 }
 // المواعيد تُحسب من الشيت، فلا نرسل قبل تحميله: وإلا مُسحت مواعيد الناس بقائمةٍ ناقصة
