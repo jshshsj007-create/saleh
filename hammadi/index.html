@@ -1,0 +1,665 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>مشروع الحمادي</title>
+<meta name="theme-color" content="#1f3a5f">
+<meta name="color-scheme" content="light dark">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="الحمادي">
+<meta name="robots" content="noindex">
+<link rel="icon" href="../icon.png">
+<link rel="apple-touch-icon" href="../icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#f4f1ea;--card:#fff;--card2:#f1ede4;--line:#e7e2d6;--text:#1d2433;--mute:#6b7280;
+  --navy:#1f3a5f;--navy2:#16304f;--gold:#b08a3e;--on-navy:#fff;
+  --g:#15803d;--gbg:#dcfce7;--a:#b45309;--abg:#fef3c7;--r:#b91c1c;--rbg:#fee2e2;--b:#1d4ed8;--bbg:#dbeafe;--n:#475569;--nbg:#eef1f5;
+  --shadow:0 1px 2px rgba(0,0,0,.04),0 4px 14px rgba(0,0,0,.05);
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#10141b;--card:#18202b;--card2:#1f2833;--line:#2a3442;--text:#e6e9ef;--mute:#98a2b3;
+  --navy:#172a45;--navy2:#0f1f35;--gold:#d4a853;
+  --g:#4ade80;--gbg:#14301f;--a:#fbbf24;--abg:#33270d;--r:#f87171;--rbg:#3a1717;--b:#93b4ff;--bbg:#18264a;--n:#cbd5e1;--nbg:#253041;
+  --shadow:none;
+}}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:var(--bg)}
+body{color:var(--text);font-family:"IBM Plex Sans Arabic",system-ui,sans-serif;font-size:15px;line-height:1.5;min-height:100vh;
+  padding-bottom:calc(96px + env(safe-area-inset-bottom));-webkit-tap-highlight-color:transparent}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer;border:1px solid var(--line);background:var(--card2);border-radius:12px;padding:10px 14px;touch-action:manipulation}
+button:active{transform:scale(.97)}
+button.pri{background:var(--navy);border-color:var(--navy);color:#fff;font-weight:700}
+button.ok{background:var(--g);border-color:var(--g);color:#fff;font-weight:700}
+button.sm{padding:6px 11px;font-size:13px;border-radius:10px}
+button.link{background:none;border:0;padding:0;color:var(--b);font-size:13px}
+input,select,textarea{width:100%;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 12px;font-size:15px}
+textarea{min-height:64px;resize:vertical}
+label{display:block;font-size:12.5px;font-weight:600;color:var(--mute);margin:12px 2px 4px}
+.wrap{max-width:720px;margin:0 auto}
+.top{background:var(--navy);color:var(--on-navy);padding:calc(14px + env(safe-area-inset-top)) 16px 0;position:sticky;top:0;z-index:5}
+.top .row{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.top h1{font-size:19px;font-weight:700}
+.top small{opacity:.75;font-size:12.5px}
+.av{width:36px;height:36px;border-radius:50%;background:var(--gold);color:#fff;display:grid;place-items:center;font-weight:700;border:0;padding:0;flex:none}
+.tabs{display:flex;margin-top:10px}
+.tab{flex:1;text-align:center;padding:10px 2px;font-size:14px;font-weight:600;opacity:.65;border:0;border-bottom:3px solid transparent;background:none;color:inherit;border-radius:0}
+.tab.on{opacity:1;border-color:var(--gold)}
+.tab b{background:rgba(255,255,255,.18);border-radius:10px;padding:0 7px;font-size:12px;margin-inline-start:4px}
+.seg{display:flex;margin:12px 16px 4px;background:var(--card2);border-radius:12px;padding:4px;gap:2px}
+.seg button{flex:1;border:0;background:none;padding:8px 2px;border-radius:9px;font-size:13px;font-weight:600;color:var(--mute)}
+.seg button.on{background:var(--card);color:var(--text);box-shadow:0 1px 3px rgba(0,0,0,.12)}
+.bar{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:12px;color:var(--mute);padding:6px 18px 0}
+.search{margin:8px 16px 0}
+.search input{padding:8px 12px;font-size:14px}
+.list{padding:8px 16px;display:flex;flex-direction:column;gap:10px}
+.card{background:var(--card);border-radius:14px;padding:12px 14px;border:1px solid var(--line);box-shadow:var(--shadow);cursor:pointer;text-align:start;width:100%}
+.card .h{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
+.card h3{font-size:15px;font-weight:600}
+.meta{font-size:12.5px;color:var(--mute);margin-top:2px}
+.chips{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;align-items:center}
+.chip{font-size:11.5px;padding:2px 9px;border-radius:20px;font-weight:600;white-space:nowrap;display:inline-block}
+.g{background:var(--gbg);color:var(--g)}.a{background:var(--abg);color:var(--a)}.r{background:var(--rbg);color:var(--r)}.b{background:var(--bbg);color:var(--b)}.n{background:var(--nbg);color:var(--n)}
+.card.late{border-color:color-mix(in srgb,var(--r) 45%,var(--line))}
+.card.soon{border-color:color-mix(in srgb,var(--a) 45%,var(--line))}
+.card.done{opacity:.7}
+.who{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--mute);margin-inline-start:auto}
+.mini{width:22px;height:22px;border-radius:50%;display:grid;place-items:center;color:#fff;font-size:11px;font-weight:700;flex:none}
+.count{min-width:58px;text-align:center;border-radius:12px;padding:5px 4px;line-height:1.1;flex:none}
+.count b{display:block;font-size:21px}.count span{font-size:11px}
+.sec{font-size:12.5px;font-weight:700;color:var(--mute);padding:10px 4px 0;display:flex;align-items:center;gap:8px}
+.person{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 14px}
+.person .ph{display:flex;align-items:center;gap:10px}
+.person .ph .mini{width:34px;height:34px;font-size:15px}
+.person .rows{margin-top:8px;display:flex;flex-direction:column;gap:6px}
+.prow{display:flex;justify-content:space-between;gap:8px;align-items:center;font-size:13px;padding:6px 8px;border-radius:9px;background:var(--card2);cursor:pointer;border:0;width:100%;text-align:start}
+.empty{text-align:center;color:var(--mute);padding:34px 10px;font-size:14px}
+.banner{margin:10px 16px 0;padding:12px 14px;border-radius:12px;font-size:13.5px;display:flex;gap:10px;align-items:center;justify-content:space-between}
+.banner.warn{background:var(--abg);color:var(--a)}
+.banner.bad{background:var(--rbg);color:var(--r)}
+.banner.info{background:var(--bbg);color:var(--b)}
+.fab{position:fixed;bottom:calc(20px + env(safe-area-inset-bottom));inset-inline-start:20px;background:var(--gold);border:0;color:#fff;border-radius:16px;padding:13px 18px;font-weight:700;box-shadow:0 4px 14px rgba(0,0,0,.25);z-index:6}
+.sheet{position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:flex-end;justify-content:center;z-index:20}
+.sheet .in{background:var(--bg);width:100%;max-width:720px;max-height:92vh;overflow:auto;border-radius:22px 22px 0 0;padding:16px 16px calc(22px + env(safe-area-inset-bottom))}
+.grab{width:42px;height:4px;background:var(--line);border-radius:3px;margin:0 auto 12px}
+.sheet h2{font-size:17px}
+.kv{background:var(--card);border:1px solid var(--line);border-radius:12px;margin-top:12px;overflow:hidden}
+.kv div{display:flex;gap:10px;padding:8px 12px;font-size:13.5px;border-top:1px solid var(--line)}
+.kv div:first-child{border-top:0}
+.kv dt{color:var(--mute);min-width:96px;flex:none}
+.kv dd{flex:1;word-break:break-word}
+.btns{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.btns button{flex:1;min-width:120px}
+.opts{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:6px}
+.opt{display:flex;align-items:center;gap:8px;padding:10px;border:1px solid var(--line);border-radius:12px;background:var(--card);text-align:start}
+.opt.on{border:2px solid var(--navy);background:color-mix(in srgb,var(--navy) 8%,var(--card))}
+.opt small{display:block;color:var(--mute);font-size:11.5px}
+.log{margin-top:12px;font-size:12.5px;color:var(--mute);line-height:1.9}
+.timeline{margin-top:12px}
+.step{display:flex;gap:10px;padding:6px 0;font-size:13.5px;align-items:center;cursor:pointer}
+.dot{width:22px;height:22px;border-radius:50%;flex:none;display:grid;place-items:center;font-size:11px;color:#fff}
+.login{max-width:420px;margin:0 auto;padding:70px 24px;text-align:center}
+.login h1{font-size:24px;margin:14px 0 6px}
+.login p{color:var(--mute);font-size:14px;margin-bottom:22px}
+.login .err{background:var(--rbg);color:var(--r);border-radius:12px;padding:10px;margin-top:16px;font-size:13px;text-align:start}
+.toast{position:fixed;bottom:calc(86px + env(safe-area-inset-bottom));left:50%;transform:translateX(-50%);background:#1d2433;color:#fff;padding:10px 16px;border-radius:12px;font-size:14px;z-index:30;max-width:90vw;text-align:center}
+.toast.bad{background:#7f1d1d}
+.more{display:block;margin:4px auto 0}
+</style>
+</head>
+<body>
+<div id="app"><div class="login"><p>جاري التحميل…</p></div></div>
+<script type="module">
+// ?demo: الموقع كاملًا ببياناتٍ وهمية في الجهاز، بلا Firebase ولا شيت — للتجربة والفحص قبل النشر
+const DEMO = new URLSearchParams(location.search).has('demo');
+
+/* ───────── أدوات ───────── */
+const AR = '٠١٢٣٤٥٦٧٨٩';
+const ar = x => String(x).replace(/\d/g, d => AR[d]);
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+// تمييز العدد: يوم واحد، يومان، ٣–١٠ أيام، ١١+ يومًا
+const days = k => k == 1 ? 'يوم' : k == 2 ? 'يومان' : k >= 3 && k <= 10 ? `${ar(k)} أيام` : `${ar(k)} يومًا`;
+const iso = d => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+const TODAY = () => iso(new Date());
+const P = s => new Date(s + 'T12:00');
+const diffD = (a, b) => Math.round((P(a) - P(b)) / 864e5);
+const HF = new Intl.DateTimeFormat('en-u-ca-islamic-umalqura-nu-latn', { year: 'numeric', month: 'numeric', day: 'numeric' });
+const hParts = d => { const o = {}; for (const p of HF.formatToParts(d)) o[p.type] = +p.value; return [o.year, o.month, o.day]; };
+// التاريخ الهجري كما يُكتب في الشيت: ١٤٤٨/٠٥/٢٣
+const hijri = s => { if (!s) return ''; const [y, m, d] = hParts(P(s)); return ar(`${y}/${String(m).padStart(2, '0')}/${String(d).padStart(2, '0')}`); };
+// الشيت يكتب المواعيد بالهجري (أم القرى). نحوّلها لميلادي لنحسب الأيام الباقية:
+// تقديرٌ أول من طول السنة الهجرية، ثم نبحث حوله يومًا يومًا حتى يطابق تقويم أم القرى نفسه
+function fromHijri(y, m, d) {
+  const est = new Date(Date.UTC(622, 6, 19) + ((y - 1) * 354.36707 + (m - 1) * 29.5306 + (d - 1)) * 864e5);
+  for (let k = 0; k <= 12; k++) for (const s of k ? [k, -k] : [0]) {
+    const t = new Date(est.getTime() + s * 864e5); t.setUTCHours(12);
+    const [yy, mm, dd] = hParts(t);
+    if (yy === y && mm === m && dd === d) return iso(new Date(t.getUTCFullYear(), t.getUTCMonth(), t.getUTCDate()));
+  }
+  return null;
+}
+// يلتقط تاريخًا من نصّ الخلية: «11:00:00 ص 1448/05/28» أو «1448/5/28» أو تاريخ ميلادي
+function pickDate(v) {
+  const s = String(v || '').replace(/[٠-٩]/g, c => AR.indexOf(c));
+  let m = s.match(/(\d{4})[\/-](\d{1,2})[\/-](\d{1,2})/);
+  if (m) { const y = +m[1]; return y > 1900 ? `${y}-${m[2].padStart(2, '0')}-${m[3].padStart(2, '0')}` : fromHijri(y, +m[2], +m[3]); }
+  m = s.match(/(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})/);
+  if (m) { const y = +m[3]; return y > 1900 ? `${y}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}` : fromHijri(y, +m[2], +m[1]); }
+  return null;
+}
+// الأسماء تُكتب في الشيت بأكثر من رسم: «الأحيدب» و«الاحيدب». نطابق بعد توحيد الهمزات والتاء والياء
+const norm = s => String(s || '').replace(/[أإآٱ]/g, 'ا').replace(/ة/g, 'ه').replace(/ى/g, 'ي').replace(/[ً-ْـ\s.]/g, '');
+const matchTeam = raw => { const r = norm(raw); if (!r) return null; return (S.cfg.team || []).find(t => r.includes(norm(t)) || norm(t).includes(r)) || null; };
+const COLORS = ['#1f3a5f', '#0f766e', '#9a3412', '#7c3aed', '#be185d', '#0369a1'];
+const color = name => { const i = (S.cfg.team || []).indexOf(name); return i >= 0 ? COLORS[i % COLORS.length] : '#64748b'; };
+const mini = name => `<span class="mini" style="background:${color(name)}">${esc((name || '؟').replace(/^ال/, '')[0] || '؟')}</span>`;
+const ek = e => String(e || '').toLowerCase().replace(/\./g, ',');
+function toast(msg, bad) {
+  document.querySelector('.toast')?.remove();
+  const t = document.createElement('div'); t.className = 'toast' + (bad ? ' bad' : ''); t.textContent = msg;
+  document.body.appendChild(t); setTimeout(() => t.remove(), bad ? 5000 : 2200);
+}
+const fail = e => { console.error(e); toast('ما انحفظ: ' + (e.code || e.message), true); };
+
+/* ───────── الحالة ───────── */
+const S = {
+  user: null, cfg: {}, cfgReady: false, docs: {}, docsReady: false,
+  sheet: { at: null, cases: [], appeals: [], archive: [], err: '', loading: false },
+  tab: 'm', seg: 'mine', q: '', open: null, archN: 30,
+};
+const me = () => S.user && (S.cfg.members || {})[ek(S.user.email)] || null;
+const execWho = () => S.cfg.exec || '';
+const KIND = { m: 'المذكرات', a: 'لوائح الاستئناف', e: 'التنفيذ' };
+const STATUS = { new: ['جديدة', 'n'], wip: ['قيد العمل', 'b'], done: ['منجزة', 'g'] };
+
+/* ───────── قراءة الشيت ───────── */
+// الأعمدة بعناوينها لا بمواضعها، لأن الفريق يضيف أعمدة ويحرّكها (عمود «نوع المذكرة» أُضيف لاحقًا)
+const HEAD = {
+  caseNo: /رقم القضي/, lawyer: /^(المحامي|المسؤول)/, memo: /نوع المذكر/, req: /^المطلوب/,
+  session: /(تاريخ|موعد) الجلس|تار+يخ انتها/, court: /^المحكمة/, circuit: /^الدائرة/,
+  plaintiff: /اسم المدعي/, defendant: /المدعى عليه|اسم المدعى/, type: /نوع القضي/,
+  last: /آخر (اجراء|إجراء)/, status: /^حالة/, remain: /^المتبقي/, deadline: /عداد المه/, note: /^ملاحظ/,
+};
+// تبويب «لوائح الاستئناف» منسوخٌ من تبويبات المحاكم وأغلب عناوينه «العمود ٢…»؛ فما لم يُسمَّ يؤخذ بموضعه هناك
+const STD = { caseNo: 0, lawyer: 3, court: 4, circuit: 5, plaintiff: 6, defendant: 7, type: 10, session: 11, last: 15 };
+function parseTab(title, rows) {
+  const head = (rows[0] || []).map(h => String(h || '').replace(/\s+/g, ' ').trim());
+  const col = {};
+  for (const [k, re] of Object.entries(HEAD)) {
+    let i = head.findIndex(h => re.test(h));
+    if (k === 'plaintiff') i = head.findIndex(h => re.test(h) && !HEAD.defendant.test(h));
+    if (i < 0 && STD[k] != null && /^(العمود|Column)/.test(head[STD[k]] || '')) i = STD[k];
+    if (i >= 0) col[k] = i;
+  }
+  const out = [];
+  rows.slice(1).forEach((r, n) => {
+    const o = { tab: title, rowNo: n + 2 };
+    for (const [k, i] of Object.entries(col)) o[k] = String(r[i] ?? '').trim();
+    if (o.caseNo) out.push(o);
+  });
+  return { col, rows: out, head };
+}
+const isAppeals = t => /استئناف/.test(t);
+const isExec = t => /^\s*التنفيذ\s*$/.test(t);
+function ingest(tabs) {
+  const cases = [], appeals = [], archive = [];
+  for (const [title, rows] of tabs) {
+    if (isExec(title)) {
+      const head = (rows[0] || []).map(h => String(h || '').trim());
+      const f = re => head.findIndex(h => re.test(h));
+      const c = { date: 0, req: f(/رقم الطلب/), against: f(/المنفذ ضد/), amount: f(/مبلغ السند/), why: f(/سب+ب/), last: f(/آخر (إجراء|اجراء)/), status: f(/حالة الطلب/) };
+      rows.slice(1).forEach(r => {
+        const o = {}; for (const [k, i] of Object.entries(c)) o[k] = i >= 0 ? String(r[i] ?? '').trim() : '';
+        if (o.req || o.against) archive.push(o);
+      });
+      continue;
+    }
+    const p = parseTab(title, rows);
+    if (p.col.caseNo == null) continue;
+    (isAppeals(title) ? appeals : cases).push(...p.rows);
+  }
+  return { cases, appeals, archive };
+}
+
+/* ───────── المهام: الشيت + ما يُحفظ في الموقع ───────── */
+// المحفوظ في Firebase الإسنادُ والحالة والسجلّ فقط، بمفتاح رقم القضية؛ وتفاصيل القضية تُقرأ من الشيت ساعة الفتح
+const caseIndex = () => { const m = {}; for (const r of [...S.sheet.cases, ...S.sheet.appeals]) (m[r.caseNo] = m[r.caseNo] || []).push(r); return m; };
+function items() {
+  const out = [], seen = new Set(), idx = caseIndex();
+  const add = (base) => {
+    const d = S.docs[base.key] || {};
+    seen.add(base.key);
+    const sheetWho = base.lawyer ? matchTeam(base.lawyer) : null;
+    const who = d.assignee !== undefined ? d.assignee : (sheetWho || '');
+    const it = { ...base, doc: d, who, outsider: !d.assignee && base.lawyer && !sheetWho ? base.lawyer : '', status: d.status || 'new', note: d.note || '' };
+    it.due = d.due || base.due || null;
+    it.left = it.due ? diffD(it.due, TODAY()) : null;
+    out.push(it);
+  };
+  for (const r of S.sheet.cases) if (r.memo) add({ key: `m|${r.caseNo}|${r.memo}`, kind: 'm', title: r.memo, caseNo: r.caseNo, lawyer: r.lawyer, due: pickDate(r.session), row: r });
+  for (const r of S.sheet.appeals) {
+    const due = pickDate(r.deadline);
+    add({ key: `a|${r.caseNo}`, kind: 'a', title: 'لائحة اعتراض', caseNo: r.caseNo, lawyer: r.lawyer, due, row: r, sheetLeft: r.remain });
+  }
+  // مهام التنفيذ والمهام اليدوية، وما خرج من الشيت وبقي له سجلّ
+  for (const [key, d] of Object.entries(S.docs)) {
+    if (seen.has(key) || d.deleted) continue;
+    const row = (idx[d.caseNo] || [])[0] || null;
+    add({ key, kind: d.kind || 'm', title: d.title || (d.kind === 'e' ? 'تنفيذ حكم' : 'مهمة'), caseNo: d.caseNo || '', lawyer: '', due: d.due || null, row, manual: !!d.manual, gone: !d.manual && d.kind !== 'e' });
+  }
+  return out;
+}
+const urgency = it => it.status === 'done' ? 9e9 : it.left == null ? 5e8 : it.left;
+const sortOpen = a => a.sort((x, y) => urgency(x) - urgency(y) || String(x.caseNo).localeCompare(String(y.caseNo)));
+function matchQ(it) {
+  if (!S.q) return true;
+  const q = norm(S.q), r = it.row || {};
+  return [it.caseNo, it.title, it.who, it.outsider, r.court, r.plaintiff, r.defendant, r.type, r.req, r.note].some(v => norm(v).includes(q));
+}
+
+/* ───────── الرسم ───────── */
+const $app = () => document.getElementById('app');
+function dueChip(it) {
+  if (it.status === 'done') return `<span class="chip g">✓ ${it.doc.doneDate ? hijri(it.doc.doneDate) : 'منجزة'}</span>`;
+  if (it.left == null) return '';
+  if (it.left < 0) { const k = -it.left; return `<span class="chip r">متأخرة ${k == 1 ? 'بيوم' : k == 2 ? 'بيومين' : days(k)}</span>`; }
+  if (it.left === 0) return `<span class="chip r">اليوم</span>`;
+  return `<span class="chip ${it.left <= 3 ? 'r' : it.left <= 7 ? 'a' : 'g'}">باقي ${days(it.left)}</span>`;
+}
+function countBox(it) {
+  if (it.status === 'done' || it.left == null) return dueChip(it);
+  const c = it.left <= 3 ? 'r' : it.left <= 7 ? 'a' : 'g';
+  return `<div class="count ${c}"><b>${ar(Math.abs(it.left))}</b><span>${it.left < 0 ? 'متأخرة' : it.left === 0 ? 'اليوم' : 'يوم باقي'}</span></div>`;
+}
+const opp = r => { if (!r) return ''; const a = r.plaintiff || '', b = r.defendant || ''; return /حماد/.test(a) ? b : /حماد/.test(b) ? a : b || a; };
+function card(it) {
+  const r = it.row || {};
+  const cls = it.status === 'done' ? 'done' : it.left != null && it.left <= 3 ? 'late' : it.left != null && it.left <= 7 ? 'soon' : '';
+  const meta = [it.caseNo && `القضية ${esc(it.caseNo)}`, r.court && esc(r.court), opp(r) && `ضد ${esc(opp(r))}`].filter(Boolean).join(' · ');
+  const st = STATUS[it.status] || STATUS.new;
+  const whoTxt = it.who ? (it.who === me() ? 'أنا' : esc(it.who)) : it.outsider ? esc(it.outsider) + ' (خارج الفريق)' : 'غير مسندة';
+  return `<button class="card ${cls}" data-act="open" data-k="${esc(it.key)}">
+    <div class="h"><div style="min-width:0"><h3>${esc(it.title)}</h3><div class="meta">${meta || '—'}</div></div>${it.kind === 'a' ? countBox(it) : dueChip(it)}</div>
+    <div class="chips">${it.status !== 'done' ? `<span class="chip ${st[1]}">${st[0]}</span>` : ''}
+      ${it.due && it.status !== 'done' ? `<span class="chip n">📅 ${hijri(it.due)}</span>` : ''}
+      ${it.gone ? '<span class="chip n">لم تعد في الشيت</span>' : ''}${it.manual ? '<span class="chip n">يدوية</span>' : ''}
+      ${it.doc.from ? '<span class="chip b">من حكم</span>' : ''}
+      <span class="who">${it.who ? mini(it.who) : ''}${whoTxt}</span></div></button>`;
+}
+function render() {
+  if (!S.user) return renderLogin();
+  if (!S.cfgReady) return $app().innerHTML = '<div class="login"><p>جاري التحميل…</p></div>';
+  if (!S.cfg.sheetId || !(S.cfg.team || []).length) return renderSetup();
+  if (!me()) return renderWho();
+  const all = items().filter(matchQ);
+  const inTab = all.filter(i => i.kind === S.tab);
+  const open = inTab.filter(i => i.status !== 'done');
+  const n = k => all.filter(i => i.kind === k && i.status !== 'done').length;
+  let body = '';
+  if (S.seg === 'mine') {
+    const mine = sortOpen(open.filter(i => i.who === me()));
+    body = mine.length ? mine.map(card).join('') : `<div class="empty">ما عليك شيء في ${KIND[S.tab]} 👌</div>`;
+    if (S.tab !== 'e') {
+      const loose = open.filter(i => !i.who);
+      if (loose.length) body += `<div class="sec">بلا مسؤول من الفريق (${ar(loose.length)})</div>` + sortOpen(loose).slice(0, 5).map(card).join('');
+    }
+  } else if (S.seg === 'team') {
+    body = (S.cfg.team || []).map(t => {
+      const L = sortOpen(open.filter(i => i.who === t));
+      const late = L.filter(i => i.left != null && i.left < 0).length, soon = L.filter(i => i.left != null && i.left >= 0 && i.left <= 7).length;
+      return `<div class="person"><div class="ph">${mini(t)}<div style="flex:1"><b>${esc(t)}${t === me() ? ' (أنا)' : ''}</b><div class="meta">${L.length ? `${ar(L.length)} مفتوحة` : 'لا شيء مفتوح'}</div></div>
+        ${late ? `<span class="chip r">${ar(late)} متأخرة</span>` : ''}${soon ? `<span class="chip a">${ar(soon)} قريبة</span>` : ''}</div>
+        ${L.length ? `<div class="rows">${L.slice(0, 8).map(i => `<button class="prow" data-act="open" data-k="${esc(i.key)}"><span>${esc(i.title)} — ${esc(i.caseNo)}</span>${dueChip(i) || `<span class="chip ${STATUS[i.status][1]}">${STATUS[i.status][0]}</span>`}</button>`).join('')}${L.length > 8 ? `<div class="meta">و${ar(L.length - 8)} غيرها</div>` : ''}</div>` : ''}</div>`;
+    }).join('');
+    const loose = sortOpen(open.filter(i => !i.who));
+    if (loose.length) body += `<div class="sec">غير مسندة أو خارج الفريق (${ar(loose.length)})</div>` + loose.map(card).join('');
+  } else if (S.seg === 'all') {
+    body = sortOpen(open).map(card).join('') || `<div class="empty">ما فيه شيء مفتوح</div>`;
+  } else {
+    const done = inTab.filter(i => i.status === 'done').sort((a, b) => String(b.doc.doneDate || '').localeCompare(String(a.doc.doneDate || '')));
+    body = done.map(card).join('') || `<div class="empty">ما فيه منجز بعد</div>`;
+    if (S.tab === 'e') body += archiveHtml();
+  }
+  const sh = S.sheet;
+  const banner = sh.err ? `<div class="banner bad"><span>${esc(sh.err)}</span><button class="sm" data-act="sheet">إعادة</button></div>`
+    : !sh.at && !sh.loading ? `<div class="banner info"><span>المهام تُقرأ من الشيت. اضغط لتحميلها.</span><button class="sm pri" data-act="sheet">تحميل الشيت</button></div>` : '';
+  $app().innerHTML = `
+  <div class="top"><div class="wrap"><div class="row"><div><h1>مشروع الحمادي</h1><small>مرحبًا ${esc(me())}${DEMO ? ' · وضع التجربة' : ''}</small></div>
+    <button class="av" data-act="menu" aria-label="القائمة">${esc(me().replace(/^ال/, '')[0])}</button></div>
+    <div class="tabs">${['m', 'a', 'e'].map(k => `<button class="tab ${S.tab === k ? 'on' : ''}" data-act="tab" data-v="${k}">${KIND[k]} <b>${ar(n(k))}</b></button>`).join('')}</div></div></div>
+  <div class="wrap">
+  <div class="seg">${[['mine', 'مهامي'], ['team', 'الفريق'], ['all', 'الكل'], ['done', S.tab === 'e' ? 'تم التنفيذ' : 'المنجزة']].map(([k, l]) => `<button class="${S.seg === k ? 'on' : ''}" data-act="seg" data-v="${k}">${l}${k === 'mine' ? ` (${ar(open.filter(i => i.who === me()).length)})` : ''}</button>`).join('')}</div>
+  ${banner}
+  <div class="bar"><span>${sh.loading ? '⏳ جاري القراءة من الشيت…' : sh.at ? `🔄 آخر تحميل من الشيت: ${sh.at.toLocaleTimeString('ar-SA', { hour: 'numeric', minute: '2-digit' })}` : ''}</span>${sh.at && !sh.loading ? '<button class="link" data-act="sheet">تحديث</button>' : ''}</div>
+  <div class="search"><input type="search" id="q" placeholder="بحث برقم القضية أو الخصم أو المحكمة…" value="${esc(S.q)}"></div>
+  <div class="list">${body}</div></div>
+  <button class="fab" data-act="new">+ مهمة</button>`;
+  // نافذةٌ مفتوحة يُكتب فيها: لا نعيد رسمها مع كل تحديثٍ يصل، وإلا ضاع ما يُكتب
+  const f = document.activeElement;
+  if (S.open && !(f && f.closest && f.closest('.sheet') && /INPUT|TEXTAREA|SELECT/.test(f.tagName))) renderSheet();
+}
+function archiveHtml() {
+  const q = norm(S.q);
+  const A = S.sheet.archive.filter(r => !q || Object.values(r).some(v => norm(v).includes(q)));
+  if (!A.length) return '';
+  return `<div class="sec">من تبويب «التنفيذ» في الشيت (${ar(A.length)})</div>` + A.slice(0, S.archN).map(r => `<div class="card" style="cursor:default">
+    <div class="h"><div><h3>${esc(r.against || '—')}</h3><div class="meta">${[r.req && 'طلب ' + esc(r.req), r.why && esc(r.why), r.amount && esc(r.amount)].filter(Boolean).join(' · ')}</div></div>${r.status ? `<span class="chip ${/لم ينفذ/.test(r.status) ? 'a' : 'g'}">${esc(r.status)}</span>` : ''}</div>
+    ${r.last ? `<div class="meta" style="margin-top:6px">آخر إجراء: ${esc(r.last)}</div>` : ''}</div>`).join('') + (A.length > S.archN ? `<button class="more sm" data-act="more">عرض المزيد</button>` : '');
+}
+
+/* ───────── النوافذ ───────── */
+function renderSheet() {
+  document.querySelector('.sheet')?.remove();
+  const o = S.open; if (!o) return;
+  let html = '';
+  if (o.type === 'task') html = taskHtml(o.k);
+  else if (o.type === 'new') html = newHtml();
+  else if (o.type === 'menu') html = menuHtml();
+  if (!html) { S.open = null; return; }
+  const el = document.createElement('div'); el.className = 'sheet'; el.dataset.act = 'close';
+  el.innerHTML = `<div class="in"><div class="grab"></div>${html}</div>`;
+  document.body.appendChild(el);
+}
+function taskHtml(k) {
+  const it = items().find(i => i.key === k); if (!it) return '';
+  const r = it.row || {}, d = it.doc;
+  const kv = [['رقم القضية', it.caseNo], ['المحكمة', [r.court, r.circuit && 'الدائرة ' + r.circuit].filter(Boolean).join(' · ')], ['الخصم', opp(r)], ['نوع القضية', r.type],
+    ['المحامي في الشيت', r.lawyer], ['الجلسة', r.session], ['آخر إجراء', r.last], ['المطلوب', r.req], ['الملاحظة', r.note], ['حالة القضية', r.status],
+    ['المهلة تنتهي', r.deadline ? r.deadline : ''], ['المتبقي في الشيت', it.kind === 'a' && r.remain ? days(+r.remain) : ''], ['تبويب الشيت', r.tab]].filter(x => x[1]);
+  const team = S.cfg.team || [];
+  // مسار القضية: كل ما يحمل رقمها، في الشيت أو في الموقع
+  const path = items().filter(i => i.caseNo && i.caseNo === it.caseNo && i.key !== it.key);
+  const execKey = `e|${it.caseNo}`;
+  const canExec = it.kind !== 'e' && it.caseNo && !S.docs[execKey];
+  const log = (d.log || []).slice().reverse();
+  return `<h2>${esc(it.title)}</h2>
+  <div class="meta">${KIND[it.kind]}${it.caseNo ? ' · القضية ' + esc(it.caseNo) : ''}</div>
+  <div class="chips">${dueChip(it)}${it.due ? `<span class="chip n">📅 ${hijri(it.due)}</span>` : ''}${it.outsider ? `<span class="chip a">في الشيت: ${esc(it.outsider)}</span>` : ''}
+   ${d.assignee && it.lawyer && matchTeam(it.lawyer) && matchTeam(it.lawyer) !== d.assignee ? `<span class="chip a">الشيت: ${esc(matchTeam(it.lawyer))} ← الآن: ${esc(d.assignee)}</span>` : ''}</div>
+  ${kv.length ? `<dl class="kv">${kv.map(([a, b]) => `<div><dt>${a}</dt><dd>${esc(b)}</dd></div>`).join('')}</dl>` : ''}
+  <label>المسند إليه</label>
+  <div class="opts">${team.map(t => { const c = items().filter(i => i.who === t && i.status !== 'done').length; return `<button class="opt ${it.who === t ? 'on' : ''}" data-act="assign" data-k="${esc(k)}" data-v="${esc(t)}">${mini(t)}<span><b>${esc(t)}${t === me() ? ' (أنا)' : ''}</b><small>${ar(c)} مفتوحة</small></span></button>`; }).join('')}</div>
+  <label>الحالة</label>
+  <div class="btns">${it.status !== 'done' ? `<button class="sm ${it.status === 'new' ? 'pri' : ''}" data-act="status" data-k="${esc(k)}" data-v="new">جديدة</button><button class="sm ${it.status === 'wip' ? 'pri' : ''}" data-act="status" data-k="${esc(k)}" data-v="wip">قيد العمل</button>` : `<button class="sm" data-act="reopen" data-k="${esc(k)}">↩ إعادة فتح</button>`}</div>
+  ${it.status !== 'done' ? `<label>${it.kind === 'e' ? 'تاريخ التنفيذ' : 'تاريخ الإنجاز'} <span id="hd" style="font-weight:500"> — ${hijri(TODAY())}</span></label>
+  <div style="display:flex;gap:8px"><input type="date" id="doneDate" value="${TODAY()}" max="${TODAY()}"><button class="ok" style="flex:none" data-act="done" data-k="${esc(k)}">✓ ${it.kind === 'e' ? 'نُفّذت' : 'أُنجزت'}</button></div>`
+      : `<div class="meta" style="margin-top:8px">${it.kind === 'e' ? 'نُفّذت' : 'أُنجزت'} ${hijri(d.doneDate)} هـ${d.doneBy ? ' · ' + esc(d.doneBy) : ''}</div>`}
+  ${canExec ? `<div class="btns"><button data-act="toexec" data-k="${esc(k)}">⚖️ حكم لصالح الحمادي — إسناد للتنفيذ (${esc(execWho())})</button></div>` : ''}
+  <label>ملاحظة</label>
+  <textarea id="note" placeholder="تظهر لمن أُسندت إليه">${esc(it.note)}</textarea>
+  <div class="btns"><button class="sm" data-act="note" data-k="${esc(k)}">حفظ الملاحظة</button>${it.manual ? `<button class="sm" data-act="del" data-k="${esc(k)}" style="color:var(--r)">حذف المهمة</button>` : ''}</div>
+  ${path.length ? `<label>مسار القضية</label><div class="timeline">${path.map(i => `<div class="step" data-act="open" data-k="${esc(i.key)}"><span class="dot" style="background:${i.status === 'done' ? 'var(--g)' : i.kind === 'e' ? 'var(--gold)' : i.kind === 'a' ? 'var(--r)' : 'var(--b)'}">${i.status === 'done' ? '✓' : i.kind === 'e' ? '⚖' : '•'}</span><span style="flex:1">${esc(i.title)} <span class="meta">— ${i.who ? esc(i.who) : 'غير مسندة'}</span></span>${dueChip(i)}</div>`).join('')}</div>` : ''}
+  ${log.length ? `<label>السجلّ</label><div class="log">${log.map(l => `• ${hijri(l.d)} — ${esc(l.by)}: ${esc(l.m)}`).join('<br>')}</div>` : ''}`;
+}
+function newHtml() {
+  const team = S.cfg.team || [];
+  return `<h2>مهمة جديدة</h2>
+  <label>النوع</label>
+  <select id="nk">${['m', 'a', 'e'].map(k => `<option value="${k}" ${S.tab === k ? 'selected' : ''}>${{ m: 'مذكرة', a: 'لائحة استئناف', e: 'تنفيذ' }[k]}</option>`).join('')}</select>
+  <label>العنوان</label><input id="nt" placeholder="مثلًا: مذكرة جوابية">
+  <label>رقم القضية (اختياري)</label><input id="nc" inputmode="numeric" list="cases">
+  <datalist id="cases">${[...new Set(S.sheet.cases.map(r => r.caseNo))].slice(0, 2000).map(c => `<option value="${esc(c)}">`).join('')}</datalist>
+  <label>الموعد (اختياري)</label><input type="date" id="nd">
+  <label>المسند إليه</label>
+  <select id="nw">${team.map(t => `<option ${t === me() ? 'selected' : ''}>${esc(t)}</option>`).join('')}</select>
+  <label>ملاحظة</label><textarea id="nn"></textarea>
+  <div class="btns"><button class="pri" data-act="create">إضافة</button><button data-act="close">إلغاء</button></div>`;
+}
+function menuHtml() {
+  return `<h2>${esc(me())}</h2><div class="meta">${esc(S.user.email)}</div>
+  <label>الشيت</label><input id="sid" value="${esc(S.cfg.sheetId || '')}" placeholder="رابط الشيت">
+  <label>الفريق (يفصل بينهم «،»)</label><input id="steam" value="${esc((S.cfg.team || []).join('، '))}">
+  <label>مسؤول التنفيذ</label><select id="sexec">${(S.cfg.team || []).map(t => `<option ${t === S.cfg.exec ? 'selected' : ''}>${esc(t)}</option>`).join('')}</select>
+  <div class="btns"><button class="pri" data-act="savecfg">حفظ</button><button data-act="iam">لست ${esc(me())}؟</button></div>
+  <div class="btns"><button data-act="logout">تسجيل الخروج</button></div>`;
+}
+function renderLogin(err = '') {
+  $app().innerHTML = `<div class="login"><div style="font-size:46px">⚖️</div><h1>مشروع الحمادي</h1>
+    <p>المذكرات ولوائح الاستئناف والتنفيذ، من جدول القضايا، مع الإسناد بين الفريق.</p>
+    <button class="pri" data-act="login" style="width:100%">الدخول بحساب المكتب (Google)</button>
+    ${err ? `<div class="err">${esc(err)}</div>` : ''}</div>`;
+}
+function renderSetup() {
+  $app().innerHTML = `<div class="login" style="text-align:start"><h1>الإعداد الأول</h1><p>مرة واحدة للفريق كله. ما يُكتب هنا يُحفظ في قاعدة البيانات لا في الشيفرة.</p>
+    <label>رابط شيت «جدول قضايا الحمادي»</label><input id="sid" value="${esc(S.cfg.sheetId || '')}" placeholder="https://docs.google.com/spreadsheets/d/…">
+    <label>أسماء الفريق كما تُكتب في عمود «المحامي» (يفصل بينها «،»)</label><input id="steam" value="${esc((S.cfg.team || []).join('، '))}">
+    <label>مسؤول التنفيذ (يُكتب اسمه كما في الفريق)</label><input id="sexec" value="${esc(S.cfg.exec || '')}">
+    <div class="btns"><button class="pri" data-act="savecfg">حفظ</button></div></div>`;
+}
+function renderWho() {
+  $app().innerHTML = `<div class="login"><h1>من أنت؟</h1><p>${esc(S.user.email)}<br>اختر اسمك مرة واحدة، ومنه تُعرف «مهامي».</p>
+    <div class="opts">${(S.cfg.team || []).map(t => `<button class="opt" data-act="setme" data-v="${esc(t)}">${mini(t)}<b>${esc(t)}</b></button>`).join('')}</div></div>`;
+}
+
+/* ───────── الكتابة ───────── */
+const stamp = (m) => ({ d: TODAY(), by: me() || '', m, t: Date.now() });
+function base(it) { return { kind: it.kind, title: it.title, caseNo: it.caseNo || '' }; }
+function put(k, patch, logMsg) {
+  const it = items().find(i => i.key === k);
+  const prev = S.docs[k] || {};
+  const doc = { ...(it ? base(it) : {}), ...prev, ...patch, log: [...(prev.log || []), ...(logMsg ? [stamp(logMsg)] : [])] };
+  S.docs[k] = doc; render();
+  DB.saveTask(k, doc);
+}
+
+/* ───────── الأحداث ───────── */
+document.addEventListener('click', async e => {
+  const t = e.target.closest('[data-act]'); if (!t) return;
+  const a = t.dataset.act, k = t.dataset.k, v = t.dataset.v;
+  if (a === 'close' && t !== e.target && t.classList.contains('sheet')) return;
+  switch (a) {
+    case 'login': return DB.login();
+    case 'logout': S.open = null; document.querySelector('.sheet')?.remove(); return DB.logout();
+    case 'tab': S.tab = v; S.archN = 30; return render();
+    case 'seg': S.seg = v; return render();
+    case 'sheet': return loadSheet(true);
+    case 'more': S.archN += 50; return render();
+    case 'open': S.open = { type: 'task', k }; return renderSheet();
+    case 'new': S.open = { type: 'new' }; return renderSheet();
+    case 'menu': S.open = { type: 'menu' }; return renderSheet();
+    case 'close': S.open = null; document.querySelector('.sheet')?.remove(); return;
+    case 'assign': {
+      const it = items().find(i => i.key === k);
+      if (it.who === v) return;
+      put(k, { assignee: v }, it.who ? `أعاد إسنادها من ${it.who} إلى ${v}` : `أسندها إلى ${v}`);
+      toast(`أُسندت إلى ${v}`); return renderSheet();
+    }
+    case 'status': put(k, { status: v }, `غيّر الحالة إلى «${STATUS[v][0]}»`); return renderSheet();
+    case 'done': {
+      const dd = document.getElementById('doneDate').value || TODAY();
+      const it = items().find(i => i.key === k);
+      put(k, { status: 'done', doneDate: dd, doneBy: me() }, `${it.kind === 'e' ? 'نفّذها' : 'أنجزها'} بتاريخ ${hijri(dd)}`);
+      toast('✓ تمّت'); S.open = null; document.querySelector('.sheet')?.remove(); return;
+    }
+    case 'reopen': put(k, { status: 'wip', doneDate: null, doneBy: null }, 'أعاد فتحها'); return renderSheet();
+    case 'note': put(k, { note: document.getElementById('note').value.trim() }, 'عدّل الملاحظة'); toast('انحفظت'); return renderSheet();
+    case 'del': if (!confirm('تحذف هذه المهمة؟')) return; put(k, { deleted: true }, 'حذفها'); S.open = null; document.querySelector('.sheet')?.remove(); return;
+    case 'toexec': {
+      const it = items().find(i => i.key === k);
+      const ek2 = `e|${it.caseNo}`;
+      const doc = { kind: 'e', title: 'تنفيذ حكم', caseNo: it.caseNo, from: k, assignee: execWho(), status: 'new', log: [stamp(`أسندها للتنفيذ إلى ${execWho()} (حكم لصالح الحمادي)`)] };
+      S.docs[ek2] = doc; DB.saveTask(ek2, doc);
+      if (it.status !== 'done') put(k, { status: 'done', doneDate: TODAY(), doneBy: me() }, 'صدر الحكم لصالح الحمادي وأُحيلت للتنفيذ');
+      toast(`أُسندت للتنفيذ إلى ${execWho()}`); S.open = { type: 'task', k: ek2 }; render(); return;
+    }
+    case 'create': {
+      const title = document.getElementById('nt').value.trim();
+      if (!title) return toast('اكتب عنوان المهمة', true);
+      const key = 'x' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
+      const who = document.getElementById('nw').value;
+      const doc = { manual: true, kind: document.getElementById('nk').value, title, caseNo: document.getElementById('nc').value.trim(), due: document.getElementById('nd').value || null, assignee: who, status: 'new', note: document.getElementById('nn').value.trim(), log: [stamp(who === me() ? 'أضافها لنفسه' : `أضافها وأسندها إلى ${who}`)] };
+      S.docs[key] = doc; DB.saveTask(key, doc);
+      S.tab = doc.kind; S.open = null; document.querySelector('.sheet')?.remove(); toast('أُضيفت'); return render();
+    }
+    case 'savecfg': {
+      const raw = document.getElementById('sid').value.trim();
+      const id = (raw.match(/\/d\/([\w-]{20,})/) || [])[1] || raw;
+      const team = document.getElementById('steam').value.split(/[،,\n]/).map(s => s.trim()).filter(Boolean);
+      const ex = document.getElementById('sexec').value.trim();
+      if (!id || !team.length) return toast('الرابط والأسماء مطلوبة', true);
+      const changed = id !== S.cfg.sheetId;
+      S.cfg = { ...S.cfg, sheetId: id, team, exec: team.includes(ex) ? ex : team[0] };
+      DB.saveCfg({ sheetId: S.cfg.sheetId, team: S.cfg.team, exec: S.cfg.exec });
+      S.open = null; document.querySelector('.sheet')?.remove(); render(); toast('انحفظ');
+      if (changed) loadSheet(false); return;
+    }
+    case 'setme': S.cfg.members = { ...(S.cfg.members || {}), [ek(S.user.email)]: v }; DB.saveCfg({ members: { [ek(S.user.email)]: v } }); render(); return loadSheet(false);
+    case 'iam': { const m = { ...(S.cfg.members || {}) }; delete m[ek(S.user.email)]; S.cfg.members = m; DB.saveCfg({ members: { [ek(S.user.email)]: null } }); S.open = null; document.querySelector('.sheet')?.remove(); return render(); }
+  }
+});
+document.addEventListener('input', e => {
+  if (e.target.id === 'q') { S.q = e.target.value; const pos = e.target.selectionStart; render(); const q = document.getElementById('q'); q.focus(); q.setSelectionRange(pos, pos); }
+  if (e.target.id === 'doneDate') { const h = document.getElementById('hd'); if (h) h.textContent = ' — ' + hijri(e.target.value || TODAY()); }
+});
+
+async function loadSheet(interactive) {
+  if (!S.cfg.sheetId || S.sheet.loading) return;
+  S.sheet.loading = true; S.sheet.err = ''; render();
+  try {
+    const tabs = await DB.readSheet(S.cfg.sheetId, interactive);
+    if (!tabs) { S.sheet.loading = false; return render(); }
+    Object.assign(S.sheet, ingest(tabs), { at: new Date(), err: '' });
+  } catch (e) { console.error(e); S.sheet.err = e.message || String(e); }
+  S.sheet.loading = false; render();
+}
+
+/* ───────── التخزين: Firebase، أو الجهاز في وضع التجربة ───────── */
+let DB;
+async function initDB() {
+  if (DEMO) {
+    const K = 'hammadi.demo';
+    let D; try { D = JSON.parse(localStorage.getItem(K)) || {}; } catch (e) { D = {}; }
+    D.tasks = D.tasks || {};
+    D.cfg = D.cfg || { sheetId: 'demo', team: ['الأحيدب', 'الشلعان', 'القاسم', 'باوزير'], exec: 'القاسم', members: { [ek('demo@demo')]: 'القاسم' } };
+    const save = () => { try { localStorage.setItem(K, JSON.stringify(D)); } catch (e) { } };
+    DB = {
+      onAuth: cb => cb({ uid: 'demo', email: 'demo@demo' }),
+      login() { }, logout() { localStorage.removeItem(K); location.reload(); },
+      listen(h) { setTimeout(() => { h.cfg(D.cfg); h.tasks({ ...D.tasks }); }, 30); },
+      saveCfg: p => { for (const [k, v] of Object.entries(p)) { if (k === 'members') { D.cfg.members = { ...D.cfg.members, ...v }; for (const [a, b] of Object.entries(v)) if (b == null) delete D.cfg.members[a]; } else D.cfg[k] = v; } save(); },
+      saveTask: (k, d) => { D.tasks[k] = d; save(); },
+      readSheet: async () => { await new Promise(r => setTimeout(r, 250)); return demoSheet(); },
+    };
+    return;
+  }
+  const V = 'https://www.gstatic.com/firebasejs/10.14.1/';
+  const [{ initializeApp }, A, F] = await Promise.all([import(V + 'firebase-app.js'), import(V + 'firebase-auth.js'), import(V + 'firebase-firestore.js')]);
+  // مشروع Firebase نفسه الذي يخدم «النادي» و«يومي»، والبيانات في مجموعة hammadi وحدها
+  const fb = initializeApp({
+    apiKey: 'AIzaSyA5r6_WfSII1hp5LSqWnTmMrqm28RjTySE',
+    authDomain: 'saleh-285a6.firebaseapp.com',
+    projectId: 'saleh-285a6',
+    storageBucket: 'saleh-285a6.firebasestorage.app',
+    messagingSenderId: '669710052588',
+    appId: '1:669710052588:web:8acc0f4ca4ac09dd68c9c9',
+  });
+  const auth = A.getAuth(fb);
+  const db = F.initializeFirestore(fb, {});
+  // قراءة الشيت بإذن الداخل نفسه: الشيت يبقى خاصًّا بالمكتب، ولا يصل الموقعَ إلا ما يراه صاحب الحساب أصلًا
+  const SCOPE = 'https://www.googleapis.com/auth/spreadsheets.readonly';
+  const TK = 'hammadi.tk';
+  const keep = res => { const c = res && A.GoogleAuthProvider.credentialFromResult(res); if (c && c.accessToken) sessionStorage.setItem(TK, JSON.stringify({ t: c.accessToken, x: Date.now() + 55 * 60e3 })); return c; };
+  const token = () => { try { const o = JSON.parse(sessionStorage.getItem(TK)); return o && o.x > Date.now() ? o.t : null; } catch (e) { return null; } };
+  const prov = () => { const p = new A.GoogleAuthProvider(); p.addScope(SCOPE); const u = auth.currentUser; p.setCustomParameters(u ? { login_hint: u.email } : { prompt: 'select_account' }); return p; };
+  try { keep(await A.getRedirectResult(auth)); } catch (e) { console.error(e); }
+  const why = e => e.code === 'auth/unauthorized-domain' ? 'هذا الرابط غير مسموح في إعدادات Firebase (Authorized domains).' : 'ما زبط الدخول: ' + (e.code || e.message);
+  async function popup(fn) {
+    try { return keep(await fn()); }
+    catch (e) {
+      if (e.code === 'auth/popup-closed-by-user' || e.code === 'auth/cancelled-popup-request') return null;
+      if (e.code === 'auth/popup-blocked' || e.code === 'auth/operation-not-supported-in-this-environment') {
+        return auth.currentUser ? A.reauthenticateWithRedirect(auth.currentUser, prov()) : A.signInWithRedirect(auth, prov());
+      }
+      throw e;
+    }
+  }
+  const DOC = F.doc(db, 'hammadi', 'main');
+  DB = {
+    onAuth: cb => A.onAuthStateChanged(auth, cb),
+    async login() { try { await popup(() => A.signInWithPopup(auth, prov())); } catch (e) { renderLogin(why(e)); } },
+    logout: () => { sessionStorage.removeItem(TK); return A.signOut(auth); },
+    listen(h) {
+      const bad = what => e => { console.error(e); toast(e.code === 'permission-denied' ? `قواعد Firebase لا تسمح بقراءة ${what} — راجع الإعداد` : `ما قدرت أقرأ ${what}: ${e.code || e.message}`, true); };
+      return [
+        F.onSnapshot(DOC, s => h.cfg(s.exists() ? s.data() : {}), e => { bad('الإعداد')(e); h.cfg({}); }),
+        F.onSnapshot(F.collection(db, 'hammadi', 'main', 'tasks'), qs => { const o = {}; qs.forEach(d => { o[d.id.replace(/∕/g, '/')] = d.data(); }); h.tasks(o); }, bad('المهام')),
+      ];
+    },
+    saveCfg: p => F.setDoc(DOC, p, { merge: true }).catch(fail),
+    saveTask: (k, d) => F.setDoc(F.doc(db, 'hammadi', 'main', 'tasks', k.replace(/\//g, '∕')), d).catch(fail),
+    async readSheet(id, interactive) {
+      let t = token();
+      if (!t) {
+        // النافذة المنبثقة تحتاج ضغطة من المستخدم، فلا نفتحها من تلقاء أنفسنا
+        if (!interactive) return null;
+        const c = await popup(() => A.reauthenticateWithPopup(auth.currentUser, prov()));
+        t = c && c.accessToken; if (!t) return null;
+      }
+      const get = async u => {
+        const r = await fetch(u, { headers: { Authorization: 'Bearer ' + t } });
+        if (r.status === 401) { sessionStorage.removeItem(TK); throw new Error('انتهت جلسة الشيت — اضغط «إعادة»'); }
+        if (!r.ok) {
+          let m = ''; try { m = (await r.json()).error.message; } catch (e) { }
+          if (/has not been used|disabled/i.test(m)) throw new Error('Google Sheets API غير مفعّل في مشروع Firebase — فعّله من Google Cloud Console');
+          if (r.status === 403 || r.status === 404) throw new Error('حسابك لا يصل لهذا الشيت، أو الرابط غير صحيح');
+          throw new Error('تعذّرت قراءة الشيت: ' + (m || r.status));
+        }
+        return r.json();
+      };
+      const B = `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(id)}`;
+      const meta = await get(B + '?fields=sheets.properties.title');
+      const titles = meta.sheets.map(s => s.properties.title);
+      const qs = titles.map(x => 'ranges=' + encodeURIComponent(`'${x.replace(/'/g, "''")}'`)).join('&');
+      const vals = await get(`${B}/values:batchGet?${qs}&valueRenderOption=FORMATTED_VALUE`);
+      return vals.valueRanges.map((v, i) => [titles[i], v.values || []]);
+    },
+  };
+}
+// الشيت التجريبي بعناوين الشيت الحقيقي نفسها، وبأسماءٍ وأرقامٍ مختلَقة
+function demoSheet() {
+  const T = (d) => hijri(iso(new Date(Date.now() + d * 864e5)));
+  const H = ['رقم القضية', 'رقم الملف', 'السنة', 'المحامي', 'المحكمة', 'الدائرة', 'اسم المدعي', 'اسم المدعى عليه', 'قيمة المطالبة', 'المبلغ المحكوم', 'نوع القضية', 'تاريخ الجلسة', 'رابط الجلسة', 'عدد الجلسات', 'عدد المذكرات', 'آخر اجراء', 'المطلوب', 'نوع المذكرة', 'المتبقي', 'عداد المهلة', 'حالة القضية', 'التقرير المالي'];
+  const row = (c, law, court, opp, type, ses, memo, req, st = 'قيد النظر') => [c, '', '1447', law, court, '12', 'شركة الحمادي (تجريبي)', opp, '', '', type, ses ? `10:00:00 ص ${T(ses)}` : '', '', '2', '1', 'جلسة', req, memo, '', '', st, ''];
+  return [
+    ['المطالبات المالية', [H,
+      row('4870000101', 'الاحيدب', 'العامة', 'مؤسسة النور (تجريبي)', 'أجرة أعمال', 2, 'مذكرة جوابية', 'الرد على صحيفة الدعوى'),
+      row('4870000102', 'الشلعان', 'العامة', 'شركة الأفق (تجريبي)', 'مقاولة', 6, 'مذكرة دفاع', 'الرد على الدفوع'),
+      row('4870000103', 'القاسم', 'التجارية', 'مصنع الريان (تجريبي)', 'توريد', -1, 'مذكرة ختامية', ''),
+      row('4870000104', 'باوزير', 'العامة', 'مؤسسة سمر (تجريبي)', 'أجرة أعمال', 12, 'مذكرة إلحاقية', 'تقديم المستندات'),
+      row('4870000105', 'الغامدي', 'العامة', 'شركة المدى (تجريبي)', 'أجرة أعمال', 9, 'مذكرة جوابية', ''),
+      row('4870000106', '', 'العامة', 'مؤسسة البناء (تجريبي)', 'مقاولة', 15, 'مذكرة رد', ''),
+      row('4870000107', 'القاسم', 'العامة', 'شركة الضياء (تجريبي)', 'أجرة أعمال', 4, 'مذكرة جوابية', 'حكم لصالح الحمادي', 'حكم لصالح الحمادي'),
+      row('4870000199', 'الشلعان', 'العامة', 'شركة قديمة (تجريبي)', 'أجرة أعمال', 0, '', '', 'حكم لصالح الحمادي'),
+    ]],
+    ['لوائح الاستئناف', [['رقم القضية', 'العمود 2', 'العمود 3', 'المسؤول', 'العمود 5', 'العمود 6', 'العمود 7', 'العمود 8', 'العمود 9', 'العمود 10', 'العمود 11', 'تارريخ انتهاء', 'العمود 13', 'العمود 14', 'العمود 15', 'ملاحظة', 'العمود 17', 'المتبقي', 'عداد المهلة', 'حالة القضية', 'التقرير المالي'],
+      ['4870000201', '', '1447', 'الاحيدب', 'العامة', '13', 'الحمادي', 'شركة الهدى (تجريبي)', '', '', 'أجرة أعمال', '', '', '', '', 'صدر الحكم ضد الحمادي', '', '2', T(2), 'حكم ضد الحمادي', ''],
+      ['4870000202', '', '1448', 'الشلعان', 'العامة', '50', 'الحمادي', 'مؤسسة الرواد (تجريبي)', '', '', 'مقاولة', '', '', '', '', 'حكمت الدائرة برد الدعوى', '', '6', T(6), 'حكم ضد الحمادي', ''],
+      ['4870000203', '', '1447', 'القاسم', 'العامة', '4', 'الحمادي', 'شركة السلام (تجريبي)', '', '', 'مقاولة', '', '', '', '', '', '', '24', T(24), 'قيد النظر', ''],
+    ]],
+    ['التنفيذ', [['[[', 'رقم الطلب', 'رقم ملف المرجع', 'اسم طالب التنفيذ', 'اسم المنفذ ضده', 'مبلغ السند', 'المبلغ المستلم', 'سبب التنفيذ', 'عدد الاجراءات', 'آخر إجراء', 'المطلوب', 'حالة الطلب', 'التقرير المالي'],
+      ['1447/8/7', '40100000001', '', 'شركة الحمادي', 'منفذ ضده (تجريبي)', '18,490', '', 'سند لأمر', '2', 'قرار 46', '', 'نُفّذ', ''],
+      ['1447/8/13', '40100000002', '', 'شركة الحمادي', 'منفذ ضده ٢ (تجريبي)', '213,712', '', 'حكم', '', 'رفض السند', '', 'لم ينفذ', ''],
+    ]],
+  ];
+}
+
+/* ───────── البدء ───────── */
+await initDB();
+DB.onAuth(u => {
+  S.user = u; S.cfgReady = false; S.docs = {};
+  if (!u) return render();
+  render();
+  let first = true;
+  DB.listen({
+    cfg: c => { S.cfg = c || {}; S.cfgReady = true; render(); if (first && me()) { first = false; loadSheet(false); } },
+    tasks: o => { S.docs = o; S.docsReady = true; render(); },
+  });
+});
+</script>
+</body>
+</html>
