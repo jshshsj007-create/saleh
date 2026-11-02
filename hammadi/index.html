@@ -908,6 +908,8 @@ async function syncAll(extra = {}, force) {
 }
 // وضع التجربة: قائمة التنبيهات مكشوفة للفحص قبل النشر
 if (DEMO) { window.__sched = schedule; window.__fresh = freshAssignments; }
+// كل رجوعٍ للتطبيق يرسل المواعيد من جديد: الآيفون يوقف الصفحة في الخلفية، فقد يفوتها إرسالٌ بدأ قبلها
+document.addEventListener('visibilitychange', () => { if (!document.hidden && S.user && me()) syncPush(); });
 function syncPush() { clearTimeout(pushT); pushT = setTimeout(() => syncAll(), 2500); }
 // إشعار فوري لعضو (أُسندت إليك…): يُضاف إلى قائمته ويُرسل الآن، فيصله خلال دقيقة
 function pingNow(name, title, body, tab, key) {
@@ -950,7 +952,7 @@ DB.onAuth(u => {
   let first = true;
   DB.listen({
     cfg: c => { S.cfg = c || {}; S.cfgReady = true; const was = !!S.sheet.cachedAt; hydrate(); render(); if (first && me()) { first = false; loadSheet(false); } if (!was && S.sheet.cachedAt) syncPush(); },
-    tasks: o => { S.docs = o; S.docsReady = true; render(); },
+    tasks: o => { const first = !S.docsReady; S.docs = o; S.docsReady = true; render(); if (first) syncPush(); },
     reqs: o => { const n = Object.keys(o).length, was = Object.keys(S.reqs).length; S.reqs = o; if (n > was) toast(`طلب دخول جديد — من الإعدادات`); if (S.open?.type === 'menu') renderSheet(); render(); },
     denied: () => { S.denied = true; render(); },
   });
