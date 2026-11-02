@@ -558,6 +558,7 @@ document.addEventListener('click', async e => {
       const it = items().find(i => i.key === k);
       if (it.who === v) return;
       put(k, { assignee: v }, it.who ? `أعاد إسنادها من ${it.who} إلى ${v}` : `أسندها إلى ${v}`);
+      markSeen(k, v);
       if (v !== me()) pingNow(v, `📌 أُسندت لك مهمة: «${it.title}»${leftTxt(it) ? ' — ' + leftTxt(it) : ''}`, `${it.caseNo ? 'القضية ' + it.caseNo + ' · ' : ''}من ${me()}`, it.kind, k);
       toast(`أُسندت إلى ${v}`); return renderSheet();
     }
@@ -576,6 +577,7 @@ document.addEventListener('click', async e => {
       const ek2 = `e|${it.caseNo}`;
       const doc = { kind: 'e', title: 'تنفيذ حكم', caseNo: it.caseNo, from: k, assignee: execWho(), status: 'new', log: [stamp(`أسندها للتنفيذ إلى ${execWho()} (حكم لصالح الحمادي)`)] };
       S.docs[ek2] = doc; DB.saveTask(ek2, doc);
+      markSeen(ek2, execWho());
       if (execWho() !== me()) pingNow(execWho(), '📌 أُسندت لك مهمة: «تنفيذ حكم»', `القضية ${it.caseNo} · حكم لصالح الحمادي · من ${me()}`, 'e', ek2);
       if (it.status !== 'done') put(k, { status: 'done', doneDate: TODAY(), doneBy: me() }, 'صدر الحكم لصالح الحمادي وأُحيلت للتنفيذ');
       toast(`أُسندت للتنفيذ إلى ${execWho()}`); S.open = { type: 'task', k: ek2 }; render(); return;
@@ -587,6 +589,7 @@ document.addEventListener('click', async e => {
       const who = document.getElementById('nw').value;
       const doc = { manual: true, kind: document.getElementById('nk').value, title, caseNo: document.getElementById('nc').value.trim(), due: document.getElementById('nd').value || null, dueT: document.getElementById('ndt').value || null, assignee: who, status: 'new', note: document.getElementById('nn').value.trim(), log: [stamp(who === me() ? 'أضافها لنفسه' : `أضافها وأسندها إلى ${who}`)] };
       S.docs[key] = doc; DB.saveTask(key, doc);
+      markSeen(key, who);
       if (who !== me()) pingNow(who, `📌 أُسندت لك مهمة: «${title}»${doc.due ? ' — ' + leftTxt({ due: doc.due, left: diffD(doc.due, TODAY()) }) : ''}`, `${doc.caseNo ? 'القضية ' + doc.caseNo + ' · ' : ''}من ${me()}`, doc.kind, key); else syncPush();
       S.tab = doc.kind; S.open = null; document.querySelector('.sheet')?.remove(); toast('أُضيفت'); return render();
     }
@@ -660,11 +663,12 @@ async function initDB() {
     DB = {
       onAuth: cb => cb({ uid: 'demo', email: 'demo@demo' }),
       login() { }, logout() { localStorage.removeItem(K); location.reload(); },
-      listen(h) { setTimeout(() => { h.cfg(D.cfg); h.tasks({ ...D.tasks }); h.reqs({ ...D.reqs }); }, 30); },
+      listen(h) { setTimeout(() => { h.cfg(JSON.parse(JSON.stringify(D.cfg))); h.tasks({ ...D.tasks }); h.reqs({ ...D.reqs }); }, 30); },
       setAllowed: list => { D.cfg.allowed = list; save(); },
       dropReq: e => { delete D.reqs[e]; save(); },
       ask: () => { },
-      saveCfg: p => { for (const [k, v] of Object.entries(p)) { if (k === 'members') { D.cfg.members = { ...D.cfg.members, ...v }; for (const [a, b] of Object.entries(v)) if (b == null) delete D.cfg.members[a]; } else D.cfg[k] = v; } save(); },
+      // دمجٌ كدمج Firebase (merge): الخرائط تُضاف إليها لا تُستبدل، وnull يحذف المفتاح
+      saveCfg: p => { for (const [k, v] of Object.entries(p)) { if (v && typeof v === 'object' && !Array.isArray(v)) { D.cfg[k] = { ...(D.cfg[k] || {}), ...v }; for (const [a, b] of Object.entries(v)) if (b == null) delete D.cfg[k][a]; } else D.cfg[k] = v; } save(); },
       saveTask: (k, d) => { D.tasks[k] = d; save(); },
       readSheet: async () => { await new Promise(r => setTimeout(r, 250)); return demoSheet(); },
     };
@@ -824,8 +828,29 @@ function schedule(name) {
 // المواعيد تُحسب من الشيت، فلا نرسل قبل تحميله: وإلا مُسحت مواعيد الناس بقائمةٍ ناقصة
 let pushT = null;
 const sent = {};
+/* «أُسندت لك مهمة» من أي مصدر: الإسناد في الموقع، أو اسمٌ كُتب في عمود «المحامي» في الشيت.
+   في الإعداد خريطة seen: لكل مهمة آخر من أُبلغ بها. فمهمةٌ مسندة لشخصٍ غير المسجّل فيها جديدةٌ عليه.
+   وأول تشغيلٍ يسجّل الموجود كله بلا إشعار، وإلا انهالت على الفريق مهام قديمة دفعةً واحدة */
+function markSeen(key, who) { S.cfg.seen = { ...(S.cfg.seen || {}), [key]: who }; DB.saveCfg({ seen: { [key]: who } }); }
+function freshAssignments() {
+  if (!S.sheet.at || !S.docsReady) return {};
+  const seen = S.cfg.seen || {}, open = items().filter(i => i.who && i.status !== 'done');
+  if (!S.cfg.seenInit) {
+    const all = {}; for (const i of open) all[i.key] = i.who;
+    S.cfg.seen = all; S.cfg.seenInit = true; DB.saveCfg({ seen: all, seenInit: true }); return {};
+  }
+  const out = {}, upd = {};
+  for (const i of open) if (seen[i.key] !== i.who) {
+    upd[i.key] = i.who;
+    (out[i.who] = out[i.who] || []).push({ at: Date.now() + 5000, k: `as:${i.key}:${i.who}`, title: `📌 أُسندت لك مهمة: «${i.title}»${leftTxt(i) ? ' — ' + leftTxt(i) : ''}`, body: [i.caseNo && 'القضية ' + i.caseNo, i.row?.court, !i.doc.assignee && 'من الشيت'].filter(Boolean).join(' · '), tab: i.kind, now: true });
+  }
+  if (Object.keys(upd).length) { S.cfg.seen = { ...seen, ...upd }; DB.saveCfg({ seen: upd }); }
+  return out;
+}
 async function syncAll(extra = {}) {
   if (!pushOK() || !S.sheet.at || !S.cfg.subs) return;
+  const fresh = freshAssignments();
+  extra = { ...extra }; for (const [n, L] of Object.entries(fresh)) extra[n] = [...(extra[n] || []), ...L];
   for (const [name, devs] of Object.entries(S.cfg.subs)) for (const sub of Object.values(devs || {})) {
     if (!sub || !sub.endpoint) continue;
     const list = schedule(name).concat(extra[name] || []), sig = JSON.stringify(list.filter(x => !x.now));
@@ -834,7 +859,7 @@ async function syncAll(extra = {}) {
   }
 }
 // وضع التجربة: قائمة التنبيهات مكشوفة للفحص قبل النشر
-if (DEMO) window.__sched = schedule;
+if (DEMO) { window.__sched = schedule; window.__fresh = freshAssignments; }
 function syncPush() { clearTimeout(pushT); pushT = setTimeout(() => syncAll(), 2500); }
 // إشعار فوري لعضو (أُسندت إليك…): يُضاف إلى قائمته ويُرسل الآن، فيصله خلال دقيقة
 function pingNow(name, title, body, tab, key) {
