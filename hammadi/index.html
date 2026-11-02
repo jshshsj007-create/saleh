@@ -92,6 +92,7 @@ label{display:block;font-size:12.5px;font-weight:600;color:var(--mute);margin:12
 .sheet{position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:flex-end;justify-content:center;z-index:20}
 .sheet .in{background:var(--bg);width:100%;max-width:720px;max-height:92vh;overflow:auto;border-radius:22px 22px 0 0;padding:16px 16px calc(22px + env(safe-area-inset-bottom))}
 .grab{width:42px;height:4px;background:var(--line);border-radius:3px;margin:0 auto 12px}
+.xbtn{position:sticky;top:0;float:left;margin:-6px -4px 0 0;width:38px;height:38px;border-radius:50%;padding:0;font-size:18px;line-height:1;display:grid;place-items:center;background:var(--card);z-index:2}
 .sheet h2{font-size:17px}
 .kv{background:var(--card);border:1px solid var(--line);border-radius:12px;margin-top:12px;overflow:hidden}
 .kv div{display:flex;gap:10px;padding:8px 12px;font-size:13.5px;border-top:1px solid var(--line)}
@@ -182,7 +183,7 @@ const fail = e => { console.error(e); toast('ما انحفظ: ' + (e.code || e.m
 const S = {
   user: null, cfg: {}, cfgReady: false, docs: {}, docsReady: false,
   sheet: { at: null, cases: [], appeals: [], archive: [], err: '', loading: false },
-  draft: {},
+  draft: {}, back: [],
   tab: ['m', 'a', 'e'].includes(new URLSearchParams(location.search).get('tab')) ? new URLSearchParams(location.search).get('tab') : 'm',
   seg: 'mine', q: '', open: null, archN: 30,
   denied: false, asked: false, reqs: {},
@@ -417,7 +418,7 @@ function renderSheet() {
   else if (o.type === 'menu') html = menuHtml();
   if (!html) { S.open = null; return; }
   const el = document.createElement('div'); el.className = 'sheet'; el.dataset.act = 'close';
-  el.innerHTML = `<div class="in"><div class="grab"></div>${html}</div>`;
+  el.innerHTML = `<div class="in"><button class="xbtn" data-act="back" aria-label="رجوع">✕</button><div class="grab"></div>${html}</div>`;
   document.body.appendChild(el);
 }
 function taskHtml(k) {
@@ -582,10 +583,11 @@ document.addEventListener('click', async e => {
     case 'seg': S.seg = v; return render();
     case 'sheet': return loadSheet(true);
     case 'more': S.archN += 50; return render();
-    case 'open': S.open = { type: 'task', k }; return renderSheet();
-    case 'new': S.open = { type: 'new' }; return renderSheet();
-    case 'menu': S.open = { type: 'menu' }; return renderSheet();
-    case 'close': S.open = null; document.querySelector('.sheet')?.remove(); return;
+    case 'open': if (S.open && !(S.open.type === 'task' && S.open.k === k)) S.back.push(S.open); else if (!S.open) S.back = []; S.open = { type: 'task', k }; return renderSheet();
+    case 'new': S.back = []; S.open = { type: 'new' }; return renderSheet();
+    case 'menu': S.back = []; S.open = { type: 'menu' }; return renderSheet();
+    case 'back': S.draft = {}; S.open = S.back.pop() || null; if (S.open) return renderSheet(); document.querySelector('.sheet')?.remove(); return;
+    case 'close': S.open = null; S.back = []; document.querySelector('.sheet')?.remove(); return;
     case 'assign': {
       const it = items().find(i => i.key === k);
       if (it.who === v) return;
