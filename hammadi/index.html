@@ -484,7 +484,7 @@ function menuHtml() {
   <div class="btns"><button class="sm" data-act="pushnow">📤 أرسل التنبيهات للخادم الآن</button></div>
   <label>الإشعارات على هذا الجهاز</label>
   <div class="btns">${pushOn() ? '<button data-act="pushoff">🔕 إيقاف الإشعارات</button>' : '<button class="ok" data-act="pushon">🔔 تفعيل الإشعارات</button>'}</div>
-  <div class="meta" style="margin-top:6px">تصلك والجوال مقفل: لما تُسند لك مهمة، وقبل انتهاء مهلتها بيوم، وصباح اليوم التالي إن فاتت، وقبل كل جلسةٍ لقضاياك بساعة. ${isIOS && !standalone() ? '<br><b>في الآيفون:</b> أضف الموقع للشاشة الرئيسية أولًا (زر المشاركة ← «إضافة إلى الشاشة الرئيسية»)، وافتحه من أيقونته، ثم فعّلها.' : ''}</div>
+  <div class="meta" style="margin-top:6px">تصلك والجوال مقفل: لما تُسند لك مهمة، وقبل انتهاء مهلتها بيوم، وصباح اليوم التالي إن فاتت، وقبل كل جلسةٍ لقضاياك بـ١٢ ساعة وبساعة. ${isIOS && !standalone() ? '<br><b>في الآيفون:</b> أضف الموقع للشاشة الرئيسية أولًا (زر المشاركة ← «إضافة إلى الشاشة الرئيسية»)، وافتحه من أيقونته، ثم فعّلها.' : ''}</div>
   <div class="btns"><button data-act="logout">تسجيل الخروج</button></div>`;
 }
 function membersHtml() {
@@ -1010,6 +1010,9 @@ function schedule(name) {
   // قبل كل جلسةٍ بساعة، لمن اسمه في «المحامي» لقضيتها. وجلسةٌ بلا ساعة: الثامنة صباح يومها
   for (const g of S.sheet.sessions || []) if (matchTeam(g.lawyer) === name) {
     const place = [g.court, g.circuit && 'الدائرة ' + g.circuit].filter(Boolean).join(' · ');
+    // وقبلها باثنتي عشرة ساعة أيضًا (من ٩ ص إن لم تُكتب ساعتها): تذكيرٌ من الليلة قبلها
+    const at0 = new Date(g.d + 'T' + (g.t || '09:00')).getTime(), when = g.t ? 'الساعة ' + hm12(g.t) : 'ساعتها غير مكتوبة';
+    add(at0 - 12 * 3600e3, `ses12:${g.caseNo}:${g.d}`, `⚖️ جلسة بعد ١٢ ساعة — القضية ${g.caseNo}`, [place, hijri(g.d), when].filter(Boolean).join(' · '), 'm');
     if (g.t) add(new Date(g.d + 'T' + g.t).getTime() - 60 * 6e4, `ses:${g.caseNo}:${g.d}`, `⚖️ جلسة بعد ساعة — القضية ${g.caseNo}`, [place, 'الساعة ' + hm12(g.t)].filter(Boolean).join(' · '), 'm');
     else add(at(g.d, '08:00'), `ses:${g.caseNo}:${g.d}`, `⚖️ عندك جلسة اليوم — القضية ${g.caseNo}`, place, 'm');
   }
