@@ -182,7 +182,7 @@ const fail = e => { console.error(e); toast('ما انحفظ: ' + (e.code || e.m
 /* ───────── الحالة ───────── */
 const S = {
   user: null, cfg: {}, cfgReady: false, docs: {}, docsReady: false,
-  sheet: { at: null, cases: [], appeals: [], archive: [], err: '', loading: false },
+  sheet: { at: null, cases: [], appeals: [], archive: [], sessions: [], err: '', loading: false },
   draft: {}, back: [],
   tab: ['m', 'a', 'e'].includes(new URLSearchParams(location.search).get('tab')) ? new URLSearchParams(location.search).get('tab') : 'm',
   seg: 'mine', q: '', open: null, archN: 30,
@@ -262,11 +262,11 @@ function dueOf(r) {
   return null;
 }
 // ساعة المهلة إن كُتبت في الشيت (٩:٠٠ ص): من كسر القيمة الخام، أو من النص. وإلا فلا ساعة
-function dueTimeOf(r) {
-  if (r._dueT !== undefined) return r._dueT;
-  const n = r._deadline;
+function dueTimeOf(r) { return r._dueT !== undefined ? r._dueT : timeFrom(r._deadline, r.deadline); }
+// الساعة من خلية: من كسر قيمتها الخام (التاريخ رقمًا)، أو من نصّها «10:15:00 ص»
+function timeFrom(n, text) {
   if (typeof n === 'number' && n % 1 > 0.0001) { const m = Math.round((n % 1) * 1440); return String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0'); }
-  const t = String(r.deadline || '').replace(/[٠-٩]/g, c => AR.indexOf(c)).match(/(\d{1,2}):(\d{2})(?::\d{2})?\s*(ص|م|AM|PM)?/i);
+  const t = String(text || '').replace(/[٠-٩]/g, c => AR.indexOf(c)).match(/(\d{1,2}):(\d{2})(?::\d{2})?\s*(ص|م|AM|PM)?/i);
   if (!t) return null;
   let h = +t[1]; if (/م|PM/i.test(t[3] || '') && h < 12) h += 12; if (/ص|AM/i.test(t[3] || '') && h === 12) h = 0;
   return String(h).padStart(2, '0') + ':' + t[2];
@@ -484,7 +484,7 @@ function menuHtml() {
   <div class="btns"><button class="sm" data-act="pushnow">📤 أرسل التنبيهات للخادم الآن</button></div>
   <label>الإشعارات على هذا الجهاز</label>
   <div class="btns">${pushOn() ? '<button data-act="pushoff">🔕 إيقاف الإشعارات</button>' : '<button class="ok" data-act="pushon">🔔 تفعيل الإشعارات</button>'}</div>
-  <div class="meta" style="margin-top:6px">تصلك والجوال مقفل، ثلاثة لكل مهمة: لما تُسند لك، وقبل انتهاء مهلتها بيوم، وصباح اليوم التالي إن فاتت. ${isIOS && !standalone() ? '<br><b>في الآيفون:</b> أضف الموقع للشاشة الرئيسية أولًا (زر المشاركة ← «إضافة إلى الشاشة الرئيسية»)، وافتحه من أيقونته، ثم فعّلها.' : ''}</div>
+  <div class="meta" style="margin-top:6px">تصلك والجوال مقفل: لما تُسند لك مهمة، وقبل انتهاء مهلتها بيوم، وصباح اليوم التالي إن فاتت، وقبل كل جلسةٍ لقضاياك بساعة. ${isIOS && !standalone() ? '<br><b>في الآيفون:</b> أضف الموقع للشاشة الرئيسية أولًا (زر المشاركة ← «إضافة إلى الشاشة الرئيسية»)، وافتحه من أيقونته، ثم فعّلها.' : ''}</div>
   <div class="btns"><button data-act="logout">تسجيل الخروج</button></div>`;
 }
 function membersHtml() {
@@ -549,17 +549,29 @@ function remHtml(it) {
    لما تحتاجه المهام والتنبيهات: الرقم والنوع والمحامي والمهلة والمحكمة — بلا أسماء الخصوم ولا المبالغ.
    منه تظهر المهام وتُرسل التنبيهات وإن لم يُحمَّل الشيت، حتى يحمّله أحد */
 const slim = r => ({ tab: r.tab, caseNo: r.caseNo, memo: r.memo || '', lawyer: r.lawyer || '', court: r.court || '', _due: dueOf(r), _dueT: dueTimeOf(r), _src: dueSrc(r) });
+/* الجلسات القادمة لكل قضية فيها محامٍ، من عمود «تاريخ/موعد الجلسة» في تبويبات المحاكم.
+   القضية تتكرّر بين «العام» وتبويب محكمتها، فتُجمع بالرقم والتاريخ، ويُفضَّل الصف الذي فيه الساعة */
+function sessionsFrom(rows) {
+  const m = new Map(), today = TODAY();
+  for (const r of rows) {
+    const d = pickDate(r._session) || pickDate(r.session);
+    if (!d || d < today || !r.lawyer) continue;
+    const t = timeFrom(r._session, r.session), k = r.caseNo + '|' + d, o = m.get(k);
+    if (!o || (!o.t && t)) m.set(k, { caseNo: r.caseNo, lawyer: r.lawyer, court: r.court || '', circuit: r.circuit || '', d, t });
+  }
+  return [...m.values()].sort((a, b) => (a.d + (a.t || '')).localeCompare(b.d + (b.t || '')));
+}
 function saveSheetCache() {
-  const m = S.sheet.cases.filter(r => r.memo).map(slim), a = S.sheet.appeals.map(slim);
-  const sig = JSON.stringify([m, a]);
-  if (S.cfg.sheetCache && JSON.stringify([S.cfg.sheetCache.m, S.cfg.sheetCache.a]) === sig) return;
-  S.cfg.sheetCache = { at: Date.now(), m, a };
+  const m = S.sheet.cases.filter(r => r.memo).map(slim), a = S.sheet.appeals.map(slim), ss = S.sheet.sessions || [];
+  const sig = JSON.stringify([m, a, ss]);
+  if (S.cfg.sheetCache && JSON.stringify([S.cfg.sheetCache.m, S.cfg.sheetCache.a, S.cfg.sheetCache.s || []]) === sig) return;
+  S.cfg.sheetCache = { at: Date.now(), m, a, s: ss };
   DB.saveCfg({ sheetCache: S.cfg.sheetCache });
 }
 function hydrate() {
   const c = S.cfg.sheetCache;
   if (S.sheet.at || !c) return;
-  S.sheet.cases = c.m || []; S.sheet.appeals = c.a || []; S.sheet.cachedAt = c.at;
+  S.sheet.cases = c.m || []; S.sheet.appeals = c.a || []; S.sheet.sessions = c.s || []; S.sheet.cachedAt = c.at;
 }
 
 /* ───────── التنبيه اللحظي من الشيت ─────────
@@ -805,6 +817,7 @@ async function loadSheet(interactive) {
     const tabs = await DB.readSheet(S.cfg.sheetId, interactive);
     if (!tabs) { S.sheet.loading = false; return render(); }
     Object.assign(S.sheet, ingest(tabs), { at: new Date(), err: '', cachedAt: null });
+    S.sheet.sessions = sessionsFrom(S.sheet.cases);
     saveSheetCache();
     if (S.open) renderSheet();
     syncPush();
@@ -994,6 +1007,12 @@ function schedule(name) {
   }
   // ما حدّده صاحب المهمة بوقته، وإن لم يكن لها مهلة
   for (const i of mine) for (const r of remsOf(i.doc)) if (r.at) add(r.at, `t:${i.key}:${r.at}`, `🔔 تذكير: «${i.title}»`, where(i) + (i.due ? ' · ' + leftTxt({ due: i.due, left: diffD(i.due, iso(new Date(r.at))) }) : ''), i.kind);
+  // قبل كل جلسةٍ بساعة، لمن اسمه في «المحامي» لقضيتها. وجلسةٌ بلا ساعة: الثامنة صباح يومها
+  for (const g of S.sheet.sessions || []) if (matchTeam(g.lawyer) === name) {
+    const place = [g.court, g.circuit && 'الدائرة ' + g.circuit].filter(Boolean).join(' · ');
+    if (g.t) add(new Date(g.d + 'T' + g.t).getTime() - 60 * 6e4, `ses:${g.caseNo}:${g.d}`, `⚖️ جلسة بعد ساعة — القضية ${g.caseNo}`, [place, 'الساعة ' + hm12(g.t)].filter(Boolean).join(' · '), 'm');
+    else add(at(g.d, '08:00'), `ses:${g.caseNo}:${g.d}`, `⚖️ عندك جلسة اليوم — القضية ${g.caseNo}`, place, 'm');
+  }
   return out.sort((a, b) => a.at - b.at).slice(0, 80);
 }
 // المواعيد تُحسب من الشيت، فلا نرسل قبل تحميله: وإلا مُسحت مواعيد الناس بقائمةٍ ناقصة
