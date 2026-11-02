@@ -256,6 +256,16 @@ function dueOf(r) {
   if (/^-?\d+$/.test(k)) { const t = new Date(); t.setDate(t.getDate() + +k); return iso(t); }
   return null;
 }
+// ساعة المهلة إن كُتبت في الشيت (٩:٠٠ ص): من كسر القيمة الخام، أو من النص. وإلا فلا ساعة
+function dueTimeOf(r) {
+  const n = r._deadline;
+  if (typeof n === 'number' && n % 1 > 0.0001) { const m = Math.round((n % 1) * 1440); return String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0'); }
+  const t = String(r.deadline || '').replace(/[٠-٩]/g, c => AR.indexOf(c)).match(/(\d{1,2}):(\d{2})(?::\d{2})?\s*(ص|م|AM|PM)?/i);
+  if (!t) return null;
+  let h = +t[1]; if (/م|PM/i.test(t[3] || '') && h < 12) h += 12; if (/ص|AM/i.test(t[3] || '') && h === 12) h = 0;
+  return String(h).padStart(2, '0') + ':' + t[2];
+}
+const hm12 = t => { if (!t) return ''; let [h, m] = t.split(':').map(Number); const pm = h >= 12; h = h % 12 || 12; return ar(`${h}:${String(m).padStart(2, '0')}`) + (pm ? ' م' : ' ص'); };
 const caseIndex = () => { const m = {}; for (const r of [...S.sheet.cases, ...S.sheet.appeals]) (m[r.caseNo] = m[r.caseNo] || []).push(r); return m; };
 function items() {
   const out = [], seen = new Set(), idx = caseIndex();
@@ -266,6 +276,7 @@ function items() {
     const who = d.assignee !== undefined ? d.assignee : (sheetWho || '');
     const it = { ...base, doc: d, who, outsider: !d.assignee && base.lawyer && !sheetWho ? base.lawyer : '', status: d.status || 'new', note: d.note || '' };
     it.due = d.due || base.due || null;
+    it.dueT = d.due ? (d.dueT || null) : base.row ? dueTimeOf(base.row) : null;
     it.left = it.due ? diffD(it.due, TODAY()) : null;
     out.push(it);
   };
@@ -419,9 +430,10 @@ function taskHtml(k) {
   const log = (d.log || []).slice().reverse();
   return `<h2>${esc(it.title)}</h2>
   <div class="meta">${KIND[it.kind]}${it.caseNo ? ' · القضية ' + esc(it.caseNo) : ''}</div>
-  <div class="chips">${dueChip(it)}${it.due ? `<span class="chip n">📅 ${hijri(it.due)}</span>` : ''}${it.outsider ? `<span class="chip a">في الشيت: ${esc(it.outsider)}</span>` : ''}
+  <div class="chips">${dueChip(it)}${it.due ? `<span class="chip n">📅 ${hijri(it.due)}${it.dueT ? ' · ' + hm12(it.dueT) : ''}</span>` : ''}${it.outsider ? `<span class="chip a">في الشيت: ${esc(it.outsider)}</span>` : ''}
    ${d.assignee && it.lawyer && matchTeam(it.lawyer) && matchTeam(it.lawyer) !== d.assignee ? `<span class="chip a">الشيت: ${esc(matchTeam(it.lawyer))} ← الآن: ${esc(d.assignee)}</span>` : ''}</div>
   ${kv.length ? `<dl class="kv">${kv.map(([a, b]) => `<div><dt>${a}</dt><dd>${esc(b)}</dd></div>`).join('')}</dl>` : ''}
+  ${remHtml(it)}
   <label>المسند إليه</label>
   <div class="opts">${team.map(t => { const c = items().filter(i => i.who === t && i.status !== 'done').length; return `<button class="opt ${it.who === t ? 'on' : ''}" data-act="assign" data-k="${esc(k)}" data-v="${esc(t)}">${mini(t)}<span><b>${esc(t)}${t === me() ? ' (أنا)' : ''}</b><small>${ar(c)} مفتوحة</small></span></button>`; }).join('')}</div>
   <label>الحالة</label>
@@ -444,7 +456,7 @@ function newHtml() {
   <label>العنوان</label><input id="nt" placeholder="مثلًا: مذكرة جوابية">
   <label>رقم القضية (اختياري)</label><input id="nc" inputmode="numeric" list="cases">
   <datalist id="cases">${[...new Set(S.sheet.cases.map(r => r.caseNo))].slice(0, 2000).map(c => `<option value="${esc(c)}">`).join('')}</datalist>
-  <label>الموعد (اختياري)</label><input type="date" id="nd">
+  <label>الموعد (اختياري)</label><div style="display:flex;gap:8px"><input type="date" id="nd"><input type="time" id="ndt" style="max-width:140px"></div>
   <label>المسند إليه</label>
   <select id="nw">${team.map(t => `<option ${t === me() ? 'selected' : ''}>${esc(t)}</option>`).join('')}</select>
   <label>ملاحظة</label><textarea id="nn"></textarea>
@@ -493,6 +505,24 @@ function renderAsk() {
 function renderWho() {
   $app().innerHTML = `<div class="login"><h1>من أنت؟</h1><p>${esc(S.user.email)}<br>اختر اسمك مرة واحدة، ومنه تُعرف «مهامي».</p>
     <div class="opts">${(S.cfg.team || []).map(t => `<button class="opt" data-act="setme" data-v="${esc(t)}">${mini(t)}<b>${esc(t)}</b></button>`).join('')}</div></div>`;
+}
+
+/* ───────── تنبيهات المهمة ─────────
+   ثلاثة ثابتة لكل مهمة لا تُلغى: عند الإسناد، وقبل المهلة بيوم، وبعد فواتها بيوم.
+   ويضاف عليها ما يختاره صاحبها: قبل المهلة بمدّة، أو في وقتٍ يحدّده. تُحفظ في المهمة وتصل لمن أُسندت إليه */
+const REM_OPTS = [[60, 'قبل ساعة'], [180, 'قبل ٣ ساعات'], [720, 'قبل ١٢ ساعة'], [2880, 'قبل يومين'], [4320, 'قبل ٣ أيام'], [10080, 'قبل أسبوع']];
+const remLabel = r => r.at ? `${hijri(iso(new Date(r.at)))} · ${hm12(new Date(r.at).toTimeString().slice(0, 5))}` : (REM_OPTS.find(o => o[0] === r.mins) || [0, `قبل ${r.mins} دقيقة`])[1];
+const baseAt = i => new Date(i.due + 'T' + (i.dueT || '09:00')).getTime();
+function remHtml(it) {
+  if (it.status === 'done') return '';
+  const R = it.doc.rem || [];
+  return `<label>التنبيهات</label>
+  <div class="chips" style="margin-top:2px"><span class="chip n">📌 عند الإسناد</span>${it.due ? '<span class="chip n">⏰ قبل المهلة بيوم</span><span class="chip n">🔴 بعد فواتها بيوم</span>' : ''}
+  ${R.map((r, n) => `<span class="chip b">🔔 ${esc(remLabel(r))} <button class="link" style="color:inherit;font-weight:700;margin-inline-start:4px" data-act="remdel" data-k="${esc(it.key)}" data-v="${n}" aria-label="حذف">✕</button></span>`).join('')}</div>
+  <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
+    <select id="remk" style="flex:1;min-width:150px">${it.due ? REM_OPTS.map(([m, l]) => `<option value="${m}">${l}${it.dueT ? '' : ' (من ٩ ص)'}</option>`).join('') : ''}<option value="at">وقت أحدّده…</option></select>
+    <input type="datetime-local" id="remat" style="flex:1;min-width:180px;${it.due ? 'display:none' : ''}">
+    <button class="sm pri" data-act="remadd" data-k="${esc(it.key)}">+ تنبيه</button></div>`;
 }
 
 /* ───────── الكتابة ───────── */
@@ -555,7 +585,7 @@ document.addEventListener('click', async e => {
       if (!title) return toast('اكتب عنوان المهمة', true);
       const key = 'x' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
       const who = document.getElementById('nw').value;
-      const doc = { manual: true, kind: document.getElementById('nk').value, title, caseNo: document.getElementById('nc').value.trim(), due: document.getElementById('nd').value || null, assignee: who, status: 'new', note: document.getElementById('nn').value.trim(), log: [stamp(who === me() ? 'أضافها لنفسه' : `أضافها وأسندها إلى ${who}`)] };
+      const doc = { manual: true, kind: document.getElementById('nk').value, title, caseNo: document.getElementById('nc').value.trim(), due: document.getElementById('nd').value || null, dueT: document.getElementById('ndt').value || null, assignee: who, status: 'new', note: document.getElementById('nn').value.trim(), log: [stamp(who === me() ? 'أضافها لنفسه' : `أضافها وأسندها إلى ${who}`)] };
       S.docs[key] = doc; DB.saveTask(key, doc);
       if (who !== me()) pingNow(who, `📌 أُسندت لك مهمة: «${title}»${doc.due ? ' — ' + leftTxt({ due: doc.due, left: diffD(doc.due, TODAY()) }) : ''}`, `${doc.caseNo ? 'القضية ' + doc.caseNo + ' · ' : ''}من ${me()}`, doc.kind, key); else syncPush();
       S.tab = doc.kind; S.open = null; document.querySelector('.sheet')?.remove(); toast('أُضيفت'); return render();
@@ -583,6 +613,15 @@ document.addEventListener('click', async e => {
     case 'reject': DB.dropReq(v); delete S.reqs[v]; return renderSheet();
     case 'unallow': if (!confirm('تزيل ' + v + '؟')) return; setAllowed((S.cfg.allowed || []).filter(x => x !== v)); return renderSheet();
     case 'ask': await DB.ask({ email: myEmail(), name: S.user.displayName || '', t: Date.now() }); S.asked = true; return render();
+    case 'remadd': {
+      const it = items().find(i => i.key === k), sel = document.getElementById('remk').value;
+      let r;
+      if (sel === 'at') { const v2 = document.getElementById('remat').value; if (!v2) return toast('اختر التاريخ والساعة', true); r = { at: new Date(v2).getTime() }; if (r.at < Date.now()) return toast('هذا الوقت فات', true); }
+      else r = { mins: +sel };
+      if ((it.doc.rem || []).some(x => x.at === r.at && x.mins === r.mins)) return toast('موجود من قبل');
+      put(k, { rem: [...(it.doc.rem || []), r] }, `أضاف تنبيهًا: ${remLabel(r)}`); toast('🔔 أُضيف التنبيه'); return renderSheet();
+    }
+    case 'remdel': { const it = items().find(i => i.key === k), R = (it.doc.rem || []).filter((_, n) => n !== +v); put(k, { rem: R }, 'حذف تنبيهًا'); return renderSheet(); }
     case 'recheck': return location.reload();
     case 'pushon': return enablePush();
     case 'pushoff': return disablePush();
@@ -590,6 +629,7 @@ document.addEventListener('click', async e => {
     case 'iam': { const m = { ...(S.cfg.members || {}) }; delete m[ek(S.user.email)]; S.cfg.members = m; DB.saveCfg({ members: { [ek(S.user.email)]: null } }); S.open = null; document.querySelector('.sheet')?.remove(); return render(); }
   }
 });
+document.addEventListener('change', e => { if (e.target.id === 'remk') { const a = document.getElementById('remat'); if (a) a.style.display = e.target.value === 'at' ? '' : 'none'; } });
 document.addEventListener('input', e => {
   if (e.target.id === 'q') { S.q = e.target.value; const pos = e.target.selectionStart; render(); const q = document.getElementById('q'); q.focus(); q.setSelectionRange(pos, pos); }
   if (e.target.id === 'doneDate') { const h = document.getElementById('hd'); if (h) h.textContent = ' — ' + hijri(e.target.value || TODAY()); }
@@ -718,7 +758,7 @@ async function initDB() {
 function demoSheet() {
   const T = (d) => hijri(iso(new Date(Date.now() + d * 864e5)));
   const H = ['رقم القضية', 'رقم الملف', 'السنة', 'المحامي', 'المحكمة', 'الدائرة', 'اسم المدعي', 'اسم المدعى عليه', 'قيمة المطالبة', 'المبلغ المحكوم', 'نوع القضية', 'تاريخ الجلسة', 'رابط الجلسة', 'عدد الجلسات', 'عدد المذكرات', 'آخر اجراء', 'المطلوب', 'نوع المذكرة', 'المتبقي', 'عداد المهلة', 'حالة القضية', 'التقرير المالي'];
-  const row = (c, law, court, opp, type, ses, memo, req, st = 'قيد النظر') => [c, '', '1447', law, court, '12', 'شركة الحمادي (تجريبي)', opp, '', '', type, ses ? `10:00:00 ص ${T(ses + 3)}` : '', '', '2', '1', 'جلسة', req, memo, '', ses ? T(ses) : '', st, ''];
+  const row = (c, law, court, opp, type, ses, memo, req, st = 'قيد النظر') => [c, '', '1447', law, court, '12', 'شركة الحمادي (تجريبي)', opp, '', '', type, ses ? `10:00:00 ص ${T(ses + 3)}` : '', '', '2', '1', 'جلسة', req, memo, '', ses ? `9:00:00 ص ${T(ses)}` : '', st, ''];
   return [
     // القضية نفسها في «العام» أيضًا، كما في الشيت الحقيقي: يجب ألا تظهر مرتين
     ['العام', [H, row('4870000101', 'الاحيدب', 'العامة', 'مؤسسة النور (تجريبي)', 'أجرة أعمال', 0, 'مذكرة جوابية', '')]],
@@ -774,8 +814,11 @@ function schedule(name) {
   // لا ملخّصات يومية: كل تنبيهٍ يقول أيّ مهمةٍ بعينها
   for (const i of mine) if (i.due) {
     add(at(addDays(i.due, -1), '09:00'), `d1:${i.key}:${i.due}`, `⏰ تنتهي مهلة «${i.title}» — باقي يوم`, where(i), i.kind);
+    for (const r of i.doc.rem || []) if (r.mins) add(baseAt(i) - r.mins * 6e4, `r:${i.key}:${i.due}:${r.mins}`, `⏰ «${i.title}» — ${r.mins < 1440 ? 'باقي ' + (r.mins === 60 ? 'ساعة' : r.mins === 180 ? '٣ ساعات' : ar(r.mins / 60) + ' ساعة') : 'باقي ' + days(r.mins / 1440)}`, where(i) + (i.dueT ? ' · المهلة ' + hm12(i.dueT) : ''), i.kind);
     add(at(addDays(i.due, 1), '09:00'), `late:${i.key}:${i.due}`, `🔴 عندك «${i.title}» المفروض ${i.kind === 'e' ? 'تنفّذها' : 'تكتبها'} أمس`, where(i), i.kind);
   }
+  // ما حدّده صاحب المهمة بوقته، وإن لم يكن لها مهلة
+  for (const i of mine) for (const r of i.doc.rem || []) if (r.at) add(r.at, `t:${i.key}:${r.at}`, `🔔 تذكير: «${i.title}»`, where(i) + (i.due ? ' · ' + leftTxt({ due: i.due, left: diffD(i.due, iso(new Date(r.at))) }) : ''), i.kind);
   return out.sort((a, b) => a.at - b.at).slice(0, 80);
 }
 // المواعيد تُحسب من الشيت، فلا نرسل قبل تحميله: وإلا مُسحت مواعيد الناس بقائمةٍ ناقصة
