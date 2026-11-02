@@ -424,7 +424,7 @@ function taskHtml(k) {
   const r = it.row || {}, d = it.doc;
   const kv = [['رقم القضية', it.caseNo], ['المحكمة', [r.court, r.circuit && 'الدائرة ' + r.circuit].filter(Boolean).join(' · ')], ['الخصم', opp(r)], ['نوع القضية', r.type],
     ['المحامي في الشيت', r.lawyer], ['الجلسة', r.session], ['آخر إجراء', r.last], ['المطلوب', r.req], ['الملاحظة', r.note], ['حالة القضية', r.status],
-    ['المهلة تنتهي', r.deadline ? r.deadline : ''], ['المتبقي في الشيت', it.kind !== 'e' && /^\d+$/.test(r.remain || '') ? days(+r.remain) : ''], ['تبويب الشيت', r.tab]].filter(x => x[1]);
+    ['المهلة تنتهي', it.due ? hijri(it.due) + (it.dueT ? ' · ' + hm12(it.dueT) : '') : r.deadline || ''], ['المتبقي في الشيت', it.kind !== 'e' && /^\d+$/.test(r.remain || '') ? days(+r.remain) : ''], ['تبويب الشيت', r.tab]].filter(x => x[1]);
   const team = S.cfg.team || [];
   // مسار القضية: كل ما يحمل رقمها، في الشيت أو في الموقع
   const path = items().filter(i => i.caseNo && i.caseNo === it.caseNo && i.key !== it.key);
