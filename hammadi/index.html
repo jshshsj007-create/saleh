@@ -476,7 +476,7 @@ function menuHtml() {
   <label>الفريق (يفصل بينهم «،»)</label><input id="steam" value="${esc((S.cfg.team || []).join('، '))}">
   <label>مسؤول التنفيذ</label><select id="sexec">${(S.cfg.team || []).map(t => `<option ${t === S.cfg.exec ? 'selected' : ''}>${esc(t)}</option>`).join('')}</select>
   <div class="btns"><button class="pri" data-act="savecfg">حفظ</button><button data-act="iam">لست ${esc(me())}؟</button></div>
-  ${isOwner() ? membersHtml() : ''}
+  ${isOwner() ? membersHtml() + hookHtml() : ''}
   <label>التنبيهات الجاية لك</label>
   ${(() => { const L = S.sheet.at || S.sheet.cachedAt ? schedule(me()) : null; if (!L) return '<div class="meta">حمّل الشيت لتظهر</div>'; if (!L.length) return '<div class="meta">لا شيء في الأيام العشرة الجاية</div>';
     return `<div class="kv">${L.slice(0, 12).map(x => `<div class="mem"><span>${esc(x.title)}<br><small class="meta">${hijri(iso(new Date(x.at)))} · ${hm12(new Date(x.at).toTimeString().slice(0, 5))}${x.body ? ' · ' + esc(x.body.split(' · ')[0]) : ''}</small></span></div>`).join('')}</div>`; })()}
@@ -557,6 +557,87 @@ function hydrate() {
   const c = S.cfg.sheetCache;
   if (S.sheet.at || !c) return;
   S.sheet.cases = c.m || []; S.sheet.appeals = c.a || []; S.sheet.cachedAt = c.at;
+}
+
+/* ───────── التنبيه اللحظي من الشيت ─────────
+   الموقع لا يرى تعديل الشيت حتى يقرأه. فسكربتٌ داخل الشيت نفسه يلتقط كل تعديل لحظته
+   (المحامي، نوع المذكرة، المهلة، وما تُحسب منه المهلة بمعادلة) ويرسله لخادم الإشعارات،
+   فيصل صاحبه على كل أجهزته وإن لم يفتح أحدٌ الموقع. والسرّ يُولَّد هنا ولا يمرّ بالمستودع */
+function hookScript(secret) {
+  return `// تنبيهات «مشروع الحمادي» لحظة تعديل الشيت — يولّدها الموقع، لا تعدّل فيها
+const HOOK = '${PUSH}hook';
+const SECRET = '${secret}';
+const ME = '${me()}';
+const SKIP = /^(التنفيذ|رسوم بيانية|بيانات_الحسابات|تقويم_أم_القرى|التقرير المالي القادم)$/;
+
+// شغّلها مرة واحدة من القائمة فوق: تربط التنبيه بالشيت وتحفظ الحالة الحالية وترسل لك تجربة
+function setup() {
+  ScriptApp.getProjectTriggers().filter(t => t.getHandlerFunction() === 'onSheetEdit').forEach(t => ScriptApp.deleteTrigger(t));
+  ScriptApp.newTrigger('onSheetEdit').forSpreadsheet(SpreadsheetApp.getActive()).onEdit().create();
+  const P = PropertiesService.getDocumentProperties();
+  SpreadsheetApp.getActive().getSheets().forEach(sh => { if (!SKIP.test(sh.getName())) scan(sh, 2, sh.getLastRow(), P, true); });
+  send(ME, '✓ سكربت الشيت مربوط', 'أي تعديل في المحامي أو المهلة يوصل صاحبه على طول', 'm');
+}
+
+function onSheetEdit(e) {
+  const sh = e.range.getSheet();
+  if (SKIP.test(sh.getName())) return;
+  scan(sh, Math.max(2, e.range.getRow()), e.range.getLastRow(), PropertiesService.getDocumentProperties(), false);
+}
+
+const clean = h => String(h || '').replace(/[\\u064B-\\u0652\\u0640\\u200e\\u200f]/g, '').replace(/[أإآ]/g, 'ا').replace(/\\s+/g, ' ').trim();
+function cols(head) {
+  const f = re => head.findIndex(h => re.test(h));
+  const std = (i, k) => i >= 0 ? i : (/^(العمود|Column)/.test(head[k] || '') ? k : -1);
+  return { caseNo: f(/رقم القضي/), lawyer: std(f(/^(المحامي|المسؤول)/), 3), memo: f(/نوع المذكر/), deadline: f(/عداد المه/) };
+}
+
+function scan(sh, r0, r1, P, silent) {
+  if (r1 < r0) return;
+  const tab = sh.getName(), appeal = /استئناف/.test(tab);
+  const head = sh.getRange(1, 1, 1, sh.getLastColumn()).getDisplayValues()[0].map(clean);
+  const c = cols(head);
+  if (c.caseNo < 0 || (!appeal && c.memo < 0)) return;
+  const rows = sh.getRange(r0, 1, r1 - r0 + 1, head.length).getDisplayValues();
+  for (const row of rows) {
+    const caseNo = String(row[c.caseNo] || '').trim(), memo = appeal ? 'لائحة اعتراض' : String(row[c.memo] || '').trim();
+    if (!caseNo || !memo) continue;
+    const lawyer = c.lawyer >= 0 ? String(row[c.lawyer] || '').trim() : '';
+    const dl = c.deadline >= 0 ? String(row[c.deadline] || '').trim() : '';
+    const key = (appeal ? 'a|' : 'm|') + caseNo + '|' + memo, prev = JSON.parse(P.getProperty(key) || 'null');
+    P.setProperty(key, JSON.stringify({ l: lawyer, d: dl }));
+    if (silent) continue;
+    const t = appeal ? 'a' : 'm', where = 'القضية ' + caseNo + (dl ? ' · المهلة ' + dl : '');
+    if (!prev || prev.l !== lawyer) {
+      if (lawyer) send(lawyer, '📌 تم إسناد المهمة إليك: «' + memo + '»', where, t);
+      if (prev && prev.l) send(prev.l, '🔁 أُسندت «' + memo + '» إلى ' + (lawyer || 'لا أحد'), 'القضية ' + caseNo, t);
+    } else if (prev.d !== dl && lawyer) {
+      send(lawyer, '⏳ تعدّلت مهلة «' + memo + '»' + (dl ? ' — صارت ' + dl : ''), 'القضية ' + caseNo + (prev.d ? ' · كانت ' + prev.d : ''), t);
+    }
+  }
+}
+
+function send(to, title, body, tab) {
+  UrlFetchApp.fetch(HOOK, { method: 'post', contentType: 'application/json', muteHttpExceptions: true,
+    payload: JSON.stringify({ secret: SECRET, to: to, title: title, body: body, tab: tab, k: 'hook:' + Date.now() }) });
+}
+`;
+}
+function hookHtml() {
+  const sec = S.cfg.hookSecret;
+  return `<label>التنبيه اللحظي من الشيت</label>
+  ${!sec ? `<div class="meta">سكربت صغير تلصقه في الشيت مرة واحدة: أي تعديل في «المحامي» أو «عداد المهلة» يوصل صاحبه على طول، ولو ما أحد فاتح الموقع.</div>
+    <div class="btns"><button class="pri" data-act="hookmake">⚡ جهّز السكربت</button></div>`
+  : `<div class="kv" style="padding:10px 12px;font-size:13.5px;line-height:1.9">
+      ١. افتح «جدول قضايا الحمادي» من <b>الكمبيوتر</b> ← <b>الإضافات</b> ← <b>Apps Script</b>.<br>
+      ٢. على اليسار جنب «الملفات» اضغط <b>+</b> ← <b>نص برمجي</b>، وسمّه <b>تنبيهات</b>. (لا تمسح ملف النسخة الاحتياطية)<br>
+      ٣. امسح ما فيه، والصق السكربت اللي تحت، واضغط 💾 <b>حفظ</b>.<br>
+      ٤. من القائمة فوق اختر <b>setup</b> واضغط <b>▶ تشغيل</b>، ووافق على الأذونات (Advanced ← Go to … ← Allow).<br>
+      ٥. يوصلك على جوالك «✓ سكربت الشيت مربوط». بعدها فعّل الخيار اللي تحت.</div>
+    <textarea id="hookcode" readonly dir="ltr" style="margin-top:8px;height:110px;font-family:monospace;font-size:11px">${esc(hookScript(sec))}</textarea>
+    <div class="btns"><button class="pri" data-act="hookcopy">📋 نسخ السكربت</button></div>
+    <div class="btns">${S.cfg.hookOn ? '<button data-act="hookon" data-v="0">✓ السكربت شغّال — إيقاف الاعتماد عليه</button>' : '<button class="ok" data-act="hookon" data-v="1">وصلني «✓ سكربت الشيت مربوط»</button>'}</div>
+    <div class="meta">${S.cfg.hookOn ? 'الشيت يبلغ لحظيًا، والموقع يسجّل بلا تكرار.' : 'حتى تضغطه، يبقى الموقع يبلغ بنفسه لما يقرأ الشيت.'}</div>`}`;
 }
 
 /* ───────── الكتابة ───────── */
@@ -662,6 +743,16 @@ document.addEventListener('click', async e => {
     }
     case 'remdel': { const it = items().find(i => i.key === k), R = (it.doc.rem || []).filter((_, n) => n !== +v); put(k, { rem: R }, 'حذف تنبيهًا'); return renderSheet(); }
     case 'recheck': return location.reload();
+    case 'hookmake': {
+      const b = new Uint8Array(24); crypto.getRandomValues(b);
+      const secret = btoa(String.fromCharCode(...b)).replace(/[+/=]/g, c => ({ '+': '-', '/': '_', '=': '' }[c]));
+      t.disabled = true;
+      try { const r = DEMO ? { ok: true } : await api('hook-init', { secret }); if (!r.ok) throw new Error(r.error === 'already set' ? 'الخادم مربوط بسرٍّ قديم — كلّمني' : r.error); }
+      catch (e2) { toast('ما زبط: ' + e2.message, true); return renderSheet(); }
+      S.cfg.hookSecret = secret; DB.saveCfg({ hookSecret: secret }); return renderSheet();
+    }
+    case 'hookcopy': { const ta = document.getElementById('hookcode'); ta.select(); try { await navigator.clipboard.writeText(ta.value); toast('✓ نُسخ السكربت'); } catch (e2) { document.execCommand('copy'); toast('✓ نُسخ'); } return; }
+    case 'hookon': S.cfg.hookOn = v === '1'; DB.saveCfg({ hookOn: S.cfg.hookOn }); toast(S.cfg.hookOn ? '✓ السكربت يبلغ لحظيًا، والموقع ما يكرّر' : 'رجع الموقع يبلغ بنفسه'); return renderSheet();
     case 'pushnow': { t.disabled = true; t.textContent = '⏳ جاري الإرسال…'; await syncAll({}, true); return renderSheet(); }
     case 'pushon': return enablePush();
     case 'pushoff': return disablePush();
@@ -881,10 +972,12 @@ function freshAssignments() {
     const all = {}; for (const i of open) all[i.key] = i.who;
     S.cfg.seen = all; S.cfg.seenInit = true; DB.saveCfg({ seen: all, seenInit: true }); return {};
   }
+  // سكربت الشيت مركّب: هو يبلغ لحظة التعديل، فالموقع يسجّل ولا يكرّر الإشعار
+  const quiet = !!S.cfg.hookOn;
   const out = {}, upd = {};
   for (const i of open) if (seen[i.key] !== i.who) {
     upd[i.key] = i.who;
-    (out[i.who] = out[i.who] || []).push({ at: Date.now() + 5000, k: `as:${i.key}:${i.who}`, title: `📌 أُسندت لك مهمة: «${i.title}»${leftTxt(i) ? ' — ' + leftTxt(i) : ''}`, body: [i.caseNo && 'القضية ' + i.caseNo, i.row?.court, !i.doc.assignee && 'من الشيت'].filter(Boolean).join(' · '), tab: i.kind, now: true });
+    if (!quiet) (out[i.who] = out[i.who] || []).push({ at: Date.now() + 5000, k: `as:${i.key}:${i.who}`, title: `📌 أُسندت لك مهمة: «${i.title}»${leftTxt(i) ? ' — ' + leftTxt(i) : ''}`, body: [i.caseNo && 'القضية ' + i.caseNo, i.row?.court, !i.doc.assignee && 'من الشيت'].filter(Boolean).join(' · '), tab: i.kind, now: true });
   }
   if (Object.keys(upd).length) { S.cfg.seen = { ...seen, ...upd }; DB.saveCfg({ seen: upd }); }
   // تعديل المهلة: لكل مهمة آخر موعدٍ أُبلغ به صاحبها. تغيّر؟ يُبلَّغ، أيًّا كان من عدّله في الشيت.
@@ -902,7 +995,7 @@ function freshAssignments() {
     if (!was || upd[i.key]) continue;  // جديدةٌ عليه: يكفيه إشعار الإسناد وفيه كم باقي
     const moved = Math.abs(diffD(i.due, was.slice(0, 10)));
     if (i.dueSrc === 'remain' && moved <= 1 && was.slice(11) === (i.dueT || '')) continue;
-    (out[i.who] = out[i.who] || []).push({ at: Date.now() + 5000, k: `dc:${i.key}:${v}`, title: `⏳ تعدّلت مهلة «${i.title}» — صارت ${hijri(i.due)}${i.dueT ? ' ' + hm12(i.dueT) : ''}`, body: [i.caseNo && 'القضية ' + i.caseNo, leftTxt(i), 'كانت ' + hijri(was.slice(0, 10))].filter(Boolean).join(' · '), tab: i.kind, now: true });
+    if (!quiet) (out[i.who] = out[i.who] || []).push({ at: Date.now() + 5000, k: `dc:${i.key}:${v}`, title: `⏳ تعدّلت مهلة «${i.title}» — صارت ${hijri(i.due)}${i.dueT ? ' ' + hm12(i.dueT) : ''}`, body: [i.caseNo && 'القضية ' + i.caseNo, leftTxt(i), 'كانت ' + hijri(was.slice(0, 10))].filter(Boolean).join(' · '), tab: i.kind, now: true });
   }
   if (Object.keys(updD).length) { S.cfg.seenDue = { ...sd, ...updD }; DB.saveCfg({ seenDue: updD }); }
   return out;
@@ -925,7 +1018,8 @@ async function syncAll(extra = {}, force) {
     try {
       const list = schedule(name).concat(extra[name] || []), sig = JSON.stringify(list.filter(x => !x.now));
       if (!force && !extra[name] && sent[sub.endpoint] === sig) continue;
-      const r = await api('sync', { sub, items: list.map(({ now, ...x }) => x) });
+      // ومعها لمن الجهاز: بها يجده سكربت الشيت ليبلغه لحظة التعديل
+      const r = await api('sync', { sub, items: list.map(({ now, ...x }) => x), who: name, group: 'hammadi' });
       if (r.ok) { sent[sub.endpoint] = sig; pushLog.at = new Date(); pushLog.n++; pushLog.err = ''; if (name === me()) { pushLog.count = r.count; pushLog.next = r.next; } }
       else pushLog.err = r.error || 'رفض الخادم';
     } catch (e) { console.error('push', e); pushLog.err = e.name === 'AbortError' ? 'الخادم ما ردّ خلال ٢٠ ثانية' : e.message || String(e); }
