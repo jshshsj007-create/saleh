@@ -295,7 +295,12 @@ function items() {
     for (const [f, v] of Object.entries(r)) if (v && !o[f]) o[f] = v;
   }
   // موعد المذكرة من «عداد المهلة» لا من الجلسة: هكذا يعتمده الفريق في الشيت
-  for (const [key, r] of memos) add({ key, kind: 'm', title: r.memo, caseNo: r.caseNo, lawyer: r.lawyer, due: dueOf(r), dueSrc: dueSrc(r), row: r, sheetLeft: r.remain });
+  // «تنفيذ» في «نوع المذكرة»: ليست مذكرة بل حكمٌ يُنفَّذ، فتذهب لتبويب التنفيذ ولمسؤوله مباشرة،
+  // أيًّا كان الاسم في «المحامي». ومفتاحها مفتاح «إسناد للتنفيذ» نفسه، فلا تتكرّر إن أُحيلت من الموقع أيضًا
+  for (const [key, r] of memos) {
+    if (/تنفيذ/.test(r.memo)) add({ key: `e|${r.caseNo}`, kind: 'e', title: 'تنفيذ حكم', caseNo: r.caseNo, lawyer: execWho() || r.lawyer, due: dueOf(r), dueSrc: dueSrc(r), row: r, sheetLeft: r.remain });
+    else add({ key, kind: 'm', title: r.memo, caseNo: r.caseNo, lawyer: r.lawyer, due: dueOf(r), dueSrc: dueSrc(r), row: r, sheetLeft: r.remain });
+  }
   const seenA = new Set();
   for (const r of S.sheet.appeals) {
     if (seenA.has(r.caseNo)) continue; seenA.add(r.caseNo);
@@ -583,6 +588,7 @@ function hookScript(secret) {
 const HOOK = '${PUSH}hook';
 const SECRET = '${secret}';
 const ME = '${me()}';
+const EXEC = '${execWho()}';  // «تنفيذ» في نوع المذكرة يذهب له، أيًّا كان المحامي
 const SKIP = /^(التنفيذ|رسوم بيانية|بيانات_الحسابات|تقويم_أم_القرى|التقرير المالي القادم)$/;
 
 // شغّلها مرة واحدة من القائمة فوق: تربط التنبيه بالشيت وتحفظ الحالة الحالية وترسل لك تجربة
@@ -617,12 +623,13 @@ function scan(sh, r0, r1, P, silent) {
   for (const row of rows) {
     const caseNo = String(row[c.caseNo] || '').trim(), memo = appeal ? 'لائحة اعتراض' : String(row[c.memo] || '').trim();
     if (!caseNo || !memo) continue;
-    const lawyer = c.lawyer >= 0 ? String(row[c.lawyer] || '').trim() : '';
+    const exec = !appeal && /تنفيذ/.test(memo);
+    const lawyer = exec ? EXEC : c.lawyer >= 0 ? String(row[c.lawyer] || '').trim() : '';
     const dl = c.deadline >= 0 ? String(row[c.deadline] || '').trim() : '';
     const key = (appeal ? 'a|' : 'm|') + caseNo + '|' + memo, prev = JSON.parse(P.getProperty(key) || 'null');
     P.setProperty(key, JSON.stringify({ l: lawyer, d: dl }));
     if (silent) continue;
-    const t = appeal ? 'a' : 'm', where = 'القضية ' + caseNo + (dl ? ' · المهلة ' + dl : '');
+    const t = appeal ? 'a' : exec ? 'e' : 'm', where = 'القضية ' + caseNo + (dl ? ' · المهلة ' + dl : '');
     if (!prev || prev.l !== lawyer) {
       if (lawyer) send(lawyer, '📌 تم إسناد المهمة إليك: «' + memo + '»', where, t);
       if (prev && prev.l) send(prev.l, '🔁 أُسندت «' + memo + '» إلى ' + (lawyer || 'لا أحد'), 'القضية ' + caseNo, t);
@@ -958,6 +965,7 @@ function demoSheet() {
       row('4870000106', '', 'العامة', 'مؤسسة البناء (تجريبي)', 'مقاولة', 15, 'مذكرة رد', ''),
       row('4870000107', 'القاسم', 'العامة', 'شركة الضياء (تجريبي)', 'أجرة أعمال', 4, 'مذكرة جوابية', 'حكم لصالح الحمادي', 'حكم لصالح الحمادي'),
       row('4870000199', 'الشلعان', 'العامة', 'شركة قديمة (تجريبي)', 'أجرة أعمال', 0, '', '', 'حكم لصالح الحمادي'),
+      row('4870000108', 'الشلعان', 'العامة', 'شركة الندى (تجريبي)', 'أجرة أعمال', 5, 'تنفيذ', 'تنفيذ الحكم', 'حكم لصالح الحمادي'),
     ]],
     ['لوائح الاستئناف', [['رقم القضية', 'العمود 2', 'العمود 3', 'المسؤول', 'العمود 5', 'العمود 6', 'العمود 7', 'العمود 8', 'العمود 9', 'العمود 10', 'العمود 11', 'تارريخ انتهاء', 'العمود 13', 'العمود 14', 'العمود 15', 'ملاحظة', 'العمود 17', 'المتبقي', 'عداد المهلة', 'حالة القضية', 'التقرير المالي'],
       ['4870000201', '', '1447', 'الاحيدب', 'العامة', '13', 'الحمادي', 'شركة الهدى (تجريبي)', '', '', 'أجرة أعمال', '', '', '', '', 'صدر الحكم ضد الحمادي', '', '2', T(2), 'حكم ضد الحمادي', ''],
