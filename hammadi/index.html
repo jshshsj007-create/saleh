@@ -540,7 +540,7 @@ function remHtml(it) {
   <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
     <select id="remk" style="flex:1;min-width:150px">${it.due ? REM_OPTS.map(([m, l]) => `<option value="${m}" ${dr.remk == m ? 'selected' : ''}>${l}${it.dueT ? '' : ' (من ٩ ص)'}</option>`).join('') : ''}<option value="at" ${dr.remk === 'at' ? 'selected' : ''}>وقت أحدّده…</option></select>
     <input type="datetime-local" id="remat" value="${dr.remat || localDT(Date.now() + 15 * 6e4)}" min="${localDT(Date.now())}" style="flex:1;min-width:180px;${it.due && dr.remk !== 'at' ? 'display:none' : ''}">
-    ${flash ? '<button class="sm ok" data-act="remadd" data-k="' + esc(it.key) + '">✓ تم</button>' : '<button class="sm pri" data-act="remadd" data-k="' + esc(it.key) + '">+ تنبيه</button>'}</div>
+    ${flash ? '<button class="sm ok" data-act="remadd" data-k="' + esc(it.key) + '">✓ تم</button>' : '<button class="sm pri" data-act="remadd" data-k="' + esc(it.key) + '">✓ تأكيد الموعد</button>'}</div>
   ${flash ? `<div class="banner" style="display:block;margin:8px 0 0;background:var(--gbg);color:var(--g);font-weight:600">✓ تم إضافة التنبيه: ${esc(flash)}<br><small style="font-weight:500">يوصل جوال ${esc(it.who || 'صاحب المهمة')} في وقته</small></div>` : ''}`;
 }
 
