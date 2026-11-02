@@ -469,6 +469,10 @@ function menuHtml() {
   <label>مسؤول التنفيذ</label><select id="sexec">${(S.cfg.team || []).map(t => `<option ${t === S.cfg.exec ? 'selected' : ''}>${esc(t)}</option>`).join('')}</select>
   <div class="btns"><button class="pri" data-act="savecfg">حفظ</button><button data-act="iam">لست ${esc(me())}؟</button></div>
   ${isOwner() ? membersHtml() : ''}
+  <label>التنبيهات الجاية لك</label>
+  ${(() => { const L = S.sheet.at ? schedule(me()) : null; if (!L) return '<div class="meta">حمّل الشيت لتظهر</div>'; if (!L.length) return '<div class="meta">لا شيء في الأيام العشرة الجاية</div>';
+    return `<div class="kv">${L.slice(0, 12).map(x => `<div class="mem"><span>${esc(x.title)}<br><small class="meta">${hijri(iso(new Date(x.at)))} · ${hm12(new Date(x.at).toTimeString().slice(0, 5))}</small></span></div>`).join('')}</div>`; })()}
+  <div class="meta" style="margin-top:6px">${!S.cfg.subs?.[me()] || !Object.values(S.cfg.subs[me()]).some(Boolean) ? '⚠️ ما فعّلت الإشعارات على أي جهاز، فما يوصلك شيء.' : pushLog.err ? '⚠️ آخر إرسال للخادم فشل: ' + esc(pushLog.err) : pushLog.at ? '✓ أُرسلت للخادم الساعة ' + hm12(pushLog.at.toTimeString().slice(0, 5)) : 'تُرسل للخادم بعد ثوانٍ من أي تعديل'}</div>
   <label>الإشعارات على هذا الجهاز</label>
   <div class="btns">${pushOn() ? '<button data-act="pushoff">🔕 إيقاف الإشعارات</button>' : '<button class="ok" data-act="pushon">🔔 تفعيل الإشعارات</button>'}</div>
   <div class="meta" style="margin-top:6px">تصلك والجوال مقفل، ثلاثة لكل مهمة: لما تُسند لك، وقبل انتهاء مهلتها بيوم، وصباح اليوم التالي إن فاتت. ${isIOS && !standalone() ? '<br><b>في الآيفون:</b> أضف الموقع للشاشة الرئيسية أولًا (زر المشاركة ← «إضافة إلى الشاشة الرئيسية»)، وافتحه من أيقونته، ثم فعّلها.' : ''}</div>
@@ -847,16 +851,29 @@ function freshAssignments() {
   if (Object.keys(upd).length) { S.cfg.seen = { ...seen, ...upd }; DB.saveCfg({ seen: upd }); }
   return out;
 }
+// الإرسال لا يحتاج أن يدعم هذا الجهاز الإشعارات: يكفيه أن يصل للخادم. فيُرسَل من أي متصفح،
+// وحتى من سفاري الآيفون خارج أيقونة الشاشة الرئيسية
+const pushLog = { at: null, n: 0, err: '' };
+let pendingPush = false;
 async function syncAll(extra = {}) {
-  if (!pushOK() || !S.sheet.at || !S.cfg.subs) return;
-  const fresh = freshAssignments();
+  if (DEMO || !S.cfg.subs) return;
+  // بلا الشيت تنقص المواعيد، فإرسالها يمسح ما عند الخادم. نؤجّل حتى يُحمَّل، وهو يرسل حينها
+  if (!S.sheet.at) { if (!pendingPush) toast('حمّل الشيت عشان توصل التنبيهات', true); pendingPush = true; return; }
+  pendingPush = false;
+  let fresh = {};
+  try { fresh = freshAssignments(); } catch (e) { console.error('fresh', e); }
   extra = { ...extra }; for (const [n, L] of Object.entries(fresh)) extra[n] = [...(extra[n] || []), ...L];
   for (const [name, devs] of Object.entries(S.cfg.subs)) for (const sub of Object.values(devs || {})) {
     if (!sub || !sub.endpoint) continue;
-    const list = schedule(name).concat(extra[name] || []), sig = JSON.stringify(list.filter(x => !x.now));
-    if (!extra[name] && sent[sub.endpoint] === sig) continue;
-    try { const r = await api('sync', { sub, items: list.map(({ now, ...x }) => x) }); if (r.ok) sent[sub.endpoint] = sig; } catch (e) { console.error('push', e); }
+    try {
+      const list = schedule(name).concat(extra[name] || []), sig = JSON.stringify(list.filter(x => !x.now));
+      if (!extra[name] && sent[sub.endpoint] === sig) continue;
+      const r = await api('sync', { sub, items: list.map(({ now, ...x }) => x) });
+      if (r.ok) { sent[sub.endpoint] = sig; pushLog.at = new Date(); pushLog.n++; pushLog.err = ''; }
+      else pushLog.err = r.error || 'رفض الخادم';
+    } catch (e) { console.error('push', e); pushLog.err = e.message || String(e); }
   }
+  if (S.open?.type === 'menu') renderSheet();
 }
 // وضع التجربة: قائمة التنبيهات مكشوفة للفحص قبل النشر
 if (DEMO) { window.__sched = schedule; window.__fresh = freshAssignments; }
