@@ -532,13 +532,16 @@ function remHtml(it) {
   const R = remsOf(it.doc);
   // ما اختاره ولم يضغط «+ تنبيه» بعد: يبقى وإن أُعيد رسم النافذة بتحديثٍ وصل من القاعدة
   const dr = S.draft.k === it.key ? S.draft : {};
+  // تأكيدٌ ظاهر بعد الإضافة، ثماني ثوانٍ: الزرّ أخضر «✓ تم» وتحته ما أُضيف بوقته
+  const flash = S.remFlash && S.remFlash.k === it.key && Date.now() - S.remFlash.t < 8000 ? S.remFlash.label : '';
   return `<label>التنبيهات</label>
   <div class="chips" style="margin-top:2px"><span class="chip n">📌 عند الإسناد</span>${it.due ? '<span class="chip n">⏰ قبل المهلة بيوم</span><span class="chip n">🔴 بعد فواتها بيوم</span>' : ''}
   ${R.map((r, n) => `<span class="chip b">🔔 ${esc(remLabel(r))} <button class="link" style="color:inherit;font-weight:700;margin-inline-start:4px" data-act="remdel" data-k="${esc(it.key)}" data-v="${esc(r.id)}" aria-label="حذف">✕</button></span>`).join('')}</div>
   <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
     <select id="remk" style="flex:1;min-width:150px">${it.due ? REM_OPTS.map(([m, l]) => `<option value="${m}" ${dr.remk == m ? 'selected' : ''}>${l}${it.dueT ? '' : ' (من ٩ ص)'}</option>`).join('') : ''}<option value="at" ${dr.remk === 'at' ? 'selected' : ''}>وقت أحدّده…</option></select>
     <input type="datetime-local" id="remat" value="${dr.remat || localDT(Date.now() + 15 * 6e4)}" min="${localDT(Date.now())}" style="flex:1;min-width:180px;${it.due && dr.remk !== 'at' ? 'display:none' : ''}">
-    <button class="sm pri" data-act="remadd" data-k="${esc(it.key)}">+ تنبيه</button></div>`;
+    ${flash ? '<button class="sm ok" data-act="remadd" data-k="' + esc(it.key) + '">✓ تم</button>' : '<button class="sm pri" data-act="remadd" data-k="' + esc(it.key) + '">+ تنبيه</button>'}</div>
+  ${flash ? `<div class="banner" style="display:block;margin:8px 0 0;background:var(--gbg);color:var(--g);font-weight:600">✓ تم إضافة التنبيه: ${esc(flash)}<br><small style="font-weight:500">يوصل جوال ${esc(it.who || 'صاحب المهمة')} في وقته</small></div>` : ''}`;
 }
 
 /* ───────── ملخّص الشيت المحفوظ ─────────
@@ -758,10 +761,15 @@ document.addEventListener('click', async e => {
       if (remsOf(it.doc).some(x => x.at === r.at && x.mins === r.mins)) return toast('موجود من قبل');
       S.draft = {};
       const legacy = Array.isArray(it.doc.rem) ? Object.fromEntries(remsOf(it.doc).map(({ id, ...x }) => ['r' + id, x])) : {};
-      put(k, { rem: { ...legacy, ['r' + Date.now().toString(36)]: r } }, `أضاف تنبيهًا: ${remLabel(r)}`); toast('🔔 أُضيف التنبيه'); return renderSheet();
+      put(k, { rem: { ...legacy, ['r' + Date.now().toString(36)]: r } }, `أضاف تنبيهًا: ${remLabel(r)}`);
+      S.remFlash = { k, label: remLabel(r), t: Date.now() }; setTimeout(() => { if (S.open?.k === k) renderSheet(); }, 8100);
+      toast('✓ تم إضافة التنبيه'); return renderSheet();
     }
     case 'remdel': {
       const it = items().find(i => i.key === k);
+      // ✕ التنبيه قريبةٌ من ✕ الرجوع، فالحذف يُسأل عنه
+      const which = remsOf(it.doc).find(x => x.id === v);
+      if (!confirm(`تحذف تنبيه «${which ? remLabel(which) : ''}»؟`)) return;
       const patch = Array.isArray(it.doc.rem) ? Object.fromEntries(remsOf(it.doc).filter(x => x.id !== v).map(({ id, ...x }) => ['r' + id, x])) : { [v]: null };
       put(k, { rem: patch }, 'حذف تنبيهًا'); return renderSheet();
     }
