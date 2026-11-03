@@ -639,7 +639,7 @@ function archiveHtml() {
    الأنظمة الصحية في regs.json: قُرئت صفحاتها آليًّا (أغلبها صورٌ ممسوحة) وقُسّمت موادَّ.
    ومذكراتنا لا تمرّ بالمستودع أبدًا (فيها أسماء مرضى وقضايا): سكربت الشيت يجمع نصوصها في جدولٍ
    داخل درايف المكتب، والموقع يقرؤه بإذن الداخل كما يقرأ جدول القضايا. وكل شيءٍ يُبحث فيه معًا */
-const REGV = 2;
+const REGV = 3;
 async function loadLib(force) {
   const L = S.lib;
   if (L.loading) return;
@@ -752,13 +752,15 @@ function libHtml() {
   if (!L.regs && !L.loading && !L.err) setTimeout(() => loadLib(), 0);
   const nRegs = (L.regs || []).filter(d => !d.ax).length, nAx = (L.regs || []).filter(d => d.ax).length;
   const nSel = L.sel.size;
-  return `<div class="h1">المكتبة القانونية</div><div class="sub">${L.regs ? `${ar(nRegs)} نظامًا ولائحة وتعميمًا · ${ar(nAx)} مرفقًا${L.memos ? ` · ${ar(L.memos.length)} من مذكراتنا` : ''}` : 'الأنظمة الصحية ومذكراتنا في بحثٍ واحد'}</div>
+  return `<div class="h1">المكتبة القانونية</div><div class="sub">${L.regs ? `${cnt(nRegs, 'نظام', 'نظامان', 'أنظمة', 'نظامًا')} ولائحة وتعميم · ${cnt(nAx, 'مرفق', 'مرفقان', 'مرفقات', 'مرفقًا')}${L.memos ? ` · ${ar(L.memos.length)} من مذكراتنا` : ''}` : 'الأنظمة الصحية ومذكراتنا في بحثٍ واحد'}</div>
   <div class="lsearch"><input type="search" id="lq" placeholder="المادة ١٦ المؤسسات · الحالات الطارئة · بذل عناية" value="${esc(L.q)}" autocomplete="off" enterkeyhint="search"></div>
   <div class="seg">${[['all', 'الكل'], ['reg', 'الأنظمة'], ['ax', 'المرفقات'], ['memo', 'مذكراتنا']].map(([k, l]) => `<button class="${L.f === k ? 'on' : ''}" data-act="libf" data-v="${k}">${l}</button>`).join('')}
     <button class="fbtn${nSel ? ' on' : ''}" data-act="libsel" aria-label="تصفية الأنظمة"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M3 5h18M6 12h12M10 19h4"/></svg>${nSel ? ar(nSel) : 'تصفية'}</button></div>
   ${nSel ? `<div class="selbar">${[...L.sel].map(id => (L.regs || []).find(d => d.id === id)).filter(Boolean).slice(0, 4).map(d => `<span class="chip b">${esc(shortT(d.t))}</span>`).join('')}${nSel > 4 ? `<span class="chip n">+${ar(nSel - 4)}</span>` : ''}<button class="link" data-act="libselclear">إلغاء التصفية</button></div>` : ''}
   <div id="libres">${libBody()}</div>`;
 }
+// تمييز العدد: ١ مرفق، ٢ مرفقان، ٣–١٠ مرفقات، ١١+ مرفقًا
+const cnt = (n, one, two, few, many) => n === 1 ? one : n === 2 ? two : `${ar(n)} ${n >= 3 && n <= 10 ? few : many}`;
 const shortT = t => t.replace(/^(نظام|تنظيم|اللائحة التنفيذية لنظام|لائحة)\s+/, '').replace(/\s*ولائحته التنفيذية$/, '').slice(0, 34);
 // النتائج وحدها تُرسم مع الكتابة؛ خانة البحث لا تُمسّ فلا يتعثّر الإدخال
 function libBody() {
@@ -794,9 +796,9 @@ function libHome() {
   const L = S.lib, top = [...(L.citeMap || new Map()).values()].sort((a, b) => b.list.length - a.list.length).slice(0, 8);
   const idx = new Map(L.rows.map((r, i) => [r, i]));
   const grp = g => (L.regs || []).filter(d => d.g === g);
-  const regRow = d => `<button class="row1" data-act="libreg" data-v="${esc(d.id)}"><span class="t"><b>${esc(d.t)}</b><small>${d.big ? 'ملفٌ كبير لم يُقرأ نصّه — يُفتح من الأصل' : d.a ? ar(d.a.filter(x => x[0]).length) + ' مادة' : ar(d.np) + (d.np <= 10 ? ' صفحات' : ' صفحة')}</small></span><span class="cv" style="color:var(--mute)">‹</span></button>`;
+  const regRow = d => `<button class="row1" data-act="libreg" data-v="${esc(d.id)}"><span class="t"><b>${esc(d.t)}</b><small>${d.big ? 'ملفٌ كبير لم يُقرأ نصّه — يُفتح من الأصل' : d.a ? ar(d.a.filter(x => x[0]).length) + ' مادة' : cnt(d.np, 'صفحة واحدة', 'صفحتان', 'صفحات', 'صفحة')}</small></span><span class="cv" style="color:var(--mute)">‹</span></button>`;
   return (top.length ? `<div class="bh">الأكثر استشهادًا في مذكراتنا</div><div class="box">${top.map(g => `<button class="row1" ${g.row ? `data-act="libart" data-v="${idx.get(g.row)}"` : `data-act="libcite" data-v="${esc(g.reg + '|' + g.n)}"`}><span class="t"><b>المادة ${ar(g.n)}</b><small>${esc(g.reg)}</small></span><span class="r2" style="color:var(--a)">${ar(g.list.length)}<span class="k">${g.list.length === 1 ? 'مذكرة' : g.list.length === 2 ? 'مذكرتان' : 'مذكرات'}</span></span></button>`).join('')}</div>` : '')
-    + ['أنظمة ولوائح', 'تعاميم وأدلة', 'مرفقات لائحة المؤسسات الصحية الخاصة'].map(g => grp(g).length ? `<div class="bh">${g}<span class="c">${ar(grp(g).length)}</span></div><div class="box regs">${(g.startsWith('مرفقات') && !L.axOpen ? grp(g).slice(0, 6) : grp(g)).map(regRow).join('')}${g.startsWith('مرفقات') && !L.axOpen ? `<button class="row1" data-act="libax"><span class="t"><b style="color:var(--b)">عرض كل المرفقات (${ar(grp(g).length)})</b></span></button>` : ''}</div>` : '').join('')
+    + ['أنظمة ولوائح', 'تعاميم وأدلة', 'مرفقات لائحة المؤسسات الصحية الخاصة'].map(g => grp(g).length ? `<div class="bh">${g}<span class="c">${ar(grp(g).length)}</span></div><div class="box regs">${(g.startsWith('مرفقات') && !L.axOpen ? grp(g).slice(0, 6) : grp(g)).map(regRow).join('')}${g.startsWith('مرفقات') && !L.axOpen && grp(g).length > 6 ? `<button class="row1" data-act="libax"><span class="t"><b style="color:var(--b)">عرض كل المرفقات (${ar(grp(g).length)})</b></span></button>` : ''}</div>` : '').join('')
     + `<div class="ocrnote" style="margin:14px 16px 0">نصوص الأنظمة مقروءة آليًّا من ملفات «أنظمة صحية» في درايف المكتب، وقد يخطئ فيها حرف. للاستشهاد افتح الملف الأصلي من زرّه.</div>`;
 }
 const pdfUrl = id => `https://drive.google.com/file/d/${encodeURIComponent(id)}/view`;
@@ -821,7 +823,7 @@ function regHtml(id) {
   const rows = L.rows.filter(x => x.id === id && x.kind !== 'مذكره');
   let lastPart = 0;
   return `<div class="meta">${d.g}</div><h2 style="margin-top:2px">${esc(d.t)}</h2>
-  <a class="drive" href="${pdfUrl(id)}" target="_blank" rel="noopener">📄 فتح الملف الأصلي${d.np ? ` (${ar(d.np)} ${d.np <= 10 ? 'صفحات' : 'صفحة'})` : ''}</a>
+  <a class="drive" href="${pdfUrl(id)}" target="_blank" rel="noopener">📄 فتح الملف الأصلي${d.np ? ` (${cnt(d.np, 'صفحة واحدة', 'صفحتان', 'صفحات', 'صفحة')})` : ''}</a>
   ${d.big ? '<div class="meta" style="margin-top:10px">هذا الملف أكبر من أن يُقرأ آليًّا هنا، فنصّه غير داخلٍ في البحث. افتحه من الأصل.</div>' : ''}
   <div class="box" style="margin:12px 0 0">${rows.map(r => {
     const ph = r.part !== lastPart && r.part > 1 ? `<div class="bh" style="margin:10px 14px 4px">${esc((d.parts || {})[r.part] || 'الجزء ' + ar(r.part))}</div>` : ''; lastPart = r.part || lastPart;
