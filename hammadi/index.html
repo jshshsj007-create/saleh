@@ -222,13 +222,16 @@ mark{background:color-mix(in srgb,var(--gold) 38%,transparent);color:inherit;bor
 .pick:first-child{border-top:0}
 .pick .bx{width:20px;height:20px;border-radius:6px;border:1.5px solid var(--line);flex:none;display:grid;place-items:center;font-size:12px;color:#fff}
 .pick.on .bx{background:var(--navy);border-color:var(--navy)}
+.ownbar{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:8px}
+.ownbar small{color:var(--mute);font-size:11.5px}
+.ownbar .link{margin-inline-start:auto;font-size:12.5px}
 .libsetup{margin:14px;background:var(--card);border:1px dashed color-mix(in srgb,var(--a) 45%,var(--line));border-radius:14px;padding:12px 14px;font-size:13.5px;line-height:1.8}
 </style>
 </head>
 <body>
 <div id="app"><div class="login"><p>جاري التحميل…</p></div></div>
 <script type="module">
-import * as LIB from './lib.js?v=5';
+import * as LIB from './lib.js?v=7';
 // ?demo: الموقع كاملًا ببياناتٍ وهمية في الجهاز، بلا Firebase ولا شيت — للتجربة والفحص قبل النشر
 const DEMO = new URLSearchParams(location.search).has('demo');
 
@@ -668,7 +671,7 @@ function memosFrom(res) {
   const seen = new Map();
   for (const r of res.rows) {
     const [id, title, mime, mod, owner, url, folder, inRoot, text] = r;
-    if (!id || !text || !LIB.memoOurs(title, text)) continue;
+    if (!id || !text) continue;
     // ملفٌ خارج مجلد الحمادي لا يُعدّ إلا إن ذكر الحمادي في نصّه
     if (String(inRoot) !== '1' && !/حماد/.test(text)) continue;
     const k = LIB.norm(String(title).replace(/\.[a-z]{2,5}$/i, '')).replace(/[_\-\s()]+/g, '');
@@ -679,11 +682,16 @@ function memosFrom(res) {
   // ونصٌّ متطابق بعنوانين مختلفين: يُبقى أحدهما
   const byText = new Map();
   for (const m of seen.values()) { const f = LIB.norm(m.text).replace(/\s+/g, '').slice(0, 500); if (!byText.has(f) || pref(m.mime) < pref(byText.get(f).mime)) byText.set(f, m); }
+  // كل المذكرات تُحفظ، ومذكرتنا منها ما رجّحته العلامات أو ما صحّحه الفريق يدويًا (ownOf)
   return [...byText.values()].map(m => ({
     ...m, kind: LIB.memoKind(m.title), caseNo: LIB.caseNoOf(m.title, m.text), opp: LIB.oppOf(m.title),
+    auto: LIB.memoScore(m.title, m.text, m.mime, S.cfg.team || []),
     ...(secs => ({ secs, cites: LIB.memoCites(secs) }))(LIB.memoSections(m.text)),
   })).sort((a, b) => String(b.mod).localeCompare(String(a.mod)));
 }
+// تصحيح الفريق يغلب الترجيح، ويُحفظ للجميع في الإعداد
+const ownOf = m => { const o = (S.cfg.libOwn || {})[m.id]; return o != null ? !!o : m.auto.ours; };
+const ourMemos = () => (S.lib.memos || []).filter(ownOf);
 // اسم النظام كما كُتب في المذكرة ← ملفّه في المكتبة، بتطابق كلماته المميِّزة («المؤسسات الصحية الخاصة»)
 const GENERIC = new Set(['نظام', 'لنظام', 'النظام', 'اللايحه', 'لايحه', 'التنفيذيه', 'ولايحته', 'ولايحتها', 'التنفيذيه', 'و', 'ل', 'في', 'المعتمده', 'تنظيم']);
 const sig = t => LIB.norm(t).replace(/[()\-–]/g, ' ').split(/\s+/).filter(w => w && !GENERIC.has(w));
@@ -717,7 +725,7 @@ function libRows() {
     return { d, r: d && (byArt.get(d.id + '|1|' + c.n) || [...byArt.values()].find(x => x.id === d.id && x.n === c.n)) };
   };
   L.citeMap = new Map();
-  for (const m of L.memos || []) {
+  for (const m of ourMemos()) {
     m.regIds = [...new Set(m.cites.map(c => (L.target(c).d || {}).id).filter(Boolean))];
     m.secs.forEach((sec, i) => rows.push({ kind: 'مذكره', grp: 'memo', memo: m, sec: i, text: sec.t, h: sec.h, docTitle: m.title, cites: [] }));
     for (const c of m.cites) {
@@ -761,7 +769,7 @@ function libHtml() {
   if (!L.regs && !L.loading && !L.err) setTimeout(() => loadLib(), 0);
   const nRegs = (L.regs || []).filter(d => !d.ax).length, nAx = (L.regs || []).filter(d => d.ax).length;
   const nSel = L.sel.size;
-  return `<div class="h1">المكتبة القانونية</div><div class="sub">${L.regs ? `${cnt(nRegs, 'نظام', 'نظامان', 'أنظمة', 'نظامًا')} ولائحة وتعميم · ${cnt(nAx, 'مرفق', 'مرفقان', 'مرفقات', 'مرفقًا')}${L.memos ? ` · ${ar(L.memos.length)} من مذكراتنا` : ''}` : 'الأنظمة الصحية ومذكراتنا في بحثٍ واحد'}</div>
+  return `<div class="h1">المكتبة القانونية</div><div class="sub">${L.regs ? `${cnt(nRegs, 'نظام', 'نظامان', 'أنظمة', 'نظامًا')} ولائحة وتعميم · ${cnt(nAx, 'مرفق', 'مرفقان', 'مرفقات', 'مرفقًا')}${L.memos ? ` · ${cnt(ourMemos().length, 'مذكرة واحدة', 'مذكرتان', 'مذكرات', 'مذكرة')} من مذكراتنا` : ''}` : 'الأنظمة الصحية ومذكراتنا في بحثٍ واحد'}</div>
   <div class="lsearch"><input type="search" id="lq" placeholder="المادة ١٦ المؤسسات · الحالات الطارئة · بذل عناية" value="${esc(L.q)}" autocomplete="off" enterkeyhint="search"></div>
   <div class="seg">${[['all', 'الكل'], ['reg', 'الأنظمة'], ['ax', 'المرفقات'], ['memo', 'مذكراتنا']].map(([k, l]) => `<button class="${L.f === k ? 'on' : ''}" data-act="libf" data-v="${k}">${l}</button>`).join('')}
     <button class="fbtn${nSel ? ' on' : ''}" data-act="libsel" aria-label="تصفية الأنظمة"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M3 5h18M6 12h12M10 19h4"/></svg>${nSel ? ar(nSel) : 'تصفية'}</button></div>
@@ -778,7 +786,9 @@ function libBody() {
   if (!L.regs) return '<div class="empty">⏳ جاري تحميل المكتبة…</div>';
   const memoNote = L.memos ? '' : L.memoErr ? `<div class="libsetup">مذكراتنا ما انقرت: ${esc(L.memoErr)} <button class="link" data-act="libload" data-v="1">إعادة</button></div>`
     : L.loading ? '' : `<div class="libsetup"><b>مذكراتنا تنضاف هنا</b> بعد تشغيل سكربت الشيت (نفس سكربت التنبيهات): يجمع كل «مذكرة رد» و«مذكرة جوابية» كتبناها من درايف المكتب، ويتحدّث كل ساعة وحده. <button class="link" data-act="menu">افتح الإعدادات ←</button></div>`;
-  if (!L.q.trim()) return `<div class="hint" style="margin:0 18px">جرّب: <b data-act="libtry" data-v="المادة ١٦ المؤسسات الصحية">المادة ١٦ المؤسسات الصحية</b> · <b data-act="libtry" data-v="الحالات الطارئة">الحالات الطارئة</b> · <b data-act="libtry" data-v="الموافقة الخطية">الموافقة الخطية</b></div>` + memoNote + libHome();
+  const exN = (L.memos || []).length - ourMemos().length;
+  const exLink = exN ? `<div class="libsetup" style="border-style:solid;border-color:var(--line)">استُبعدت ${cnt(exN, 'مذكرة واحدة', 'مذكرتان', 'مذكرات', 'مذكرة')} على أنها للخصم. <button class="link" data-act="memoex">راجعها ←</button></div>` : '';
+  if (!L.q.trim()) return `<div class="hint" style="margin:0 18px">جرّب: <b data-act="libtry" data-v="المادة ١٦ المؤسسات الصحية">المادة ١٦ المؤسسات الصحية</b> · <b data-act="libtry" data-v="الحالات الطارئة">الحالات الطارئة</b> · <b data-act="libtry" data-v="الموافقة الخطية">الموافقة الخطية</b></div>` + memoNote + libHome() + exLink;
   // التصفية: الأنظمة المختارة وحدها، ومن المذكرات ما استشهد بأحدها
   const sel = L.sel, inSel = r => !sel.size || (r.grp === 'memo' ? r.memo.regIds.some(id => sel.has(id)) : sel.has(r.id));
   const res = LIB.search(L.rows.filter(r => (L.f === 'all' || r.grp === L.f) && inSel(r)), L.q, 300);
@@ -787,7 +797,7 @@ function libBody() {
   if (!res.hits.length) return memoNote + `<div class="empty">ما لقيت شيء لـ«${esc(L.q)}»${sel.size ? '<br><small>البحث مقصور على الأنظمة المختارة في التصفية</small>' : ''}${res.art && !sel.size ? `<br><small>ابحث برقم المادة مع كلمة من اسم النظام، مثل «المادة ${ar(res.art)} المؤسسات»</small>` : ''}</div>`;
   const shown = res.hits.slice(0, L.n);
   return `<div class="bh">${ar(res.hits.length)} نتيجة${res.art ? ' · المادة ' + ar(res.art) : ''}</div>` + shown.map(h => libResult(h.d, res.words, L.idx.get(h.d))).join('')
-    + (res.hits.length > L.n ? `<button class="more sm" style="margin-top:12px" data-act="libmore">عرض المزيد</button>` : '') + memoNote;
+    + (res.hits.length > L.n ? `<button class="more sm" style="margin-top:12px" data-act="libmore">عرض المزيد</button>` : '') + memoNote + (L.f === 'memo' ? exLink : '');
 }
 function libResUpdate() { const el = document.getElementById('libres'); if (el) el.innerHTML = libBody(); else render(); }
 // نافذة التصفية: نظامٌ أو أكثر، والمرفقات مجموعةٌ تُختار كلها بضغطة
@@ -798,6 +808,13 @@ function libSelHtml() {
   ${G.map(g => { const D = (L.regs || []).filter(d => d.g === g); if (!D.length) return ''; const all = D.every(d => L.sel.has(d.id));
     return `<div class="bh" style="margin:14px 2px 6px">${g}<button class="link" style="margin-inline-start:auto" data-act="libpickg" data-v="${esc(g)}">${all ? 'إلغاء الكل' : 'اختيار الكل'}</button></div><div class="box" style="margin:0">${D.map(row).join('')}</div>`; }).join('')}
   <div class="btns" style="position:sticky;bottom:0;background:var(--bg);padding-top:10px"><button data-act="libselclear">بلا تصفية</button><button class="pri" data-act="close">تم${L.sel.size ? ` (${ar(L.sel.size)})` : ''}</button></div>`;
+}
+// المذكرات المستبعدة: لمراجعة الترجيح الآلي، وإرجاع ما أخطأ فيه بضغطة
+function memoExHtml() {
+  const ex = (S.lib.memos || []).filter(m => !ownOf(m));
+  return `<h2>مذكرات استُبعدت على أنها للخصم</h2><div class="meta">رُجّح أنها للخصم من عنوانها («من فلان») أو نصّها. إن كانت إحداها مذكرتنا اضغط «هذه مذكرتنا» فتظهر في المكتبة للفريق كله.</div>
+  <div class="box" style="margin:12px 0 0">${ex.map(m => `<div class="row1" style="cursor:default"><span class="t"><b>${esc(m.title)}</b><small>${esc((S.cfg.libOwn || {})[m.id] != null ? 'صحّحها الفريق' : m.auto.why.join('، '))}</small></span>
+    <button class="sm" data-act="memoown" data-v="${esc(m.id)}" data-o="1">هذه مذكرتنا</button></div>`).join('') || '<div class="empty">لا شيء</div>'}</div>`;
 }
 function saveSel() { try { localStorage.setItem('hammadi.libsel', JSON.stringify([...S.lib.sel])); } catch (e) { } }
 // بلا بحث: الأكثر استشهادًا في مذكراتنا، ثم الأنظمة تُتصفّح مادةً مادة
@@ -845,7 +862,10 @@ function memoHtml(id, focus) {
   const words = S.lib.q.trim() ? S.lib.hw || [] : [];
   const idx = new Map(S.lib.rows.map((x, j) => [x, j]));
   const cited = [...new Map(m.cites.filter(c => c.reg || c.ax).map(c => [LIB.norm(c.reg) + c.n + c.sub + (c.ax || ''), c])).values()];
+  const own = ownOf(m), fixed = (S.cfg.libOwn || {})[m.id] != null;
   return `<div class="meta">${esc(memoLine(m))}</div><h2 style="margin-top:2px">${esc(m.title)}</h2>
+  <div class="ownbar"><span class="chip ${own ? 'g' : 'r'}">${own ? 'مذكرتنا' : 'مذكرة خصم — لا تظهر في المكتبة'}</span>${fixed ? '<small>صحّحها الفريق</small>' : `<small>ترجيح آلي: ${esc(m.auto.why.join('، ') || '—')}</small>`}
+    <button class="link" data-act="memoown" data-v="${esc(m.id)}" data-o="${own ? 0 : 1}">${own ? 'ليست مذكرتنا؟' : 'هذه مذكرتنا'}</button></div>
   <a class="drive" href="${esc(m.url || `https://drive.google.com/open?id=${encodeURIComponent(m.id)}`)}" target="_blank" rel="noopener">📄 فتح المذكرة في درايف</a>
   ${cited.length ? `<label>الأنظمة التي استشهدنا بها</label><div class="chips">${cited.map(c => { const { r } = S.lib.target(c); return `<button class="chip ${r ? 'b' : 'n'}" style="border:0" ${r ? `data-act="libart" data-v="${idx.get(r)}"` : ''}>${c.ax ? 'مرفق ' + ar(c.ax) : 'م ' + ar(c.n) + (c.sub ? '/' + esc(c.sub) : '')}${c.reg ? ' · ' + esc(c.reg.replace(/^اللائحة التنفيذية لنظام/, 'لائحة').slice(0, 40)) : ''}</button>`; }).join('')}</div>` : ''}
   ${m.secs.map((s, i) => `<div id="ms${i}">${s.h ? `<label style="color:var(--navy);font-size:13.5px">${esc(s.h)}</label>` : ''}<div class="atext small" style="margin-top:${s.h ? 4 : 12}px${i === focus ? ';border-color:var(--gold)' : ''}">${words.length ? hl(LIB.snippet(s.t, words, 1e6)) : esc(s.t)}</div></div>`).join('')}`;
@@ -871,6 +891,7 @@ function renderSheet() {
   else if (o.type === 'memo') html = memoHtml(o.id, o.sec);
   else if (o.type === 'cite') html = citeHtml(o.k);
   else if (o.type === 'libsel') html = libSelHtml();
+  else if (o.type === 'memoex') html = memoExHtml();
   else if (o.type === 'calAndroid') html = `<h2>تقويم الأندرويد</h2><div class="meta">نُسخ الرابط. Google Calendar يضيفه من الموقع لا من التطبيق:</div><div class="kv" style="padding:10px 12px;line-height:1.9;font-size:13.5px">١. افتح <b>calendar.google.com</b> من المتصفح (أو الكمبيوتر)<br>٢. «تقويمات أخرى» ← <b>+</b> ← <b>من عنوان URL</b><br>٣. الصق الرابط ← <b>إضافة تقويم</b></div><input readonly dir="ltr" value="${esc(o.url)}" style="margin-top:10px;font-size:12px" onclick="this.select()"><div class="meta" style="margin-top:6px">بعدها يتحدّث وحده في جوال الأندرويد (Google يحدّثه كل بضع ساعات).</div>`;
   if (!html) { S.open = null; return; }
   const el = document.createElement('div'); el.className = 'sheet'; el.dataset.act = 'close';
@@ -1419,6 +1440,17 @@ document.addEventListener('click', async e => {
     case 'libf': S.lib.f = v; S.lib.n = 30; return render();
     case 'libtry': { S.lib.q = v; S.lib.n = 30; render(); return; }
     case 'libsel': S.back = []; S.open = { type: 'libsel' }; return renderSheet();
+    case 'memoex': S.back = []; S.open = { type: 'memoex' }; return renderSheet();
+    // تصحيح الفريق: مذكرتنا أو مذكرة خصم، يُحفظ في الإعداد فيراه الكل
+    case 'memoown': {
+      const o = +t.dataset.o;
+      S.cfg.libOwn = { ...(S.cfg.libOwn || {}), [v]: o }; DB.saveCfg({ libOwn: { [v]: o } });
+      S.lib.rows = libRows(); S.lib.idx = new Map(S.lib.rows.map((r, i) => [r, i]));
+      toast(o ? '✓ صارت من مذكراتنا' : '✓ أُخرجت من مذكراتنا');
+      const sc = document.querySelector('.sheet .in')?.scrollTop || 0;
+      renderSheet(); const inn = document.querySelector('.sheet .in'); if (inn) inn.scrollTop = sc;
+      return render();
+    }
     case 'libpick': case 'libpickg': {
       const L = S.lib, ids = a === 'libpick' ? [v] : L.regs.filter(d => d.g === v).map(d => d.id);
       const on = a === 'libpick' ? !L.sel.has(v) : !ids.every(id => L.sel.has(id));
@@ -1743,6 +1775,9 @@ function demoMemos() {
 وقد أوجب المرفق (66) من اللائحة التنفيذية لنظام المؤسسات الصحية إبلاغ شركة إدارة المطالبات خلال (24) ساعة، وأبلغت موكلتي في يوم الدخول نفسه.
 ثانياً: الإثراء بلا سبب:
 وقد نصت المادة (144) من نظام المعاملات المدنية على: "كل شخص يثري دون سبب مشروع على حساب شخص آخر يلزمه في حدود ما أثرى به تعويض هذا الشخص عما لحقه من خسارة".`],
+    ['demo-m4', 'مذكرة جوابية خصمٍ تجريبي', 'application/pdf', '2026-09-03T10:00:00Z', 'demo', '', '4870000102', '1', `أصحاب الفضيلة
+أولاً: إن موكلي لم يوقّع على أي اتفاقية مالية، وقد قصّر المستشفى المدعي في إبلاغ وزارة الصحة.
+ثانياً: نصت المادة (16) من نظام المؤسسات الصحية الخاصة على العلاج الإسعافي دون مطالبة مالية.`],
     ['demo-m3', 'مذكرة رد من خصمٍ تجريبي', D, '2026-09-01T10:00:00Z', 'demo', '', '4870000102', '1', 'مذكرة الخصم — لا تظهر في المكتبة'],
   ];
 }

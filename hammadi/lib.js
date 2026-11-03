@@ -136,8 +136,31 @@ export function articles(pages) {
 /* ───────── المذكرات ───────── */
 
 // «مذكرة رد من فلان» و«مقدمة من» مذكرةُ الخصم، لا مذكرتنا
-// ومذكرةٌ لا تذكر «موكلتي/موكلي» أبدًا كتبها الخصم بنفسه وإن خلا عنوانها من «من»
-export function memoOurs(title, text) { return !memoTheirs(title) && /موكل/.test(String(text || '')); }
+/* مذكرتنا أم مذكرة الخصم؟ لا علامة واحدة تكفي: محامي الخصم يقول «موكلي» و«موكلتي» كذلك.
+   فتُوزن العلامات معًا:
+   - العنوان: «… من فلان» أو «مقدمة من» مذكرة خصم (أقوى العلامات)
+   - الصيغة: ما نكتبه مستند أو وورد، وما يصلنا من الخصم PDF غالبًا
+   - الحمادي موكلتنا: «موكلتي شركة الحمادي»، «مستشفى موكلتي»، «يدفع لموكلتي»
+   - الحمادي خصمٌ في النص: «المستشفى المدعي»، «ضد مستشفى الحمادي»، «المدعية شركة الحمادي»
+   - أسماء محامي الفريق في النص (التوقيع أو «ويمثلها …»)
+   - ولا «موكل» أبدًا: كتبها الخصم بنفسه
+   والنتيجة اقتراح؛ والفريق يصحّحها من الموقع لكل مذكرة */
+export function memoScore(title, text, mime, team = []) {
+  const t = String(text || ''), n = norm(t), why = [];
+  let sc = 0;
+  const add = (v, w) => { sc += v; why.push(w); };
+  if (memoTheirs(title)) add(-4, 'العنوان «من فلان»');
+  if (/google-apps\.document|word|msword/.test(mime || '')) add(1, 'مستند كتبناه');
+  else if (/pdf/.test(mime || '')) add(-1, 'ملف PDF');
+  if (!/موكل/.test(t)) add(-4, 'لا «موكلي» فيها');
+  if (/موكلت(ي|نا)[^.\n]{0,40}الحماد|الحماد[^.\n]{0,40}موكلت(ي|نا)|(مستشف(ى|يات)|منشأة|منشاة) موكلت(ي|نا)|(ل|إلى |الى )موكلت(ي|نا)/.test(t)) add(2, 'الحمادي موكلتنا');
+  // «المدعى عليها شركة الحمادي» في رأس مذكرتنا وصفٌ لا خصومة، فلا يُحسب؛ «المستشفى المدعي» لا يكتبه إلا الخصم
+  if (/(المستشفى|المنشأة) (المدعي|المدعية|المدعى عليه|المدعى عليها)|ضد (مستشفى|مستشفيات|شركة) الحماد|تقصير المستشفى|المستشفى المدعي/.test(t)) add(-3, 'الحمادي خصمٌ في النص');
+  const names = team.filter(x => x && x.length > 2 && new RegExp(`(^|[^\u0621-\u064A])${norm(x)}([^\u0621-\u064A]|$)`).test(n));
+  if (names.length) add(2, 'باسم ' + names.join('، '));
+  return { ours: sc >= 0, score: sc, why };
+}
+export function memoOurs(title, text, mime, team) { return memoScore(title, text, mime, team).ours; }
 export function memoTheirs(title) {
   return /(^|[\s_\-])(من|مقدمه|مقدمة)(?=[\s_\-]|$)/.test(String(title || '').replace(/\.[a-z]{2,5}$/i, ''));
 }
@@ -174,7 +197,14 @@ export function memoSections(text) {
     if (!l) continue;
     const n = norm(l);
     const isHead = (ORD.test(n) && l.length < 160) || (/^(الطلبات|الخاتمه|الوقايع|الموضوع|الدفوع|الدفع)\s*:?$/.test(n));
-    if (isHead) { if (cur.t.length || cur.h) secs.push(cur); cur = { h: l.replace(/:\s*$/, ''), t: [] }; const after = l.split(/:\s*/).slice(1).join(': ').trim(); if (after && l.length > 80) cur.t.push(after); continue; }
+    if (isHead) {
+      if (cur.t.length || cur.h) secs.push(cur);
+      // «أولاً: الرد على كذا:» عنوانٌ كله؛ و«أولاً: إن موكلي لم يوقّع …» عنوانه «أولاً» وما بعده متن
+      const i = l.indexOf(':'), after = i >= 0 ? l.slice(i + 1).replace(/:\s*$/, '').trim() : '';
+      const long = after.length > 70 || (after && !/:\s*$/.test(l) && /[.،]$/.test(after));
+      cur = { h: long ? l.slice(0, i).trim() : l.replace(/:\s*$/, ''), t: long ? [after] : [] };
+      continue;
+    }
     cur.t.push(l);
   }
   if (cur.t.length || cur.h) secs.push(cur);
