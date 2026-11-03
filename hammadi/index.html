@@ -241,7 +241,9 @@ const DEMO = new URLSearchParams(location.search).has('demo');
 /* ───────── أدوات ───────── */
 const AR = '٠١٢٣٤٥٦٧٨٩';
 const ar = x => String(x).replace(/\d/g, d => AR[d]);
-const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+// روابط من الشيت أو الدرايف: http(s) وحده. رابطٌ يبدأ بـ«javascript:» كتبه أحدٌ في خلية لا يُفتح داخل الموقع
+const safeUrl = u => /^https?:\/\//i.test(String(u || '').trim()) ? String(u).trim() : '';
 // تمييز العدد: يوم واحد، يومان، ٣–١٠ أيام، ١١+ يومًا
 const days = k => k == 1 ? 'يوم' : k == 2 ? 'يومان' : k >= 3 && k <= 10 ? `${ar(k)} أيام` : `${ar(k)} يومًا`;
 const iso = d => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
@@ -678,7 +680,9 @@ function memosFrom(res) {
     // ملفٌ خارج مجلد الحمادي لا يُعدّ إلا إن ذكر الحمادي في نصّه
     if (String(inRoot) !== '1' && !/حماد/.test(text)) continue;
     const k = LIB.norm(String(title).replace(/\.[a-z]{2,5}$/i, '')).replace(/[_\-\s()]+/g, '');
-    const m = { id, title: String(title).replace(/\.[a-z]{2,5}$/i, '').replace(/_/g, ' ').trim(), mime, mod, owner, url, folder, text: String(text) };
+    // آخر تعديل: رقمٌ (ملّي ثانية) من السكربت، أو تاريخٌ نصّي من نسخةٍ أقدم منه
+    const iso = /^\d{11,}$/.test(String(mod)) ? new Date(+mod).toISOString() : String(mod || '');
+    const m = { id, title: String(title).replace(/\.[a-z]{2,5}$/i, '').replace(/_/g, ' ').trim(), mime, mod: iso, owner, url, folder, text: String(text) };
     const o = seen.get(k);
     if (!o || pref(mime) < pref(o.mime) || (pref(mime) === pref(o.mime) && String(mod) > String(o.mod))) seen.set(k, m);
   }
@@ -908,7 +912,7 @@ function memoHtml(id, focus) {
   return `<div class="meta">${esc(memoLine(m))}</div><h2 style="margin-top:2px">${esc(m.title)}</h2>
   <div class="ownbar"><span class="chip ${own ? 'g' : 'r'}">${own ? 'مذكرتنا' : m.claim && m.auto.ours ? 'صحيفة دعوى — لا تظهر في المكتبة' : 'مذكرة خصم — لا تظهر في المكتبة'}</span>${fixed ? '<small>صحّحها الفريق</small>' : `<small>ترجيح آلي: ${esc(m.auto.why.join('، ') || '—')}</small>`}
     <button class="link" data-act="memoown" data-v="${esc(m.id)}" data-o="${own ? 0 : 1}">${own ? 'ليست مذكرتنا؟' : 'هذه مذكرتنا'}</button></div>
-  <a class="drive" href="${esc(m.url || `https://drive.google.com/open?id=${encodeURIComponent(m.id)}`)}" target="_blank" rel="noopener">📄 فتح المذكرة في درايف</a>
+  <a class="drive" href="${esc(safeUrl(m.url) || `https://drive.google.com/open?id=${encodeURIComponent(m.id)}`)}" target="_blank" rel="noopener">📄 فتح المذكرة في درايف</a>
   ${cited.length ? `<label>الأنظمة التي استشهدنا بها</label><div class="chips">${cited.map(c => { const { r } = S.lib.target(c); return `<button class="chip ${r ? 'b' : 'n'}" style="border:0" ${r ? `data-act="libart" data-v="${idx.get(r)}"` : ''}>${c.ax ? 'مرفق ' + ar(c.ax) : 'م ' + ar(c.n) + (c.sub ? '/' + esc(c.sub) : '')}${c.reg ? ' · ' + esc(c.reg.replace(/^اللائحة التنفيذية لنظام/, 'لائحة').slice(0, 40)) : ''}</button>`; }).join('')}</div>` : ''}
   ${m.secs.map((s, i) => `<div id="ms${i}">${s.h ? `<label style="color:var(--navy);font-size:13.5px">${esc(s.h)}</label>` : ''}<div class="atext small" style="margin-top:${s.h ? 4 : 12}px${i === focus ? ';border-color:var(--gold)' : ''}">${words.length ? hl(LIB.snippet(s.t, words, 1e6)) : esc(s.t)}</div></div>`).join('')}`;
 }
@@ -962,7 +966,7 @@ function taskHtml(k) {
   const path = items().filter(i => i.caseNo && i.caseNo === it.caseNo && i.key !== it.key);
   const execKey = `e|${it.caseNo}`;
   // رابط مجلد القضية: من صفّها، أو من أي صفٍّ آخر للرقم نفسه (القضية تتكرّر بين التبويبات)
-  const link = r.link || (caseIndex()[it.caseNo] || []).map(x => x.link).find(Boolean) || '';
+  const link = safeUrl(r.link || (caseIndex()[it.caseNo] || []).map(x => x.link).find(Boolean) || '');
   const canExec = it.kind !== 'e' && it.caseNo && !S.docs[execKey];
   const log = (d.log || []).slice().reverse();
   // بلا الشيت ولا ملخّصه لا تُرسل التنبيهات: الزرّ هنا حيث يُضاف التنبيه، لا في الشاشة الرئيسية وحدها
@@ -1226,7 +1230,7 @@ function libRun() {
   if (!lock.tryLock(2000)) return;
   const t0 = Date.now(), P = PropertiesService.getScriptProperties();
   try {
-    const ss = SpreadsheetApp.getActive(), sh = libSheet().getSheetByName('مذكرات');
+    const ss = SpreadsheetApp.getActive(), lib = libSheet(), sh = lib.getSheetByName('مذكرات');
     const root = DriveApp.getFileById(ss.getId()).getParents().next().getId();
     let pass = P.getProperty('libPass');
     if (!pass) { pass = String(Date.now()); P.setProperty('libPass', pass); }
@@ -1234,6 +1238,13 @@ function libRun() {
     const old = n > 0 ? sh.getRange(2, 1, n, 10).getValues() : [];
     const at = new Map(old.map((r, i) => [r[0], i]));
     const inRootCache = {};
+    // مذكرات العملاء الآخرين (خارج مجلد الحمادي ولا تذكره) لا تُكتب في جدولٍ يراه فريق الحمادي.
+    // يُحفظ معرّف الملف وتاريخ تعديله فقط (لا اسم ولا نص) في تبويبٍ مخفي، فلا يُعاد فتحه كل ساعة
+    let sk = lib.getSheetByName('تجاهل');
+    if (!sk) { sk = lib.insertSheet('تجاهل'); sk.hideSheet(); }
+    const skip = {};
+    if (sk.getLastRow() > 0) sk.getRange(1, 1, sk.getLastRow(), 2).getValues().forEach(r => { skip[r[0]] = String(r[1]); });
+    // (والعمود الرابع في «مذكرات» كذلك رقم، فيُقارن نصًّا بنص)
     const ids = libFind();
     for (const f of ids) {
       if (Date.now() - t0 > 4 * 60e3) {
@@ -1242,11 +1253,15 @@ function libRun() {
         ScriptApp.newTrigger('libRunMore').timeBased().after(60e3).create();
         return;
       }
-      const mod = f.getLastUpdated().toISOString(), i = at.get(f.getId());
-      if (i != null && String(old[i][3]) === mod) { if (old[i][9] !== pass) sh.getRange(i + 2, 10).setValue(pass); old[i][9] = pass; continue; }
+      // التاريخ رقمًا (ملّي ثانية): النص الشبيه بالتاريخ يحوّله الجدول تاريخًا فلا تتطابق المقارنة ويُعاد كل شيء كل ساعة
+      const mod = String(f.getLastUpdated().getTime()), i = at.get(f.getId());
+      if (skip[f.getId()] === mod) continue;
+      // والجدول يعيد الأرقام أرقامًا: كل مقارنةٍ هنا نصٌّ بنص
+      if (i != null && String(old[i][3]) === mod) { if (String(old[i][9]) !== pass) sh.getRange(i + 2, 10).setValue(pass); old[i][9] = pass; continue; }
       let text = '';
       try { text = libText(f); } catch (e) { console.warn(f.getName() + ': ' + e); }
       const inRoot = libInRoot(f, root, inRootCache) ? '1' : '0';
+      if (inRoot === '0' && !/حماد/.test(text)) { skip[f.getId()] = mod; sk.appendRow([f.getId(), mod]); continue; }
       let folder = ''; try { folder = f.getParents().next().getName(); } catch (e) { }
       // نصٌّ يبدأ بـ«=» أو «+» يقرؤه الجدول معادلة: الفاصلة العليا تبقيه نصًّا
       const lit = v => /^[=+\-@]/.test(v) ? "'" + v : v;
@@ -1255,7 +1270,7 @@ function libRun() {
       else { sh.appendRow(row); at.set(row[0], old.length); old.push(row); }
     }
     // دورةٌ تمّت: ما لم يُرَ فيها حُذف من الدرايف أو تغيّر اسمه، فيُحذف من الجدول (من الأسفل للأعلى)
-    for (let i = old.length - 1; i >= 0; i--) if (old[i][9] !== pass) sh.deleteRow(i + 2);
+    for (let i = old.length - 1; i >= 0; i--) if (String(old[i][9]) !== pass) sh.deleteRow(i + 2);
     P.deleteProperty('libPass');
     ScriptApp.getProjectTriggers().filter(t => t.getHandlerFunction() === 'libRunMore').forEach(t => ScriptApp.deleteTrigger(t));
   } finally { lock.releaseLock(); }
@@ -1275,20 +1290,19 @@ function libFind() {
   return [...out.values()];
 }
 
+// هل الملف داخل مجلد الحمادي (ولو بعد عدة مستويات)؟ يُحفظ جواب كل مجلدٍ بعد أن يُعرف فعلًا،
+// لا قبله (حفظه «لا» مؤقتًا أثناء البحث كان يجعل بقية ملفات المجلد نفسه تبدو خارجه)
 function libInRoot(f, root, cache) {
-  let level = [...libParents(f)];
-  for (let d = 0; d < 10 && level.length; d++) {
-    const next = [];
-    for (const p of level) {
-      const id = p.getId();
-      if (id === root) return true;
-      if (cache[id] != null) { if (cache[id]) return true; continue; }
-      cache[id] = false;
-      next.push(...libParents(p));
-    }
-    level = next;
-  }
-  return false;
+  const up = (folder, depth) => {
+    const id = folder.getId();
+    if (id === root) return true;
+    if (cache[id] != null) return cache[id];
+    if (depth > 12) return false;
+    const ans = libParents(folder).some(p => up(p, depth + 1));
+    cache[id] = ans;
+    return ans;
+  };
+  return libParents(f).some(p => up(p, 0));
 }
 function libParents(x) { const out = [], it = x.getParents(); while (it.hasNext()) out.push(it.next()); return out; }
 
@@ -1349,7 +1363,7 @@ function caseHtml(c) {
   // صفّها في الشيت إن كان محمّلًا، وإلا ما حُفظ مع جلستها: كل خانةٍ من أول مصدرٍ فيه قيمتها
   const rows = [...(caseIndex()[c] || []), ...ses];
   const f = k => rows.map(x => x[k]).find(Boolean) || '';
-  const link = f('link'), r = { plaintiff: f('plaintiff'), defendant: f('defendant'), opp: f('opp') };
+  const link = safeUrl(f('link')), r = { plaintiff: f('plaintiff'), defendant: f('defendant'), opp: f('opp') };
   const kv = [['المحكمة', [f('court'), f('circuit') && 'الدائرة ' + f('circuit')].filter(Boolean).join(' · ')], ['الخصم', opp(r)], ['المحامي', f('lawyer')],
     ['نوع القضية', f('type')], ['آخر إجراء', f('last')], ['المطلوب', f('req')], ['حالة القضية', f('status')]].filter(x => x[1]);
   return `<h2>القضية ${esc(c)}</h2>
