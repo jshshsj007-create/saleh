@@ -225,13 +225,16 @@ mark{background:color-mix(in srgb,var(--gold) 38%,transparent);color:inherit;bor
 .ownbar{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:8px}
 .ownbar small{color:var(--mute);font-size:11.5px}
 .ownbar .link{margin-inline-start:auto;font-size:12.5px}
+.dupbox{margin:-4px 14px 0;width:calc(100% - 28px);background:var(--card2);border:1px solid var(--line);border-top:0;border-radius:0 0 14px 14px;padding:8px 6px 4px}
+.dupbox>.link{font-size:12.5px;padding:0 8px 4px}
+.dupbox .row1{background:none}
 .libsetup{margin:14px;background:var(--card);border:1px dashed color-mix(in srgb,var(--a) 45%,var(--line));border-radius:14px;padding:12px 14px;font-size:13.5px;line-height:1.8}
 </style>
 </head>
 <body>
 <div id="app"><div class="login"><p>جاري التحميل…</p></div></div>
 <script type="module">
-import * as LIB from './lib.js?v=7';
+import * as LIB from './lib.js?v=9';
 // ?demo: الموقع كاملًا ببياناتٍ وهمية في الجهاز، بلا Firebase ولا شيت — للتجربة والفحص قبل النشر
 const DEMO = new URLSearchParams(location.search).has('demo');
 
@@ -685,12 +688,13 @@ function memosFrom(res) {
   // كل المذكرات تُحفظ، ومذكرتنا منها ما رجّحته العلامات أو ما صحّحه الفريق يدويًا (ownOf)
   return [...byText.values()].map(m => ({
     ...m, kind: LIB.memoKind(m.title), caseNo: LIB.caseNoOf(m.title, m.text), opp: LIB.oppOf(m.title),
-    auto: LIB.memoScore(m.title, m.text, m.mime, S.cfg.team || []),
+    auto: LIB.memoScore(m.title, m.text, m.mime, S.cfg.team || []), claim: LIB.isClaim(m.title, m.text),
     ...(secs => ({ secs, cites: LIB.memoCites(secs) }))(LIB.memoSections(m.text)),
   })).sort((a, b) => String(b.mod).localeCompare(String(a.mod)));
 }
 // تصحيح الفريق يغلب الترجيح، ويُحفظ للجميع في الإعداد
-const ownOf = m => { const o = (S.cfg.libOwn || {})[m.id]; return o != null ? !!o : m.auto.ours; };
+// صحيفة الدعوى لا تدخل وإن كانت منّا (إلا أن يُدخلها الفريق يدويًا): صيغتها المكررة تغطي على الردود
+const ownOf = m => { const o = (S.cfg.libOwn || {})[m.id]; return o != null ? !!o : m.auto.ours && !m.claim; };
 const ourMemos = () => (S.lib.memos || []).filter(ownOf);
 // اسم النظام كما كُتب في المذكرة ← ملفّه في المكتبة، بتطابق كلماته المميِّزة («المؤسسات الصحية الخاصة»)
 const GENERIC = new Set(['نظام', 'لنظام', 'النظام', 'اللايحه', 'لايحه', 'التنفيذيه', 'ولايحته', 'ولايحتها', 'التنفيذيه', 'و', 'ل', 'في', 'المعتمده', 'تنظيم']);
@@ -727,7 +731,10 @@ function libRows() {
   L.citeMap = new Map();
   for (const m of ourMemos()) {
     m.regIds = [...new Set(m.cites.map(c => (L.target(c).d || {}).id).filter(Boolean))];
-    m.secs.forEach((sec, i) => rows.push({ kind: 'مذكره', grp: 'memo', memo: m, sec: i, text: sec.t, h: sec.h, docTitle: m.title, cites: [] }));
+    // كل قسمٍ يحمل استشهاداته، فيجده البحث برقم المادة («المادة ٩٤») ولو لم يُكتب الرقم كما بُحث
+    m.secs.forEach((sec, i) => rows.push({ kind: 'مذكره', grp: 'memo', memo: m, sec: i, text: sec.t, h: sec.h, docTitle: m.title, cites: m.cites.filter(c => c.sec === i),
+      // عنوان النقطة («الرد على الدفع بإنكار التوقيع») يُبحث فيه مع متنها
+      xn: LIB.norm((sec.h || '') + '\n' + sec.t) }));
     for (const c of m.cites) {
       // مادةٌ لم يُعرف نظامها تبقى في المذكرة، ولا تُعدّ في «الأكثر استشهادًا» بلا اسم
       if (!c.reg && !c.ax) continue;
@@ -747,18 +754,20 @@ function argHtml(c) {
   const body = q < 0 ? esc(cut(a)) : esc(a.slice(0, q)) + `<mark>${esc(c.quote)}</mark>` + esc(cut(a.slice(q + c.quote.length)));
   return `${c.h ? `<div class="meta" style="margin-top:4px;color:var(--navy);font-weight:600">${esc(c.h)}</div>` : ''}<div class="quote" style="white-space:pre-line">${body}</div>`;
 }
-const citeCard = c => `<button class="res" style="margin:8px 0 0;width:100%" data-act="libmemo" data-v="${esc(c.m.id)}" data-i="${c.sec ?? -1}"><div class="src"><span class="tg memo">مذكرتنا</span>${esc(memoLine(c.m))}</div><h3>${esc(c.m.title)}</h3>${c.sub ? `<div class="meta">الفقرة ${esc(c.sub)}</div>` : ''}${argHtml(c)}</button>`;
+const citeCard = c => `<button class="res" style="margin:8px 0 0;width:100%" data-act="libmemo" data-v="${esc(c.m.id)}" data-i="${c.sec ?? -1}"><div class="src"><span class="tg memo">مذكرتنا</span>${esc(memoLine(c.m))}</div><h3>${esc(c.m.title)}</h3>${c.sub ? `<div class="meta">الفقرة ${esc(ar(c.sub))}</div>` : ''}${argHtml(c)}</button>`;
 const memoLine = m => [m.kind, m.opp, m.caseNo && 'القضية ' + m.caseNo].filter(Boolean).join(' · ');
 const hl = parts => parts.map(p => p.hit ? `<mark>${esc(p.t)}</mark>` : esc(p.t)).join('');
 const artName = r => r.kind === 'ماده' ? (r.n ? 'المادة ' + ar(r.n) : 'المقدمة والتعريفات') : 'صفحة ' + ar(r.page);
 // المقتطف في النتائج سطرٌ متصل (النص المقروء آليًّا سطوره قصيرة مكسّرة)؛ والنص الكامل يبقى بسطوره
 const flat = t => String(t || '').replace(/\s*\n\s*/g, ' ');
-function libResult(r, words, i) {
+function libResult(r, words, i, more) {
   if (r.kind === 'مذكره') {
-    const m = r.memo;
+    const m = r.memo, k = m.id + '|' + r.sec, open = S.lib.exp && S.lib.exp.has(k);
+    const dup = more && more.length ? `<div class="dupbox"><button class="link" data-act="libdup" data-v="${esc(k)}">${open ? '⌃ إخفاء' : '⌄'} نفس الصياغة في ${cnt(more.length, 'مذكرة أخرى', 'مذكرتين أخريين', 'مذكرات أخرى', 'مذكرة أخرى')}</button>
+      ${open ? more.map(h => `<button class="row1" data-act="libmemo" data-v="${esc(h.d.memo.id)}" data-i="${h.d.sec}"><span class="t"><b>${esc(h.d.memo.title)}</b><small>${esc(memoLine(h.d.memo))}</small></span></button>`).join('') : ''}</div>` : '';
     return `<button class="res" data-act="libmemo" data-v="${esc(m.id)}" data-i="${r.sec}"><div class="src"><span class="tg memo">مذكرتنا</span>${esc(memoLine(m))}</div>
       <h3>${esc(r.h || m.title)}</h3><div class="sn">${hl(LIB.snippet(flat(r.text), words, 260))}</div>
-      <div class="ft"><span class="chip n">${esc(m.title)}</span>${m.mod ? `<span class="chip n">${hijri(String(m.mod).slice(0, 10))}</span>` : ''}</div></button>`;
+      <div class="ft"><span class="chip n">${esc(m.title)}</span>${m.mod ? `<span class="chip n">${hijri(String(m.mod).slice(0, 10))}</span>` : ''}</div></button>${dup}`;
   }
   return `<button class="res" data-act="libart" data-v="${i}"><div class="src"><span class="tg ${r.grp}">${r.grp === 'ax' ? 'مرفق' : 'نظام'}</span>${esc(r.docTitle)}</div>
     <h3>${artName(r)}</h3><div class="sn">${hl(LIB.snippet(flat(r.text), words, 260))}</div>
@@ -778,6 +787,8 @@ function libHtml() {
 }
 // تمييز العدد: ١ مرفق، ٢ مرفقان، ٣–١٠ مرفقات، ١١+ مرفقًا
 const cnt = (n, one, two, few, many) => n === 1 ? one : n === 2 ? two : `${ar(n)} ${n >= 3 && n <= 10 ? few : many}`;
+// «نظام المعاملات المدنية» ← «المعاملات المدنية»: كلمتا الاسم اللتان يُبحث بهما
+const shortLaw = t => String(t).replace(/^(اللائحة التنفيذية ل|الأدلة الإجرائية ل)?(نظام|لائحة|تنظيم)\s+/, '').replace(/\s*ولائحته التنفيذية$/, '').split(/\s+/).slice(0, 2).join(' ');
 const shortT = t => t.replace(/^(نظام|تنظيم|اللائحة التنفيذية لنظام|لائحة)\s+/, '').replace(/\s*ولائحته التنفيذية$/, '').slice(0, 34);
 // النتائج وحدها تُرسم مع الكتابة؛ خانة البحث لا تُمسّ فلا يتعثّر الإدخال
 function libBody() {
@@ -787,7 +798,7 @@ function libBody() {
   const memoNote = L.memos ? '' : L.memoErr ? `<div class="libsetup">مذكراتنا ما انقرت: ${esc(L.memoErr)} <button class="link" data-act="libload" data-v="1">إعادة</button></div>`
     : L.loading ? '' : `<div class="libsetup"><b>مذكراتنا تنضاف هنا</b> بعد تشغيل سكربت الشيت (نفس سكربت التنبيهات): يجمع كل «مذكرة رد» و«مذكرة جوابية» كتبناها من درايف المكتب، ويتحدّث كل ساعة وحده. <button class="link" data-act="menu">افتح الإعدادات ←</button></div>`;
   const exN = (L.memos || []).length - ourMemos().length;
-  const exLink = exN ? `<div class="libsetup" style="border-style:solid;border-color:var(--line)">استُبعدت ${cnt(exN, 'مذكرة واحدة', 'مذكرتان', 'مذكرات', 'مذكرة')} على أنها للخصم. <button class="link" data-act="memoex">راجعها ←</button></div>` : '';
+  const exLink = exN ? `<div class="libsetup" style="border-style:solid;border-color:var(--line)">استُبعدت ${cnt(exN, 'مذكرة واحدة', 'مذكرتان', 'مذكرات', 'مذكرة')} (للخصم، أو صحائف دعوى). <button class="link" data-act="memoex">راجعها ←</button></div>` : '';
   if (!L.q.trim()) return `<div class="hint" style="margin:0 18px">جرّب: <b data-act="libtry" data-v="المادة ١٦ المؤسسات الصحية">المادة ١٦ المؤسسات الصحية</b> · <b data-act="libtry" data-v="الحالات الطارئة">الحالات الطارئة</b> · <b data-act="libtry" data-v="الموافقة الخطية">الموافقة الخطية</b></div>` + memoNote + libHome() + exLink;
   // التصفية: الأنظمة المختارة وحدها، ومن المذكرات ما استشهد بأحدها
   const sel = L.sel, inSel = r => !sel.size || (r.grp === 'memo' ? r.memo.regIds.some(id => sel.has(id)) : sel.has(r.id));
@@ -795,9 +806,20 @@ function libBody() {
   // كلمات الإبراز في النافذة: كلمات النص وحدها، لا ما طابق اسم النظام («المؤسسات الصحية»)
   L.hw = res.words;
   if (!res.hits.length) return memoNote + `<div class="empty">ما لقيت شيء لـ«${esc(L.q)}»${sel.size ? '<br><small>البحث مقصور على الأنظمة المختارة في التصفية</small>' : ''}${res.art && !sel.size ? `<br><small>ابحث برقم المادة مع كلمة من اسم النظام، مثل «المادة ${ar(res.art)} المؤسسات»</small>` : ''}</div>`;
-  const shown = res.hits.slice(0, L.n);
-  return `<div class="bh">${ar(res.hits.length)} نتيجة${res.art ? ' · المادة ' + ar(res.art) : ''}</div>` + shown.map(h => libResult(h.d, res.words, L.idx.get(h.d))).join('')
-    + (res.hits.length > L.n ? `<button class="more sm" style="margin-top:12px" data-act="libmore">عرض المزيد</button>` : '') + memoNote + (L.f === 'memo' ? exLink : '');
+  // المذكرات المتساوية في الدرجة: الأحدث أولًا. والصيغ المنسوخة بين المذكرات تُجمع تحت أولها
+  const hits = res.hits.slice().sort((a, b) => b.score - a.score || String(b.d.memo?.mod || '').localeCompare(String(a.d.memo?.mod || '')));
+  const memoG = LIB.groupSimilar(hits.filter(h => h.d.kind === 'مذكره'), h => h.d.text);
+  const under = new Map(memoG.map(g => [g.rep, g.more]));
+  const hidden = new Set(memoG.flatMap(g => g.more));
+  const list = hits.filter(h => !hidden.has(h));
+  const shown = list.slice(0, L.n);
+  const memoN = list.filter(h => h.d.kind === 'مذكره').length;
+  // رقم مادةٍ وحده يجمع المادة نفسها من كل الأنظمة: يُقترح اسم النظام من استشهاداتنا بهذا الرقم، ثم كلمة من موضوع الدفع
+  const lawsN = res.art && !res.words.length ? [...new Set([...(L.citeMap || new Map()).values()].filter(g => g.n === res.art && !g.ax).map(g => shortLaw(g.d ? g.d.t : g.reg)))].slice(0, 3) : [];
+  const narrow = res.art && !res.words.length && (lawsN.length || memoN > 4) ? `<div class="hint" style="margin:2px 18px 0">${lawsN.length ? 'حدّد النظام: ' + lawsN.map(n => `<b data-act="libtry" data-v="${esc(L.q.trim() + ' ' + n)}">${esc(L.q.trim() + ' ' + n)}</b>`).join(' · ') : ''}${memoN > 4 ? `${lawsN.length ? '<br>' : ''}أو أضف موضوع الدفع: <b data-act="libtry" data-v="${esc(L.q.trim() + ' التوقيع')}">${esc(L.q.trim())} التوقيع</b> · <b data-act="libtry" data-v="${esc(L.q.trim() + ' الإقرار')}">${esc(L.q.trim())} الإقرار</b>` : ''}</div>` : '';
+  return `<div class="bh">${cnt(list.length, 'نتيجة واحدة', 'نتيجتان', 'نتائج', 'نتيجة')}${res.art ? ' · المادة ' + ar(res.art) : ''}${hidden.size ? ` <span style="font-weight:500">(وجُمعت ${cnt(hidden.size, 'صياغة مكررة', 'صياغتان مكررتان', 'صياغات مكررة', 'صياغة مكررة')})</span>` : ''}</div>` + narrow
+    + shown.map(h => libResult(h.d, res.words, L.idx.get(h.d), under.get(h))).join('')
+    + (list.length > L.n ? `<button class="more sm" style="margin-top:12px" data-act="libmore">عرض المزيد</button>` : '') + memoNote + (L.f === 'memo' ? exLink : '');
 }
 function libResUpdate() { const el = document.getElementById('libres'); if (el) el.innerHTML = libBody(); else render(); }
 // نافذة التصفية: نظامٌ أو أكثر، والمرفقات مجموعةٌ تُختار كلها بضغطة
@@ -812,18 +834,38 @@ function libSelHtml() {
 // المذكرات المستبعدة: لمراجعة الترجيح الآلي، وإرجاع ما أخطأ فيه بضغطة
 function memoExHtml() {
   const ex = (S.lib.memos || []).filter(m => !ownOf(m));
-  return `<h2>مذكرات استُبعدت على أنها للخصم</h2><div class="meta">رُجّح أنها للخصم من عنوانها («من فلان») أو نصّها. إن كانت إحداها مذكرتنا اضغط «هذه مذكرتنا» فتظهر في المكتبة للفريق كله.</div>
-  <div class="box" style="margin:12px 0 0">${ex.map(m => `<div class="row1" style="cursor:default"><span class="t"><b>${esc(m.title)}</b><small>${esc((S.cfg.libOwn || {})[m.id] != null ? 'صحّحها الفريق' : m.auto.why.join('، '))}</small></span>
+  return `<h2>مذكرات استُبعدت من المكتبة</h2><div class="meta">رُجّح أنها للخصم من عنوانها («من فلان») أو نصّها، أو أنها صحيفة دعوى لا رد. إن كانت إحداها مذكرتنا اضغط «هذه مذكرتنا» فتظهر في المكتبة للفريق كله.</div>
+  <div class="box" style="margin:12px 0 0">${ex.map(m => `<div class="row1" style="cursor:default"><span class="t"><b>${esc(m.title)}</b><small>${esc((S.cfg.libOwn || {})[m.id] != null ? 'صحّحها الفريق' : m.claim ? 'صحيفة دعوى لا رد' : m.auto.why.join('، '))}</small></span>
     <button class="sm" data-act="memoown" data-v="${esc(m.id)}" data-o="1">هذه مذكرتنا</button></div>`).join('') || '<div class="empty">لا شيء</div>'}</div>`;
 }
 function saveSel() { try { localStorage.setItem('hammadi.libsel', JSON.stringify([...S.lib.sel])); } catch (e) { } }
+// استشهاداتنا مجموعةً بالنظام: ما في المكتبة وما ليس فيها (المعاملات المدنية، الإثبات…)
+function lawsCited() {
+  const by = new Map();
+  for (const g of (S.lib.citeMap || new Map()).values()) {
+    if (g.ax) continue;
+    const name = g.d ? g.d.t : g.reg, k = LIB.norm(name).replace(/\s+/g, ' ');
+    const o = by.get(k) || { k, name, arts: [], memos: new Set() };
+    o.arts.push(g); g.list.forEach(c => o.memos.add(c.m)); by.set(k, o);
+  }
+  return [...by.values()].sort((a, b) => b.memos.size - a.memos.size);
+}
+function lawHtml(k) {
+  const L = lawsCited().find(x => x.k === k); if (!L) return '';
+  const idx = new Map(S.lib.rows.map((r, i) => [r, i]));
+  return `<div class="meta">استشهاداتنا من</div><h2 style="margin-top:2px">${esc(L.name)}</h2>
+  <div class="box" style="margin:12px 0 0">${L.arts.sort((a, b) => a.n - b.n).map(g => { const q = (g.list.find(c => c.quote) || {}).quote || '';
+    return `<button class="row1" ${g.row ? `data-act="libart" data-v="${idx.get(g.row)}"` : `data-act="libcite" data-v="${esc(g.reg + '|' + g.n)}"`}><span class="t"><b>المادة ${ar(g.n)}</b><small style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(q.slice(0, 110)) || '—'}</small></span><span class="r2" style="color:var(--a)">${ar(new Set(g.list.map(c => c.m)).size)}<span class="k">مذكرة</span></span></button>`; }).join('')}</div>`;
+}
 // بلا بحث: الأكثر استشهادًا في مذكراتنا، ثم الأنظمة تُتصفّح مادةً مادة
 function libHome() {
   const L = S.lib, top = [...(L.citeMap || new Map()).values()].sort((a, b) => b.list.length - a.list.length).slice(0, 8);
   const idx = new Map(L.rows.map((r, i) => [r, i]));
   const grp = g => (L.regs || []).filter(d => d.g === g);
   const regRow = d => `<button class="row1" data-act="libreg" data-v="${esc(d.id)}"><span class="t"><b>${esc(d.t)}</b><small>${d.big ? 'ملفٌ كبير لم يُقرأ نصّه — يُفتح من الأصل' : d.a ? ar(d.a.filter(x => x[0]).length) + ' مادة' : cnt(d.np, 'صفحة واحدة', 'صفحتان', 'صفحات', 'صفحة')}</small></span><span class="cv" style="color:var(--mute)">‹</span></button>`;
-  return (top.length ? `<div class="bh">الأكثر استشهادًا في مذكراتنا</div><div class="box">${top.map(g => `<button class="row1" ${g.row ? `data-act="libart" data-v="${idx.get(g.row)}"` : `data-act="libcite" data-v="${esc(g.reg + '|' + g.n)}"`}><span class="t"><b>${g.ax ? 'مرفق ' + ar(g.ax) : 'المادة ' + ar(g.n)}</b><small>${esc(g.ax && g.d ? g.d.t.replace(/^مرفق \d+\s*/, '') : g.reg)}</small></span><span class="r2" style="color:var(--a)">${ar(g.list.length)}<span class="k">${g.list.length === 1 ? 'مذكرة' : g.list.length === 2 ? 'مذكرتان' : 'مذكرات'}</span></span></button>`).join('')}</div>` : '')
+  const laws = lawsCited();
+  return (laws.length ? `<div class="bh">استشهاداتنا حسب النظام</div><div class="box">${laws.map(l => `<button class="row1" data-act="liblaw" data-v="${esc(l.k)}"><span class="t"><b>${esc(l.name)}</b><small>${cnt(l.arts.length, 'مادة واحدة', 'مادتان', 'مواد', 'مادة')} · في ${cnt(l.memos.size, 'مذكرة واحدة', 'مذكرتين', 'مذكرات', 'مذكرة')}</small></span><span class="cv" style="color:var(--mute)">‹</span></button>`).join('')}</div>` : '')
+    + (top.length ? `<div class="bh">الأكثر استشهادًا في مذكراتنا</div><div class="box">${top.map(g => `<button class="row1" ${g.row ? `data-act="libart" data-v="${idx.get(g.row)}"` : `data-act="libcite" data-v="${esc(g.reg + '|' + g.n)}"`}><span class="t"><b>${g.ax ? 'مرفق ' + ar(g.ax) : 'المادة ' + ar(g.n)}</b><small>${esc(g.ax && g.d ? g.d.t.replace(/^مرفق \d+\s*/, '') : g.reg)}</small></span><span class="r2" style="color:var(--a)">${ar(g.list.length)}<span class="k">${g.list.length === 1 ? 'مذكرة' : g.list.length === 2 ? 'مذكرتان' : 'مذكرات'}</span></span></button>`).join('')}</div>` : '')
     + ['أنظمة ولوائح', 'تعاميم وأدلة', 'مرفقات لائحة المؤسسات الصحية الخاصة'].map(g => grp(g).length ? `<div class="bh">${g}<span class="c">${ar(grp(g).length)}</span></div><div class="box regs">${(g.startsWith('مرفقات') && !L.axOpen ? grp(g).slice(0, 6) : grp(g)).map(regRow).join('')}${g.startsWith('مرفقات') && !L.axOpen && grp(g).length > 6 ? `<button class="row1" data-act="libax"><span class="t"><b style="color:var(--b)">عرض كل المرفقات (${ar(grp(g).length)})</b></span></button>` : ''}</div>` : '').join('')
     + `<div class="ocrnote" style="margin:14px 16px 0">نصوص الأنظمة مقروءة آليًّا من ملفات «أنظمة صحية» في درايف المكتب، وقد يخطئ فيها حرف. للاستشهاد افتح الملف الأصلي من زرّه.</div>`;
 }
@@ -864,7 +906,7 @@ function memoHtml(id, focus) {
   const cited = [...new Map(m.cites.filter(c => c.reg || c.ax).map(c => [LIB.norm(c.reg) + c.n + c.sub + (c.ax || ''), c])).values()];
   const own = ownOf(m), fixed = (S.cfg.libOwn || {})[m.id] != null;
   return `<div class="meta">${esc(memoLine(m))}</div><h2 style="margin-top:2px">${esc(m.title)}</h2>
-  <div class="ownbar"><span class="chip ${own ? 'g' : 'r'}">${own ? 'مذكرتنا' : 'مذكرة خصم — لا تظهر في المكتبة'}</span>${fixed ? '<small>صحّحها الفريق</small>' : `<small>ترجيح آلي: ${esc(m.auto.why.join('، ') || '—')}</small>`}
+  <div class="ownbar"><span class="chip ${own ? 'g' : 'r'}">${own ? 'مذكرتنا' : m.claim && m.auto.ours ? 'صحيفة دعوى — لا تظهر في المكتبة' : 'مذكرة خصم — لا تظهر في المكتبة'}</span>${fixed ? '<small>صحّحها الفريق</small>' : `<small>ترجيح آلي: ${esc(m.auto.why.join('، ') || '—')}</small>`}
     <button class="link" data-act="memoown" data-v="${esc(m.id)}" data-o="${own ? 0 : 1}">${own ? 'ليست مذكرتنا؟' : 'هذه مذكرتنا'}</button></div>
   <a class="drive" href="${esc(m.url || `https://drive.google.com/open?id=${encodeURIComponent(m.id)}`)}" target="_blank" rel="noopener">📄 فتح المذكرة في درايف</a>
   ${cited.length ? `<label>الأنظمة التي استشهدنا بها</label><div class="chips">${cited.map(c => { const { r } = S.lib.target(c); return `<button class="chip ${r ? 'b' : 'n'}" style="border:0" ${r ? `data-act="libart" data-v="${idx.get(r)}"` : ''}>${c.ax ? 'مرفق ' + ar(c.ax) : 'م ' + ar(c.n) + (c.sub ? '/' + esc(c.sub) : '')}${c.reg ? ' · ' + esc(c.reg.replace(/^اللائحة التنفيذية لنظام/, 'لائحة').slice(0, 40)) : ''}</button>`; }).join('')}</div>` : ''}
@@ -873,8 +915,16 @@ function memoHtml(id, focus) {
 function citeHtml(k) {
   const g = (S.lib.citeMap || new Map()).get('x|' + LIB.norm(k.split('|')[0]) + '|' + k.split('|')[1]) || [...(S.lib.citeMap || new Map()).values()].find(x => x.reg + '|' + x.n === k);
   if (!g) return '';
-  return `<div class="meta">${esc(g.reg)}</div><h2 style="margin-top:2px">المادة ${ar(g.n)}</h2><div class="meta" style="margin-top:6px">هذا النظام ليس في مجلد «أنظمة صحية»، فهنا ما نقلناه منه في مذكراتنا:</div>
-  ${g.list.map(citeCard).join('')}`;
+  // نص المادة كما نقلناه: أكثر ما تكرر من المنقول بين المذكرات (ومنه الفقرات المختلفة إن نُقلت)
+  const qs = new Map();
+  for (const c of g.list) if (c.quote) { const k = LIB.norm(c.quote).replace(/\s+/g, ' '); const o = qs.get(k) || { q: c.quote, sub: c.sub, n: 0 }; o.n++; qs.set(k, o); }
+  const quotes = [...qs.values()].sort((a, b) => b.n - a.n).slice(0, 4);
+  const groups = LIB.groupSimilar(g.list, c => c.arg || c.ctx);
+  return `<div class="meta">${esc(g.reg)}</div><h2 style="margin-top:2px">المادة ${ar(g.n)}</h2>
+  ${quotes.length ? `<label>نصّها كما نقلناه في مذكراتنا</label>${quotes.map(o => `<div class="atext small" style="margin-top:6px">${o.sub ? `<b>الفقرة ${esc(ar(o.sub))}:</b> ` : ''}«${esc(o.q)}»<div class="meta" style="margin-top:4px">نُقل في ${cnt(o.n, 'مذكرة واحدة', 'مذكرتين', 'مذكرات', 'مذكرة')}</div></div>`).join('')}` : ''}
+  <div class="ocrnote">هذا النظام ليس في المكتبة؛ النص هنا من مذكراتنا لا من المصدر الرسمي.</div>
+  <label>استشهدنا بها في ${cnt(new Set(g.list.map(c => c.m)).size, 'مذكرة واحدة', 'مذكرتين', 'مذكرات', 'مذكرة')}</label>
+  ${groups.map(x => citeCard(x.rep) + (x.more.length ? `<div class="dupbox"><div class="meta" style="padding:0 8px 4px">ونفس الصياغة في: ${x.more.map(c => esc(c.m.title)).join('، ')}</div></div>` : '')).join('')}`;
 }
 
 /* ───────── النوافذ ───────── */
@@ -892,6 +942,7 @@ function renderSheet() {
   else if (o.type === 'cite') html = citeHtml(o.k);
   else if (o.type === 'libsel') html = libSelHtml();
   else if (o.type === 'memoex') html = memoExHtml();
+  else if (o.type === 'law') html = lawHtml(o.k);
   else if (o.type === 'calAndroid') html = `<h2>تقويم الأندرويد</h2><div class="meta">نُسخ الرابط. Google Calendar يضيفه من الموقع لا من التطبيق:</div><div class="kv" style="padding:10px 12px;line-height:1.9;font-size:13.5px">١. افتح <b>calendar.google.com</b> من المتصفح (أو الكمبيوتر)<br>٢. «تقويمات أخرى» ← <b>+</b> ← <b>من عنوان URL</b><br>٣. الصق الرابط ← <b>إضافة تقويم</b></div><input readonly dir="ltr" value="${esc(o.url)}" style="margin-top:10px;font-size:12px" onclick="this.select()"><div class="meta" style="margin-top:6px">بعدها يتحدّث وحده في جوال الأندرويد (Google يحدّثه كل بضع ساعات).</div>`;
   if (!html) { S.open = null; return; }
   const el = document.createElement('div'); el.className = 'sheet'; el.dataset.act = 'close';
@@ -1462,6 +1513,8 @@ document.addEventListener('click', async e => {
     }
     case 'libselclear': S.lib.sel.clear(); saveSel(); if (S.open?.type === 'libsel') renderSheet(); return render();
     case 'libmore': S.lib.n += 30; return libResUpdate();
+    case 'libdup': { const E = S.lib.exp = S.lib.exp || new Set(); E.has(v) ? E.delete(v) : E.add(v); return libResUpdate(); }
+    case 'liblaw': S.back = []; S.open = { type: 'law', k: v }; return renderSheet();
     case 'libax': S.lib.axOpen = true; return render();
     case 'libload': S.lib.err = ''; return loadLib(v === '1');
     // من نافذةٍ مفتوحة يُحفظ ما قبلها، فيرجع ✕ خطوةً لا يُغلق الكل؛ والتنقّل بين المواد يستبدل ولا يُكدّس
@@ -1775,6 +1828,31 @@ function demoMemos() {
 وقد أوجب المرفق (66) من اللائحة التنفيذية لنظام المؤسسات الصحية إبلاغ شركة إدارة المطالبات خلال (24) ساعة، وأبلغت موكلتي في يوم الدخول نفسه.
 ثانياً: الإثراء بلا سبب:
 وقد نصت المادة (144) من نظام المعاملات المدنية على: "كل شخص يثري دون سبب مشروع على حساب شخص آخر يلزمه في حدود ما أثرى به تعويض هذا الشخص عما لحقه من خسارة".`],
+    ['demo-b0', 'مذكرة رد خالد التجريبي', D, '2026-08-01T10:00:00Z', 'demo', '', '4870000200', '1', `إشارة إلى المذكرة الجوابية المقدمة من المدعى عليه خالد التجريبي، نجيب:
+أولاً: في الرد على الدفع ببطلان الاتفاقية:
+وقد التزم المدعى عليه في الاتفاقية بالسداد على نفقته الخاصة في حال رفض التغطية، و«يجب على المتعاقدين الوفاء بما أوجبه العقد عليهما» بنص الفقرة (2) من المادة (94) من نظام المعاملات المدنية، وقد رُفضت التغطية فتحقق شرط التزامه.
+الطلبات:
+نطلب إلزامه بأن يدفع لموكلتي المبلغ.`],
+    ['demo-b1', 'مذكرة رد فهد التجريبي', D, '2026-08-15T10:00:00Z', 'demo', '', '4870000210', '1', `إشارة إلى المذكرة الجوابية المقدمة من المدعى عليه فهد التجريبي، نجيب:
+أولاً: في الرد على الدفع ببطلان الاتفاقية:
+وقد التزم المدعى عليه في الاتفاقية بالسداد على نفقته الخاصة في حال رفض التغطية، و«يجب على المتعاقدين الوفاء بما أوجبه العقد عليهما» بنص الفقرة (2) من المادة (94) من نظام المعاملات المدنية، وقد رُفضت التغطية فتحقق شرط التزامه.
+الطلبات:
+نطلب إلزامه بأن يدفع لموكلتي المبلغ.`],
+    ['demo-b2', 'مذكرة رد سعد التجريبي', D, '2026-09-20T10:00:00Z', 'demo', '', '4870000220', '1', `إشارة إلى المذكرة الجوابية المقدمة من المدعى عليه سعد التجريبي، نجيب:
+أولاً: في الرد على الدفع ببطلان الاتفاقية:
+وقد التزم المدعى عليه في الاتفاقية بالسداد على نفقته الخاصة في حال رفض التغطية، و«يجب على المتعاقدين الوفاء بما أوجبه العقد عليهما» بنص الفقرة (2) من المادة (94) من نظام المعاملات المدنية، وقد رُفضت التغطية فتحقق شرط التزامه.
+الطلبات:
+نطلب إلزامه بأن يدفع لموكلتي المبلغ.`],
+    ['demo-c1', 'صحيفة دعوى سالم التجريبي', D, '2026-09-25T10:00:00Z', 'demo', '', '4870000300', '1', `صحيفة دعوى
+المدعية: موكلتي شركة الحمادي القابضة
+الوقائع: تلقى المريض العلاج.
+الأسانيد: وقد التزم المدعى عليه في الاتفاقية بالسداد على نفقته الخاصة في حال رفض التغطية، و«يجب على المتعاقدين الوفاء بما أوجبه العقد عليهما» بنص الفقرة (2) من المادة (94) من نظام المعاملات المدنية، وقد رُفضت التغطية فتحقق شرط التزامه.
+الطلبات: إلزامه بالسداد.`],
+    ['demo-b9', 'مذكرة رد ناصر التجريبي', D, '2026-10-01T10:00:00Z', 'demo', '', '4870000400', '1', `إشارة إلى المذكرة الجوابية المقدمة من المدعى عليه، نجيب:
+أولاً: في الرد على الدفع بإنكار التوقيع الإلكتروني:
+وقّع المدعى عليه عبر منصة صادق بعد التحقق من هويته بالنفاذ الوطني، ولم يطعن في صدور المحرر، والعقد ملزم له بنص الفقرة (2) من المادة (94) من نظام المعاملات المدنية، و«الإقرار القضائي حجة قاطعة على المقر» بنص المادة (17) من نظام الإثبات.
+الطلبات:
+نطلب إلزامه بأن يدفع لموكلتي المبلغ.`],
     ['demo-m4', 'مذكرة جوابية خصمٍ تجريبي', 'application/pdf', '2026-09-03T10:00:00Z', 'demo', '', '4870000102', '1', `أصحاب الفضيلة
 أولاً: إن موكلي لم يوقّع على أي اتفاقية مالية، وقد قصّر المستشفى المدعي في إبلاغ وزارة الصحة.
 ثانياً: نصت المادة (16) من نظام المؤسسات الصحية الخاصة على العلاج الإسعافي دون مطالبة مالية.`],

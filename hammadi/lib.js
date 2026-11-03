@@ -166,12 +166,42 @@ export function memoTheirs(title) {
 }
 export function memoKind(title) {
   const t = norm(title);
+  if (/صحيف|لايحه دعوي|لايحة دعوي|^دعوي/.test(t) && !/جوابي|(^|\s)رد(\s|_|$)/.test(t)) return 'صحيفة دعوى';
   if (/جوابي/.test(t)) return 'مذكرة جوابية';
   if (/مذكر[هة]\s*[_\s]*رد/.test(t) || /(^|\s)رد(\s|_|$)/.test(t)) return 'مذكرة رد';
   if (/كليش/.test(t)) return 'كليشة';
   if (/لايح|اعتراض|استيناف/.test(t)) return 'لائحة';
   return 'مذكرة';
 }
+/* صحيفة الدعوى ليست ردًّا: تُكتب ابتداءً بصيغةٍ واحدة تتكرر في عشرات القضايا («نستشهد بالمادة (94)…»)،
+   فإن دخلت المكتبة غطّت على الرد الذي يُبحث عنه. تُعرف من عنوانها، أو من رأسها («صحيفة دعوى»)
+   إن خلا أولها مما يكتبه الرادّ («إشارة إلى المذكرة…»، «الرد على…»، «نجيب») */
+export function isClaim(title, text) {
+  if (memoKind(title) === 'صحيفة دعوى') return true;
+  const head = norm(String(text || '').slice(0, 1500));
+  const claimHead = /صحيفه (ال)?دعوي|لايحه (ال)?دعوي|صحيفه الدعوي المقدمه/.test(norm(String(text || '').slice(0, 600)));
+  const reply = /الرد علي|ردا علي|ردنا|نرد|نجيب|جوابا|اشاره الي (ال)?(مذكره|مذكرات|لايحه|صحيفه|الدعوي)|المذكره (الجوابيه|التعقيبيه)|مذكره رد|مذكره جوابيه/.test(head);
+  return claimHead && !reply;
+}
+
+/* صيغٌ متطابقة: الفقرة نفسها تُنسخ من مذكرةٍ إلى أخرى بتغيير الاسم والرقم. فتُجمع النتائج المتشابهة
+   (كلماتٌ مشتركة فوق الحد) تحت أولها، ويظهر معها «نفس الصياغة في كذا مذكرة» بدل تكرارها */
+export function groupSimilar(items, textOf, thr = 0.72) {
+  const words = t => new Set(norm(t).replace(/[^\u0621-\u064A\s]/g, ' ').split(/\s+/).filter(w => w.length > 2).slice(0, 120));
+  const groups = [];
+  for (const it of items) {
+    const w = words(textOf(it));
+    let g = null;
+    if (w.size >= 8) for (const x of groups) {
+      if (x.w.size < 8) continue;
+      let inter = 0; for (const a of w) if (x.w.has(a)) inter++;
+      if (inter / Math.min(w.size, x.w.size) >= thr) { g = x; break; }
+    }
+    if (g) g.more.push(it); else groups.push({ rep: it, more: [], w });
+  }
+  return groups.map(({ rep, more }) => ({ rep, more }));
+}
+
 // رقم القضية عشرُ خانات يبدأ بـ٤ في محاكم المملكة
 export function caseNoOf(title, text) {
   const m = norm(title).match(/(?<!\d)4\d{9}(?!\d)/) || norm(String(text || '').slice(0, 3000)).match(/(?<!\d)4\d{9}(?!\d)/);
@@ -283,8 +313,18 @@ export function citations(text, ctx = { last: '' }) {
       } else if (near) reg = regName(near[1], true);
       if (!reg) reg = prevNear;
       if (reg) { ctx.last = reg; chain = { reg, end: h.end }; }
-      const after = p.slice(h.end, h.end + 900);
-      const q = after.match(/["“«]([^"”»]{8,700})["”»]/);
+      // النص المنقول: قبل الاستشهاد إن لاصقه («…» بنص المادة (94))، وإلا بعده ما لم يسبقه استشهادٌ آخر
+      const nextAt = (hits[hits.indexOf(h) + 1] || { at: p.length }).at;
+      const pre = p.slice(Math.max(0, h.at - 800), h.at).match(/["“«]([^"”»]{8,700})["”»]([^"“«”»]{0,30})$/);
+      let quote = pre && /^\s*(و?(ب|وفق|وفقا|وفقاً|حسب|استنادا|استناداً|عملا|عملاً)?\s*(ل|ب)?\s*(نص|بنص|ل?ل?(ال)?(فقر|ماد|بند)|$))/.test(pre[2]) && !/[.؛]/.test(pre[2]) ? pre[1] : '';
+      if (!quote) {
+        const after = p.slice(h.end, Math.min(nextAt, h.end + 900));
+        const q = after.match(/["“«]([^"”»]{8,700})["”»]/);
+        // ونصٌّ يليه «بنص المادة …» مباشرةً هو للمادة التالية لا لهذه
+        const tailQ = q ? after.slice(q.index + q[0].length) : '';
+        if (q && !/[.؛]\s/.test(after.slice(0, q.index)) && !(nextAt < h.end + 900 && /^\s*(بنص|وفق|وفقا|وفقاً|حسب|استنادا|استناداً|عملا|عملاً|طبقا|طبقاً)/.test(tailQ))) quote = q[1];
+      }
+      const q = quote ? [0, quote] : null;
       res.push({ h, reg, items: h.list.map(c => ({ reg, n: c.n, sub: c.sub, ...(c.ax ? { ax: c.ax } : {}), quote: q ? q[1].trim() : '', ctx: p.slice(Math.max(0, h.at - 160), h.end + 260).trim() })) });
     }
     // «الفقرة (ط) من المادة (17) والمادة (57) من نظام المرافعات»: الأولى تأخذ نظام التالية المعطوفة عليها
