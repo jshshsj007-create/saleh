@@ -221,7 +221,7 @@ mark{background:color-mix(in srgb,var(--gold) 38%,transparent);color:inherit;bor
 <body>
 <div id="app"><div class="login"><p>جاري التحميل…</p></div></div>
 <script type="module">
-import * as LIB from './lib.js?v=1';
+import * as LIB from './lib.js?v=2';
 // ?demo: الموقع كاملًا ببياناتٍ وهمية في الجهاز، بلا Firebase ولا شيت — للتجربة والفحص قبل النشر
 const DEMO = new URLSearchParams(location.search).has('demo');
 
@@ -669,7 +669,7 @@ function memosFrom(res) {
   for (const m of seen.values()) { const f = LIB.norm(m.text).replace(/\s+/g, '').slice(0, 500); if (!byText.has(f) || pref(m.mime) < pref(byText.get(f).mime)) byText.set(f, m); }
   return [...byText.values()].map(m => ({
     ...m, kind: LIB.memoKind(m.title), caseNo: LIB.caseNoOf(m.title, m.text), opp: LIB.oppOf(m.title),
-    secs: LIB.memoSections(m.text), cites: LIB.citations(m.text),
+    ...(secs => ({ secs, cites: LIB.memoCites(secs) }))(LIB.memoSections(m.text)),
   })).sort((a, b) => String(b.mod).localeCompare(String(a.mod)));
 }
 // اسم النظام كما كُتب في المذكرة ← ملفّه في المكتبة، بتطابق كلماته المميِّزة («المؤسسات الصحية الخاصة»)
@@ -710,6 +710,14 @@ function libRows() {
   }
   return rows;
 }
+// الحجة كما كُتبت في المذكرة: الاستشهاد ثم تعليقنا عليه، والنص المنقول مُبرَز داخلها
+function argHtml(c) {
+  const a = String(c.arg || c.ctx || ''), q = c.quote ? a.indexOf(c.quote) : -1;
+  const cut = s => s.length > 2400 ? s.slice(0, 2400) + '…' : s;
+  const body = q < 0 ? esc(cut(a)) : esc(a.slice(0, q)) + `<mark>${esc(c.quote)}</mark>` + esc(cut(a.slice(q + c.quote.length)));
+  return `${c.h ? `<div class="meta" style="margin-top:4px;color:var(--navy);font-weight:600">${esc(c.h)}</div>` : ''}<div class="quote" style="white-space:pre-line">${body}</div>`;
+}
+const citeCard = c => `<button class="res" style="margin:8px 0 0;width:100%" data-act="libmemo" data-v="${esc(c.m.id)}" data-i="${c.sec ?? -1}"><div class="src"><span class="tg memo">مذكرتنا</span>${esc(memoLine(c.m))}</div><h3>${esc(c.m.title)}</h3>${c.sub ? `<div class="meta">الفقرة ${esc(c.sub)}</div>` : ''}${argHtml(c)}</button>`;
 const memoLine = m => [m.kind, m.opp, m.caseNo && 'القضية ' + m.caseNo].filter(Boolean).join(' · ');
 const hl = parts => parts.map(p => p.hit ? `<mark>${esc(p.t)}</mark>` : esc(p.t)).join('');
 const artName = r => r.kind === 'ماده' ? (r.n ? 'المادة ' + ar(r.n) : 'المقدمة والتعريفات') : 'صفحة ' + ar(r.page);
@@ -771,7 +779,7 @@ function artHtml(i) {
   <div class="atext">${words.length ? hl(LIB.snippet(r.text, words, 1e6)) : esc(r.text)}</div>
   <div class="ocrnote">مقروءٌ آليًّا من الملف المصوَّر: قارن بالأصل قبل النقل الحرفي.</div>
   <div class="btns"><button class="pri" data-act="libcopy" data-v="${i}">📋 نسخ النص</button><a class="drive" style="flex:1;margin:0" href="${pdfUrl(r.id)}" target="_blank" rel="noopener">📄 الملف الأصلي${r.page ? ' · ص ' + ar(r.page) : ''}</a></div>
-  ${ms.length ? `<label>استشهدنا بها في</label>${ms.map(c => `<button class="res" style="margin:8px 0 0;width:100%" data-act="libmemo" data-v="${esc(c.m.id)}"><div class="src"><span class="tg memo">مذكرتنا</span>${esc(memoLine(c.m))}</div><h3>${esc(c.m.title)}</h3>${c.sub ? `<div class="meta">الفقرة ${esc(c.sub)}</div>` : ''}${c.quote ? `<div class="quote">«${esc(c.quote)}»</div>` : `<div class="sn">${esc(c.ctx)}</div>`}</button>`).join('')}` : ''}
+  ${ms.length ? `<label>استشهدنا بها في</label>${ms.map(citeCard).join('')}` : ''}
   <div class="anav">${next ? `<button data-act="libart" data-v="${idx.get(next)}" data-nav="1">‹ ${artName(next)}</button>` : '<span style="flex:1"></span>'}${d ? `<button data-act="libreg" data-v="${esc(d.id)}">كل المواد</button>` : ''}${prev ? `<button data-act="libart" data-v="${idx.get(prev)}" data-nav="1">${artName(prev)} ›</button>` : '<span style="flex:1"></span>'}</div>`;
 }
 function regHtml(id) {
@@ -802,7 +810,7 @@ function citeHtml(k) {
   const g = (S.lib.citeMap || new Map()).get('x|' + LIB.norm(k.split('|')[0]) + '|' + k.split('|')[1]) || [...(S.lib.citeMap || new Map()).values()].find(x => x.reg + '|' + x.n === k);
   if (!g) return '';
   return `<div class="meta">${esc(g.reg)}</div><h2 style="margin-top:2px">المادة ${ar(g.n)}</h2><div class="meta" style="margin-top:6px">هذا النظام ليس في مجلد «أنظمة صحية»، فهنا ما نقلناه منه في مذكراتنا:</div>
-  ${g.list.map(c => `<button class="res" style="margin:8px 0 0;width:100%" data-act="libmemo" data-v="${esc(c.m.id)}"><div class="src"><span class="tg memo">مذكرتنا</span>${esc(memoLine(c.m))}</div><h3>${esc(c.m.title)}</h3>${c.quote ? `<div class="quote">«${esc(c.quote)}»</div>` : `<div class="sn">${esc(c.ctx)}</div>`}</button>`).join('')}`;
+  ${g.list.map(citeCard).join('')}`;
 }
 
 /* ───────── النوافذ ───────── */
@@ -1666,6 +1674,8 @@ function demoMemos() {
 إشارة إلى المذكرة المقدمة من المدعى عليه في القضية رقم (4870000101)، نجيب بما يلي:
 أولاً: الرد على الدفع بعدم الموافقة على التكلفة:
 فقد استثنت الفقرة (2) من المادة (7) من اللائحة التنفيذية لنظام المؤسسات الصحية الخاصة من أخذ الموافقة الخطية "الحالات الطارئة والتي تحتاج لتدخل فوري"، وحالة المدعى عليه حالةٌ طارئة استقبلها قسم الطوارئ.
+وبيان ذلك أن المريض وصل بألمٍ حاد وأُدخل فورًا، فلم يكن في الحال متسعٌ لأخذ توقيعه على التكلفة، والاستثناء صريحٌ في أن الطارئ لا يُشترط له ذلك.
+وعليه فلا يصح الاحتجاج بغياب الموافقة الخطية لإسقاط حق موكلتي في قيمة ما قدّمته من علاج.
 ثانياً: الرد على الدفع بالإهمال:
 نصت المادة (26) من نظام مزاولة المهن الصحية على أن "التزام الممارس الصحي الخاضع لأحكام هذا النظام هو التزام ببذل عناية يقظة تتفق مع الأصول العلمية المتعارف عليها".
 الطلبات:

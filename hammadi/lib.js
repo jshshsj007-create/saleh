@@ -216,6 +216,26 @@ export function citations(text) {
   return out;
 }
 
+/* الحجة كاملة: المذكرة تستشهد بالمادة ثم تعلّق عليها، فالمقصود ليس النص المنقول وحده بل
+   النقطة كلها — من فقرة الاستشهاد إلى آخر قسمها («أولاً: …»)، أو إلى أول فقرةٍ بعدها تستشهد
+   بمادةٍ غير التي فيها (فتلك حجةٌ أخرى) */
+export function memoCites(secs) {
+  const out = [];
+  secs.forEach((sec, si) => {
+    const paras = String(sec.t || '').split('\n').map(x => x.trim()).filter(Boolean);
+    const cs = paras.map(p => citations(p));
+    cs.forEach((list, pi) => {
+      if (!list.length) return;
+      const mine = new Set(list.map(c => c.n));
+      let end = pi + 1;
+      while (end < paras.length && !cs[end].some(c => !mine.has(c.n))) end++;
+      const arg = paras.slice(pi, end).join('\n');
+      for (const c of list) out.push({ ...c, h: sec.h, sec: si, arg });
+    });
+  });
+  return out;
+}
+
 /* ───────── البحث ─────────
    الاستعلام كلماتٌ حرّة، وقد يحمل رقم مادة («م ١٦»، «المادة 16»، «المادة السادسة عشرة»)
    واسمَ نظام («المؤسسات الصحية»). فيُفصل الرقم، وكلماتُ الاسم تُرشّح النظام، والباقي يُبحث في النص */
