@@ -265,7 +265,7 @@ function wordRe(w) {
   if (core.length < 2) core = w;
   const esc = core.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const src = `(?<![${AL}])(?:[وفبكل]?(?:ال|لل)?|ل)${esc}(?:ه|ات|ين|ون|ها|هم|هما|ي|يه|يات|تها|ته|تهم|ا)?(?![${AL}])`;
-  const r = { t: new RegExp(src), g: () => new RegExp(src, 'g') };
+  const r = { t: new RegExp(src), g: () => new RegExp(src, 'g'), G: new RegExp(src, 'g') };
   RE.set(w, r);
   return r;
 }
@@ -336,7 +336,7 @@ export function search(docs, q, limit = 60) {
         got++;
         score += xn.includes(w) ? 4 : 3;
         // تكرار الكلمة يرفع قليلًا، بسقف: المادة التي موضوعها الكلمة تتكرّر فيها
-        const r = wordRe(w).g(); let k = 0; while (k < 6 && r.exec(xn)) k++;
+        const r = wordRe(w).G; r.lastIndex = 0; let k = 0; while (k < 6 && r.exec(xn)) k++;
         score += k * 0.6;
       } else if (matchWord(tn, w)) { got++; score += 2; }
     }
