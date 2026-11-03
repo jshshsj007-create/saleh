@@ -570,7 +570,7 @@ function calHtml(big) {
     <div class="calnav"><button data-act="calnav" data-v="-1" aria-label="السابق">›</button><span>${title}</span><button data-act="calnav" data-v="1" aria-label="التالي">‹</button></div>
     <div class="cg">${grid}</div>
     <div class="agenda"><h4>${esc(dayT)}</h4>${day.length ? day.map(e => `<button class="row1" data-act="calopen" data-v="${esc(e.key || e.tag)}"><span class="tm">${e.t ? hm12(e.t) : 'طول اليوم'}</span><span class="t"><b>${esc(e.title)}</b><small>${esc(e.sub)}</small></span><span class="who2"><span class="pdot" style="background:${e.who ? color(e.who) : '#9aa3ae'};${e.ses ? '' : 'border-radius:2px'}"></span>${esc(e.who || '—')}</span></button>`).join('') : '<div class="meta" style="padding:6px 14px 12px">لا مواعيد في هذا اليوم</div>'}</div>
-    <button class="phonebtn" data-act="ics">📲 أضف مواعيدي لتقويم جوالي</button></div>`;
+    <div style="display:flex"><button class="phonebtn" data-act="calsub" data-v="me">📲 اشترك في تقويمي</button><button class="phonebtn" style="border-inline-start:1px solid var(--line)" data-act="calsub" data-v="team">👥 تقويم الفريق</button></div></div>`;
 }
 
 function render() {
@@ -609,6 +609,7 @@ function renderSheet() {
   else if (o.type === 'new') html = newHtml();
   else if (o.type === 'menu') html = menuHtml();
   else if (o.type === 'case') html = caseHtml(o.c);
+  else if (o.type === 'calAndroid') html = `<h2>تقويم الأندرويد</h2><div class="meta">نُسخ الرابط. Google Calendar يضيفه من الموقع لا من التطبيق:</div><div class="kv" style="padding:10px 12px;line-height:1.9;font-size:13.5px">١. افتح <b>calendar.google.com</b> من المتصفح (أو الكمبيوتر)<br>٢. «تقويمات أخرى» ← <b>+</b> ← <b>من عنوان URL</b><br>٣. الصق الرابط ← <b>إضافة تقويم</b></div><input readonly dir="ltr" value="${esc(o.url)}" style="margin-top:10px;font-size:12px" onclick="this.select()"><div class="meta" style="margin-top:6px">بعدها يتحدّث وحده في جوال الأندرويد (Google يحدّثه كل بضع ساعات).</div>`;
   if (!html) { S.open = null; return; }
   const el = document.createElement('div'); el.className = 'sheet'; el.dataset.act = 'close';
   el.innerHTML = `<div class="in"><button class="xbtn" data-act="back" aria-label="رجوع">✕</button><div class="grab"></div>${html}</div>`;
@@ -901,25 +902,28 @@ function caseHtml(c) {
   ${!S.sheet.at ? '<div class="meta" style="margin-top:10px">تفاصيل أكثر بعد «تحميل الشيت».</div>' : ''}`;
 }
 
-/* ───────── تقويم الجوال ─────────
-   ملف تقويم (ics) بجلساتي ومهلي القادمة يضيفه الآيفون لتقويمه. لكل موعدٍ معرّفٌ ثابت (UID)،
-   فإعادة إضافته تُحدِّث الموعد نفسه حيث يدعم التقويم ذلك، بدل أن يتكرّر. ولا تنبيه فيه: الإشعارات تكفي */
-function calEvents() {
-  const ev = [], who = me(), base = location.origin + location.pathname;
-  for (const g of S.sheet.sessions || []) if (matchTeam(g.lawyer) === who)
-    ev.push({ uid: `ses-${g.caseNo}-${g.d}`, d: g.d, t: g.t, mins: 60, title: `⚖️ جلسة — القضية ${g.caseNo}${g.opp ? ' · ' + g.opp : ''}`, desc: [g.court, g.circuit && 'الدائرة ' + g.circuit].filter(Boolean).join(' · '), url: base + '?open=' + encodeURIComponent(`ses:${g.caseNo}:${g.d}`) });
-  for (const i of items()) if (i.who === who && i.status !== 'done' && i.due && i.due >= TODAY())
-    ev.push({ uid: `due-${hash(i.key)}`, d: i.due, t: null, title: `⏰ آخر يوم: ${i.title} — القضية ${i.caseNo}${opp(i.row) ? ' · ' + opp(i.row) : ''}`, desc: KIND[i.kind] + (i.dueT ? ' · المهلة ' + hm12(i.dueT) : ''), url: base + '?open=' + encodeURIComponent(`d1:${i.key}:${i.due}`) });
+/* ───────── تقويم الجوال (اشتراك) ─────────
+   يشترك الجوال مرةً في رابطٍ على الخادم (webcal)، فيظهر في تطبيق التقويم نفسه ويُحدِّث نفسه كل فترة.
+   والموقع يرفع لكل رابطٍ ملفه كاملًا كلما تغيّرت المواعيد، فما أُضيف أو تعدّل أو حُذف يتبعه الجوال بلا ضغطة.
+   رابطٌ لكل شخص (مواعيده)، ورابطٌ للفريق (مواعيد الكل بأسمائهم). والرموز في الإعداد، والجلسات والمهل من الشيت */
+function calEventsFor(who) {
+  const ev = [], base = location.origin + location.pathname, team = !who;
+  const tag = n => team && n ? ` (${n})` : '';
+  for (const g of S.sheet.sessions || []) { const w = matchTeam(g.lawyer) || g.lawyer; if (!team && w !== who) continue;
+    ev.push({ uid: `ses-${g.caseNo}-${g.d}`, d: g.d, t: g.t, mins: 60, title: `⚖️ جلسة — القضية ${g.caseNo}${g.opp ? ' · ' + g.opp : ''}${tag(w)}`, desc: [g.court, g.circuit && 'الدائرة ' + g.circuit].filter(Boolean).join(' · '), url: base + '?open=' + encodeURIComponent(`ses:${g.caseNo}:${g.d}`) }); }
+  for (const i of items()) if ((team || i.who === who) && i.status !== 'done' && i.due && i.due >= TODAY())
+    ev.push({ uid: `due-${hash(i.key)}`, d: i.due, t: null, title: `⏰ آخر يوم: ${i.title} — القضية ${i.caseNo}${opp(i.row) ? ' · ' + opp(i.row) : ''}${tag(i.who)}`, desc: KIND[i.kind] + (i.dueT ? ' · المهلة ' + hm12(i.dueT) : ''), url: base + '?open=' + encodeURIComponent(`d1:${i.key}:${i.due}`) });
   return ev;
 }
-function buildIcs(ev) {
+function buildIcs(ev, name) {
   const z = n => String(n).padStart(2, '0');
   const utc = ms => { const d = new Date(ms); return `${d.getUTCFullYear()}${z(d.getUTCMonth() + 1)}${z(d.getUTCDate())}T${z(d.getUTCHours())}${z(d.getUTCMinutes())}00Z`; };
   const day = s => s.replace(/-/g, '');
   const tx = s => String(s || '').replace(/\\/g, '\\\\').replace(/;/g, '\;').replace(/,/g, '\\,').replace(/\n/g, '\\n');
   // سطور التقويم لا تتجاوز ٧٥ بايتًا، والعربي حرفه بايتان: يُطوى السطر على حدود الحروف
   const enc = new TextEncoder(), fold = line => { const out = []; let cur = ''; for (const ch of line) { if (enc.encode(cur + ch).length > 73) { out.push(cur); cur = ' '; } cur += ch; } out.push(cur); return out.join('\r\n'); };
-  const L = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//hammadi//ar', 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH', 'X-WR-CALNAME:مشروع الحمادي'];
+  // واسم التقويم كما يظهر في الجوال، واقتراحٌ أن يُحدَّث كل ربع ساعة (يحترمه الآيفون، وGoogle أبطأ)
+  const L = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//hammadi//ar', 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH', `X-WR-CALNAME:${tx(name || 'مشروع الحمادي')}`, 'X-WR-TIMEZONE:Asia/Riyadh', 'REFRESH-INTERVAL;VALUE=DURATION:PT15M', 'X-PUBLISHED-TTL:PT15M'];
   const now = utc(Date.now());
   for (const e of ev) {
     L.push('BEGIN:VEVENT', `UID:${e.uid}@hammadi`, `DTSTAMP:${now}`);
@@ -931,16 +935,38 @@ function buildIcs(ev) {
   L.push('END:VCALENDAR');
   return L.map(fold).join('\r\n') + '\r\n';
 }
-function downloadIcs() {
-  const ev = calEvents();
-  if (!ev.length) return toast('ما فيه مواعيد قادمة لك', true);
-  const blob = new Blob([buildIcs(ev)], { type: 'text/calendar;charset=utf-8' }), url = URL.createObjectURL(blob);
-  // الآيفون: فتح الملف نفسه يعرض «إضافة الكل» للتقويم. وغيره: تنزيله ثم فتحه
-  const a = document.createElement('a'); a.href = url;
-  if (!isIOS) a.download = 'hammadi.ics';
-  document.body.appendChild(a); a.click(); a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 60000);
-  toast(`📅 ${ev.length} موعد — اختر «إضافة الكل»`);
+// عنوان الخادم يُعرَّف في قسم الإشعارات تحت، فيُقرأ عند الحاجة لا عند تحميل الصفحة
+const calHost = () => PUSH.replace(/^https:\/\//, '');
+const calName = k => k === '__team' ? 'الحمادي — الفريق' : 'الحمادي — ' + k;
+const calSent = {};
+// يُرفع لكل رابطٍ ملفه إن تغيّرت مواعيده (لا يُقارن ختم الوقت، فلا يُرفع بلا داعٍ)
+async function syncCals() {
+  if (DEMO || (!S.sheet.at && !S.sheet.cachedAt)) return;
+  for (const [k, token] of Object.entries(S.cfg.calTokens || {})) {
+    if (!token) continue;
+    const ev = calEventsFor(k === '__team' ? null : k), sig = JSON.stringify(ev);
+    if (calSent[token] === sig) continue;
+    try { const r = await api('cal', { token, ics: buildIcs(ev, calName(k)) }); if (r.ok) calSent[token] = sig; } catch (e) { console.error('cal', e); }
+  }
+}
+async function subscribeCal(k) {
+  let token = (S.cfg.calTokens || {})[k];
+  if (!token) {
+    const b = new Uint8Array(30); crypto.getRandomValues(b);
+    token = btoa(String.fromCharCode(...b)).replace(/[+/=]/g, c => ({ '+': '-', '/': '_', '=': '' }[c]));
+    S.cfg.calTokens = { ...(S.cfg.calTokens || {}), [k]: token }; DB.saveCfg({ calTokens: { [k]: token } });
+  }
+  if (DEMO) return toast('في وضع التجربة لا يُشترك');
+  const ev = calEventsFor(k === '__team' ? null : k);
+  try { const r = await api('cal', { token, ics: buildIcs(ev, calName(k)) }); if (!r.ok) throw new Error(r.error); calSent[token] = JSON.stringify(ev); }
+  catch (e) { return toast('ما زبط: ' + e.message, true); }
+  const https = `https://${calHost()}cal/${token}.ics`;
+  // الآيفون والماك: رابط webcal يفتح «اشتراك؟» في التقويم نفسه. الأندرويد: Google Calendar يضيفه من الرابط
+  if (/Android/i.test(navigator.userAgent)) {
+    try { await navigator.clipboard.writeText(https); } catch (e) { }
+    S.open = { type: 'calAndroid', url: https }; return renderSheet();
+  }
+  location.href = `webcal://${calHost()}cal/${token}.ics`;
 }
 
 /* ───────── الكتابة ───────── */
@@ -1002,6 +1028,7 @@ document.addEventListener('click', async e => {
       toast('✓ انحفظ الموعد — ' + leftTxt({ due: d0, left: diffD(d0, TODAY()) })); return renderSheet();
     }
     case 'cleardue': put(k, { due: null, dueT: null }, 'مسح الموعد'); toast('✓ انمسح الموعد'); return renderSheet();
+    case 'calsub': return subscribeCal(v === 'team' ? '__team' : me());
     case 'calopen': { if (S.docs[v] || items().some(i => i.key === v)) { S.back = []; S.open = { type: 'task', k: v }; return renderSheet(); } S.pendingOpen = v; return tryOpen(); }
     case 'seg': S.seg = v; return render();
     case 'sheet': return loadSheet(true);
@@ -1106,7 +1133,6 @@ document.addEventListener('click', async e => {
     case 'hookcopy': { const ta = document.getElementById('hookcode'); ta.select(); try { await navigator.clipboard.writeText(ta.value); toast('✓ نُسخ السكربت'); } catch (e2) { document.execCommand('copy'); toast('✓ نُسخ'); } return; }
     case 'hookon': S.cfg.hookOn = v === '1'; DB.saveCfg({ hookOn: S.cfg.hookOn }); toast(S.cfg.hookOn ? '✓ السكربت يبلغ لحظيًا، والموقع ما يكرّر' : 'رجع الموقع يبلغ بنفسه'); return renderSheet();
     case 'pushnow': { t.disabled = true; t.textContent = '⏳ جاري الإرسال…'; await syncAll({}, true); return renderSheet(); }
-    case 'ics': return downloadIcs();
     case 'pushon': return enablePush();
     case 'pushoff': return disablePush();
     case 'setme': S.cfg.members = { ...(S.cfg.members || {}), [ek(S.user.email)]: v }; DB.saveCfg({ members: { [ek(S.user.email)]: v } }); render(); return loadSheet(false);
@@ -1418,9 +1444,10 @@ async function syncAll(extra = {}, force) {
     } catch (e) { console.error('push', e); pushLog.err = e.name === 'AbortError' ? 'الخادم ما ردّ خلال ٢٠ ثانية' : e.message || String(e); }
   }
   if (S.open?.type === 'menu') renderSheet();
+  syncCals();
 }
 // وضع التجربة: قائمة التنبيهات مكشوفة للفحص قبل النشر
-if (DEMO) { window.__sched = schedule; window.__fresh = freshAssignments; }
+if (DEMO) { window.__sched = schedule; window.__fresh = freshAssignments; window.__ics = k => buildIcs(calEventsFor(k), calName(k || '__team')); }
 // كل رجوعٍ للتطبيق يرسل المواعيد من جديد: الآيفون يوقف الصفحة في الخلفية، فقد يفوتها إرسالٌ بدأ قبلها
 document.addEventListener('visibilitychange', () => { if (!document.hidden && S.user && me()) syncPush(); });
 // الشيت يُقرأ من جديد كل ٥ دقائق والموقع مفتوح، وعند الرجوع إليه بعد دقيقتين: فيُلحظ تعديلٌ فيه
