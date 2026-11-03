@@ -164,7 +164,7 @@ label{display:block;font-size:12.5px;font-weight:600;color:var(--mute);margin:12
 .banner.info{background:var(--bbg);color:var(--b)}
 .fab{position:fixed;bottom:calc(20px + env(safe-area-inset-bottom));inset-inline-start:20px;background:var(--navy);border:0;color:#fff;border-radius:14px;padding:12px 16px;font-weight:600;box-shadow:0 4px 12px rgba(52,73,94,.3);z-index:6}
 .sheet{position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:flex-end;justify-content:center;z-index:20}
-.sheet .in{background:var(--bg);width:100%;max-width:720px;max-height:92vh;overflow:auto;border-radius:22px 22px 0 0;padding:16px 16px calc(22px + env(safe-area-inset-bottom))}
+.sheet .in{background:var(--bg);width:100%;max-width:720px;max-height:94vh;min-height:78vh;overflow:auto;border-radius:22px 22px 0 0;padding:16px 16px calc(22px + env(safe-area-inset-bottom))}
 .grab{width:42px;height:4px;background:var(--line);border-radius:3px;margin:0 auto 12px}
 .xbtn{position:sticky;top:0;float:left;margin:-6px -4px 0 0;width:38px;height:38px;border-radius:50%;padding:0;font-size:18px;line-height:1;display:grid;place-items:center;background:var(--card);z-index:2}
 .sheet h2{font-size:17px}
@@ -763,7 +763,8 @@ function sessionsFrom(rows) {
     const d = pickDate(r._session) || pickDate(r.session);
     if (!d || d < today || !r.lawyer) continue;
     const t = timeFrom(r._session, r.session), k = r.caseNo + '|' + d, o = m.get(k);
-    if (!o || (!o.t && t)) m.set(k, { caseNo: r.caseNo, lawyer: r.lawyer, court: r.court || '', circuit: r.circuit || '', opp: opp(r), d, t });
+    if (!o || (!o.t && t)) m.set(k, { caseNo: r.caseNo, lawyer: r.lawyer, court: r.court || '', circuit: r.circuit || '', opp: opp(r), d, t,
+      ...Object.fromEntries(['type', 'last', 'req', 'status', 'link', 'session'].filter(f => r[f]).map(f => [f, r[f]])) });
   }
   return [...m.values()].sort((a, b) => (a.d + (a.t || '')).localeCompare(b.d + (b.t || '')));
 }
@@ -890,16 +891,18 @@ function tryOpen() {
 }
 // صفحة قضيةٍ بلا مهمة (تذكير جلسة): تفاصيلها، وجلساتها القادمة، وزرّ ملفها في الدرايف
 function caseHtml(c) {
-  const rows = caseIndex()[c] || [], r = rows[0] || {};
-  const link = rows.map(x => x.link).find(Boolean) || '';
   const ses = (S.sheet.sessions || []).filter(g => g.caseNo === c);
-  const kv = [['المحكمة', [r.court, r.circuit && 'الدائرة ' + r.circuit].filter(Boolean).join(' · ')], ['الخصم', opp(r) || ses[0]?.opp], ['المحامي', r.lawyer || ses[0]?.lawyer],
-    ['نوع القضية', r.type], ['آخر إجراء', r.last], ['حالة القضية', r.status]].filter(x => x[1]);
+  // صفّها في الشيت إن كان محمّلًا، وإلا ما حُفظ مع جلستها: كل خانةٍ من أول مصدرٍ فيه قيمتها
+  const rows = [...(caseIndex()[c] || []), ...ses];
+  const f = k => rows.map(x => x[k]).find(Boolean) || '';
+  const link = f('link'), r = { plaintiff: f('plaintiff'), defendant: f('defendant'), opp: f('opp') };
+  const kv = [['المحكمة', [f('court'), f('circuit') && 'الدائرة ' + f('circuit')].filter(Boolean).join(' · ')], ['الخصم', opp(r)], ['المحامي', f('lawyer')],
+    ['نوع القضية', f('type')], ['آخر إجراء', f('last')], ['المطلوب', f('req')], ['حالة القضية', f('status')]].filter(x => x[1]);
   return `<h2>القضية ${esc(c)}</h2>
   ${link ? `<a class="drive" href="${esc(link)}" target="_blank" rel="noopener">📁 فتح ملف القضية</a>` : ''}
   ${ses.length ? `<label>الجلسات القادمة</label><div class="kv">${ses.map(g => `<div><dt>⚖️ ${hijri(g.d)}</dt><dd>${g.t ? hm12(g.t) : 'الساعة غير مكتوبة'}</dd></div>`).join('')}</div>` : ''}
   ${kv.length ? `<dl class="kv">${kv.map(([a, b]) => `<div><dt>${a}</dt><dd>${esc(b)}</dd></div>`).join('')}</dl>` : ''}
-  ${!S.sheet.at ? '<div class="meta" style="margin-top:10px">تفاصيل أكثر بعد «تحميل الشيت».</div>' : ''}`;
+  ${!kv.length ? '<div class="meta" style="margin-top:10px">تفاصيلها تظهر بعد «تحديث».</div>' : ''}`;
 }
 
 /* ───────── تقويم الجوال (اشتراك) ─────────
@@ -1012,7 +1015,7 @@ document.addEventListener('click', async e => {
     case 'dd': S.ddOpen = !S.ddOpen; return render();
     case 'ddclose': S.ddOpen = false; return render();
     case 'view': S.view = v; S.ddOpen = false; try { localStorage.setItem('hammadi.view', v); } catch (e2) { } scrollTo(0, 0); return render();
-    case 'sec': S.view = 'sec'; S.tab = v; S.seg = 'mine'; S.archN = 30; S.ddOpen = false; try { localStorage.setItem('hammadi.view', 'sec'); localStorage.setItem('hammadi.tab', v); } catch (e2) { } scrollTo(0, 0); return render();
+    case 'sec': S.view = 'sec'; S.tab = v; S.seg = 'mine'; S.archN = 30; S.ddOpen = false; try { localStorage.setItem('hammadi.view', 'sec'); localStorage.setItem('hammadi.tab', v); } catch (e2) { } render(); const h = document.querySelector('.h1'); if (h) scrollTo({ top: h.getBoundingClientRect().top + scrollY - (document.querySelector('.top')?.offsetHeight || 0) - 8, behavior: 'smooth' }); return;
     case 'teamtog': S.teamOpen[v] = !S.teamOpen[v]; return render();
     case 'calmode': S.cal.mode = v; S.cal.ref = S.cal.day; try { localStorage.setItem('hammadi.calmode', v); } catch (e2) { } return render();
     case 'calwho': S.cal.who = v; return render();
@@ -1309,7 +1312,7 @@ function demoSheet() {
       row('4870000105', 'الغامدي', 'العامة', 'شركة المدى (تجريبي)', 'أجرة أعمال', 9, 'مذكرة جوابية', ''),
       row('4870000106', '', 'العامة', 'مؤسسة البناء (تجريبي)', 'مقاولة', 15, 'مذكرة رد', ''),
       row('4870000107', 'القاسم', 'العامة', 'شركة الضياء (تجريبي)', 'أجرة أعمال', 4, 'مذكرة جوابية', 'حكم لصالح الحمادي', 'حكم لصالح الحمادي'),
-      row('4870000199', 'الشلعان', 'العامة', 'شركة قديمة (تجريبي)', 'أجرة أعمال', 0, '', '', 'حكم لصالح الحمادي'),
+      row('4870000199', 'الشلعان', 'العامة', 'شركة قديمة (تجريبي)', 'أجرة أعمال', 3, '', 'إحضار أصل العقد', 'قيد النظر'),
       row('4870000108', 'الشلعان', 'العامة', 'شركة الندى (تجريبي)', 'أجرة أعمال', 5, 'تنفيذ', 'تنفيذ الحكم', 'حكم لصالح الحمادي'),
       row('4870000109', 'القاسم', 'العامة', 'مؤسسة الأمل (تجريبي)', 'مقاولة', 7, 'دراسة', 'دراسة القضية', 'قيد النظر'),
     ]],
