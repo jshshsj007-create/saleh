@@ -195,11 +195,33 @@ label{display:block;font-size:12.5px;font-weight:600;color:var(--mute);margin:12
 .mem{display:flex;align-items:center;gap:8px;padding:8px 12px;border-top:1px solid var(--line);font-size:13.5px}
 .mem:first-child{border-top:0}
 .mem span{flex:1;word-break:break-all}
+/* المكتبة: بحثٌ كبير، ونتائج بمقتطفٍ تُبرز فيه الكلمة، ونص المادة كاملًا كما في النظام */
+.lsearch{padding:12px 14px 4px}
+.lsearch input{font-size:16px;padding:13px 14px;border-radius:14px;box-shadow:var(--shadow)}
+.lsearch .hint{font-size:12px;color:var(--mute);margin:6px 4px 0}
+.lsearch .hint b{color:var(--b);font-weight:600;cursor:pointer}
+.res{display:block;width:100%;text-align:start;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:11px 13px;margin:10px 14px 0;width:calc(100% - 28px);box-shadow:var(--shadow)}
+.res .src{font-size:11.5px;color:var(--mute);display:flex;gap:6px;align-items:center}
+.res .src .tg{border-radius:6px;padding:0 6px;font-weight:600;font-size:11px}
+.tg.reg{background:var(--bbg);color:var(--b)}.tg.memo{background:var(--abg);color:var(--a)}.tg.ax{background:var(--nbg);color:var(--n)}
+.res h3{font-size:15px;margin-top:3px;font-weight:700}
+.res .sn{font-size:13.5px;color:var(--text);opacity:.88;margin-top:4px;line-height:1.75;white-space:pre-line;word-break:break-word}
+mark{background:color-mix(in srgb,var(--gold) 38%,transparent);color:inherit;border-radius:3px;padding:0 1px}
+.res .ft{display:flex;gap:6px;margin-top:7px;flex-wrap:wrap}
+.atext{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;margin-top:12px;font-size:15px;line-height:2;white-space:pre-line;word-break:break-word}
+.atext.small{font-size:13.5px;line-height:1.85}
+.anav{display:flex;gap:8px;margin-top:10px}
+.anav button{flex:1;font-size:13px;padding:8px}
+.quote{border-inline-start:3px solid var(--gold);padding:4px 10px;margin-top:6px;font-size:13.5px;line-height:1.8;color:var(--text);opacity:.9}
+.ocrnote{font-size:11.5px;color:var(--mute);margin-top:8px}
+.regs .row1 .t b{font-weight:600}
+.libsetup{margin:14px;background:var(--card);border:1px dashed color-mix(in srgb,var(--a) 45%,var(--line));border-radius:14px;padding:12px 14px;font-size:13.5px;line-height:1.8}
 </style>
 </head>
 <body>
 <div id="app"><div class="login"><p>جاري التحميل…</p></div></div>
 <script type="module">
+import * as LIB from './lib.js?v=1';
 // ?demo: الموقع كاملًا ببياناتٍ وهمية في الجهاز، بلا Firebase ولا شيت — للتجربة والفحص قبل النشر
 const DEMO = new URLSearchParams(location.search).has('demo');
 
@@ -271,6 +293,8 @@ const S = {
   tab: (() => { const q = new URLSearchParams(location.search).get('tab'); if (['m', 'a', 's', 'e'].includes(q)) return q; try { const t = localStorage.getItem('hammadi.tab'); if (['m', 'a', 's', 'e'].includes(t)) return t; } catch (e) { } return 'm'; })(),
   seg: 'mine', q: '', open: null, archN: 30,
   denied: false, asked: false, reqs: {},
+  // المكتبة: الأنظمة من ملفٍ في الموقع، ومذكراتنا من جدول المكتبة في درايف المكتب
+  lib: { regs: null, memos: null, rows: [], q: '', f: 'all', loading: false, err: '', memoErr: '', n: 30 },
 };
 const myEmail = () => String(S.user?.email || '').toLowerCase();
 // صاحب الموقع وحده يضيف الأعضاء ويقبل الطلبات؛ والقواعد في Firebase تفرض هذا لا الواجهة وحدها
@@ -457,7 +481,7 @@ function row(it, showWho) {
 }
 
 /* ───────── الواجهة: الشريط، والقائمة، والأقسام ───────── */
-const VIEWN = { mine: 'كل مهامي', team: 'مهام الفريق كلها', cal: 'تقويم المكتب' };
+const VIEWN = { mine: 'كل مهامي', team: 'مهام الفريق كلها', cal: 'تقويم المكتب', lib: 'المكتبة القانونية' };
 const SECC = { m: 'var(--b)', a: '#8a6d8e', s: '#6e8a8a', e: 'var(--g)' };
 const viewName = () => S.view === 'sec' ? TABN[S.tab] : VIEWN[S.view];
 function topHtml(all) {
@@ -470,7 +494,9 @@ function topHtml(all) {
     ${mi('view', 'team', 'مهام الفريق كلها', '#9aa3ae', open.length, 0, S.view === 'team')}
     ${mi('view', 'cal', 'تقويم المكتب', 'var(--gold)', null, 0, S.view === 'cal')}
     <div class="sep"></div><div class="grp">الأقسام</div>
-    ${['m', 'a', 's', 'e'].map(k => mi('sec', k, TABN[k], SECC[k], open.filter(i => i.kind === k).length, myLate(k), S.view === 'sec' && S.tab === k)).join('')}</div>`;
+    ${['m', 'a', 's', 'e'].map(k => mi('sec', k, TABN[k], SECC[k], open.filter(i => i.kind === k).length, myLate(k), S.view === 'sec' && S.tab === k)).join('')}
+    <div class="sep"></div><div class="grp">المرجع</div>
+    ${mi('view', 'lib', 'المكتبة القانونية', '#8a7a5c', null, 0, S.view === 'lib')}</div>`;
   const st = sh.loading ? '⏳ جاري القراءة…' : sh.at ? 'آخر تحميل ' + hm12(sh.at.toTimeString().slice(0, 5)) : sh.cachedAt ? 'محفوظ ' + (iso(new Date(sh.cachedAt)) === TODAY() ? hm12(new Date(sh.cachedAt).toTimeString().slice(0, 5)) : hijri(iso(new Date(sh.cachedAt)))) : '';
   return `<div class="top"><div class="wrap">
     <div class="bar1"><img src="wael-icon.png?v=3" alt=""><span><b>مشروع الحمادي</b><small>مرحبًا ${esc(me())}${DEMO ? ' · وضع التجربة' : ''}</small></span>
@@ -583,9 +609,9 @@ function render() {
   const banner = sh.err ? `<div class="banner bad"><span>${esc(sh.err)}</span><button class="sm" data-act="sheet">إعادة</button></div>`
     // الملخّص المحفوظ يكفي للمهام والتنبيهات، فلا شريط كبير إلا إن لم يكن ملخّص، أو صار أقدم من يوم
     : !sh.at && !sh.loading && (!sh.cachedAt || Date.now() - sh.cachedAt > 864e5) ? `<div class="banner info"><span>${sh.cachedAt ? `آخر قراءة للشيت قبل أكثر من يوم (${hijri(iso(new Date(sh.cachedAt)))}). حدّثه لآخر التعديلات.` : 'المهام تُقرأ من الشيت. اضغط لتحميلها.'}</span><button class="sm pri" data-act="sheet">تحميل الشيت</button></div>` : '';
-  const main = S.view === 'mine' ? mineHtml(all) : S.view === 'team' ? teamHtml(all) : S.view === 'cal' ? calHtml(true)
+  const main = S.view === 'mine' ? mineHtml(all) : S.view === 'team' ? teamHtml(all) : S.view === 'cal' ? calHtml(true) : S.view === 'lib' ? libHtml()
     : lateHtml(all) + calHtml() + sectionHtml(all);
-  $app().innerHTML = `${topHtml(all)}<div class="wrap">${banner}${main}</div><button class="fab" data-act="new">+ مهمة</button>`;
+  $app().innerHTML = `${topHtml(all)}<div class="wrap">${S.view === 'lib' ? '' : banner}${main}</div>${S.view === 'lib' ? '' : '<button class="fab" data-act="new">+ مهمة</button>'}`;
   // نافذةٌ مفتوحة يُكتب فيها: لا نعيد رسمها مع كل تحديثٍ يصل، وإلا ضاع ما يُكتب
   const f = document.activeElement;
   tryOpen();
@@ -600,6 +626,185 @@ function archiveHtml() {
     ${r.last ? `<div class="meta" style="margin-top:6px">آخر إجراء: ${esc(r.last)}</div>` : ''}</div>`).join('') + (A.length > S.archN ? `<button class="more sm" data-act="more">عرض المزيد</button>` : '');
 }
 
+/* ───────── المكتبة القانونية ─────────
+   الأنظمة الصحية في regs.json: قُرئت صفحاتها آليًّا (أغلبها صورٌ ممسوحة) وقُسّمت موادَّ.
+   ومذكراتنا لا تمرّ بالمستودع أبدًا (فيها أسماء مرضى وقضايا): سكربت الشيت يجمع نصوصها في جدولٍ
+   داخل درايف المكتب، والموقع يقرؤه بإذن الداخل كما يقرأ جدول القضايا. وكل شيءٍ يُبحث فيه معًا */
+const REGV = 1;
+async function loadLib(force) {
+  const L = S.lib;
+  if (L.loading) return;
+  L.loading = true; L.err = ''; render();
+  try {
+    if (!L.regs) {
+      const r = await fetch('regs.json?v=' + REGV);
+      if (!r.ok) throw new Error('ما تحمّلت الأنظمة (' + r.status + ')');
+      L.regs = (await r.json()).docs;
+    }
+    if (!L.memos || force) {
+      try { L.memos = memosFrom(await DB.readLib(S.cfg.sheetId)); L.memoErr = ''; }
+      catch (e) { console.error(e); L.memos = L.memos || null; L.memoErr = e.message || String(e); }
+    }
+    L.rows = libRows();
+  } catch (e) { console.error(e); L.err = e.message || String(e); }
+  L.loading = false; render();
+}
+// صفوف جدول المكتبة ← مذكراتنا وحدها، بلا تكرار: المذكرة الواحدة تُحفظ مستندًا ووورد وPDF
+function memosFrom(res) {
+  if (!res) return null;
+  const pref = m => /google-apps\.document/.test(m) ? 0 : /word|msword/.test(m) ? 1 : 2;
+  const seen = new Map();
+  for (const r of res.rows) {
+    const [id, title, mime, mod, owner, url, folder, inRoot, text] = r;
+    if (!id || !text || LIB.memoTheirs(title)) continue;
+    // ملفٌ خارج مجلد الحمادي لا يُعدّ إلا إن ذكر الحمادي في نصّه
+    if (String(inRoot) !== '1' && !/حماد/.test(text)) continue;
+    const k = LIB.norm(String(title).replace(/\.[a-z]{2,5}$/i, '')).replace(/[_\-\s()]+/g, '');
+    const m = { id, title: String(title).replace(/\.[a-z]{2,5}$/i, '').replace(/_/g, ' ').trim(), mime, mod, owner, url, folder, text: String(text) };
+    const o = seen.get(k);
+    if (!o || pref(mime) < pref(o.mime) || (pref(mime) === pref(o.mime) && String(mod) > String(o.mod))) seen.set(k, m);
+  }
+  // ونصٌّ متطابق بعنوانين مختلفين: يُبقى أحدهما
+  const byText = new Map();
+  for (const m of seen.values()) { const f = LIB.norm(m.text).replace(/\s+/g, '').slice(0, 500); if (!byText.has(f) || pref(m.mime) < pref(byText.get(f).mime)) byText.set(f, m); }
+  return [...byText.values()].map(m => ({
+    ...m, kind: LIB.memoKind(m.title), caseNo: LIB.caseNoOf(m.title, m.text), opp: LIB.oppOf(m.title),
+    secs: LIB.memoSections(m.text), cites: LIB.citations(m.text),
+  })).sort((a, b) => String(b.mod).localeCompare(String(a.mod)));
+}
+// اسم النظام كما كُتب في المذكرة ← ملفّه في المكتبة، بتطابق كلماته المميِّزة («المؤسسات الصحية الخاصة»)
+const GENERIC = new Set(['نظام', 'لنظام', 'النظام', 'اللايحه', 'لايحه', 'التنفيذيه', 'ولايحته', 'ولايحتها', 'التنفيذيه', 'و', 'ل', 'في', 'المعتمده', 'تنظيم']);
+const sig = t => LIB.norm(t).replace(/[()\-–]/g, ' ').split(/\s+/).filter(w => w && !GENERIC.has(w));
+function regOf(name) {
+  const w = sig(name); if (!w.length || !S.lib.regs) return null;
+  let best = null, bs = 0;
+  for (const d of S.lib.regs) {
+    if (d.ax) continue;
+    // كم من كلمات اسم النظام وردت في الاستشهاد: الاستشهاد قد يجرّ بعده كلماتٍ من الجملة («… الخاصة من أخذ الموافقة»)
+    const dw = new Set(sig(d.t)), hit = [...dw].filter(x => w.includes(x)).length, sc = hit / (dw.size || 1) + hit / w.length * 0.01;
+    if (hit >= Math.min(2, dw.size) && sc > bs) { bs = sc; best = d; }
+  }
+  return bs >= 0.75 ? best : null;
+}
+// كل ما يُبحث فيه صفوفٌ متجانسة: مادةٌ من نظام، أو صفحةٌ من مرفق، أو قسمٌ من مذكرة
+function libRows() {
+  const L = S.lib, rows = [];
+  for (const d of L.regs || []) {
+    const grp = d.ax ? 'ax' : 'reg';
+    if (d.a) for (const [n, part, page, text] of d.a) rows.push({ kind: 'ماده', grp, id: d.id, n, part, page, text, docTitle: d.t + (part > 1 ? ' — ' + ((d.parts || {})[part] || 'الجزء ' + ar(part)) : ''), cites: [] });
+    else (d.p || []).forEach((text, i) => rows.push({ kind: 'صفحه', grp, id: d.id, page: i + 1, text, docTitle: d.t }));
+  }
+  // استشهاداتنا تُعلَّق على موادّها: فمن فتح المادة رأى أين استشهدنا بها، ومن بحث برقمها وجد المذكرة
+  const byArt = new Map(rows.filter(r => r.kind === 'ماده' && r.n).map(r => [r.id + '|' + r.part + '|' + r.n, r]));
+  L.citeMap = new Map();
+  for (const m of L.memos || []) {
+    m.secs.forEach((sec, i) => rows.push({ kind: 'مذكره', grp: 'memo', memo: m, sec: i, text: sec.t, h: sec.h, docTitle: m.title, cites: [] }));
+    for (const c of m.cites) {
+      const d = regOf(c.reg), key = d ? d.id + '|' + c.n : 'x|' + LIB.norm(c.reg) + '|' + c.n;
+      const r = d && (byArt.get(d.id + '|1|' + c.n) || [...byArt.values()].find(x => x.id === d.id && x.n === c.n));
+      if (r && !r.cites.some(x => x.m === m && x.sub === c.sub)) r.cites.push({ m, ...c });
+      const g = L.citeMap.get(key) || { reg: d ? d.t : c.reg, d, n: c.n, row: r, list: [] };
+      if (!g.list.some(x => x.m === m)) g.list.push({ m, ...c });
+      L.citeMap.set(key, g);
+    }
+  }
+  return rows;
+}
+const memoLine = m => [m.kind, m.opp, m.caseNo && 'القضية ' + m.caseNo].filter(Boolean).join(' · ');
+const hl = parts => parts.map(p => p.hit ? `<mark>${esc(p.t)}</mark>` : esc(p.t)).join('');
+const artName = r => r.kind === 'ماده' ? (r.n ? 'المادة ' + ar(r.n) : 'المقدمة والتعريفات') : 'صفحة ' + ar(r.page);
+// المقتطف في النتائج سطرٌ متصل (النص المقروء آليًّا سطوره قصيرة مكسّرة)؛ والنص الكامل يبقى بسطوره
+const flat = t => String(t || '').replace(/\s*\n\s*/g, ' ');
+function libResult(r, words, i) {
+  if (r.kind === 'مذكره') {
+    const m = r.memo;
+    return `<button class="res" data-act="libmemo" data-v="${esc(m.id)}" data-i="${r.sec}"><div class="src"><span class="tg memo">مذكرتنا</span>${esc(memoLine(m))}</div>
+      <h3>${esc(r.h || m.title)}</h3><div class="sn">${hl(LIB.snippet(flat(r.text), words, 260))}</div>
+      <div class="ft"><span class="chip n">${esc(m.title)}</span>${m.mod ? `<span class="chip n">${hijri(String(m.mod).slice(0, 10))}</span>` : ''}</div></button>`;
+  }
+  return `<button class="res" data-act="libart" data-v="${i}"><div class="src"><span class="tg ${r.grp}">${r.grp === 'ax' ? 'مرفق' : 'نظام'}</span>${esc(r.docTitle)}</div>
+    <h3>${artName(r)}</h3><div class="sn">${hl(LIB.snippet(flat(r.text), words, 260))}</div>
+    ${r.cites && r.cites.length ? `<div class="ft"><span class="chip a">استشهدنا بها في ${ar(new Set(r.cites.map(c => c.m)).size)} ${new Set(r.cites.map(c => c.m)).size === 1 ? 'مذكرة' : new Set(r.cites.map(c => c.m)).size === 2 ? 'مذكرتين' : 'مذكرات'}</span></div>` : ''}</button>`;
+}
+function libHtml() {
+  const L = S.lib;
+  if (!L.regs && !L.loading && !L.err) setTimeout(() => loadLib(), 0);
+  const nRegs = (L.regs || []).filter(d => !d.ax).length, nAx = (L.regs || []).filter(d => d.ax).length;
+  const head = `<div class="h1">المكتبة القانونية</div><div class="sub">${L.regs ? `${ar(nRegs)} نظامًا ولائحة وتعميمًا · ${ar(nAx)} مرفقًا${L.memos ? ` · ${ar(L.memos.length)} من مذكراتنا` : ''}` : 'الأنظمة الصحية ومذكراتنا في بحثٍ واحد'}</div>
+  <div class="lsearch"><input type="search" id="lq" placeholder="المادة ١٦ المؤسسات · الحالات الطارئة · بذل عناية" value="${esc(L.q)}" autocomplete="off">
+    ${!L.q ? `<div class="hint">جرّب: <b data-act="libtry" data-v="المادة ١٦ المؤسسات الصحية">المادة ١٦ المؤسسات الصحية</b> · <b data-act="libtry" data-v="الحالات الطارئة">الحالات الطارئة</b> · <b data-act="libtry" data-v="الموافقة الخطية">الموافقة الخطية</b></div>` : ''}</div>
+  <div class="seg">${[['all', 'الكل'], ['reg', 'الأنظمة'], ['ax', 'المرفقات'], ['memo', 'مذكراتنا']].map(([k, l]) => `<button class="${L.f === k ? 'on' : ''}" data-act="libf" data-v="${k}">${l}</button>`).join('')}</div>`;
+  if (L.err) return head + `<div class="banner bad"><span>${esc(L.err)}</span><button class="sm" data-act="libload">إعادة</button></div>`;
+  if (!L.regs) return head + '<div class="empty">⏳ جاري تحميل المكتبة…</div>';
+  const memoNote = L.memos ? '' : L.memoErr ? `<div class="libsetup">مذكراتنا ما انقرت: ${esc(L.memoErr)} <button class="link" data-act="libload" data-v="1">إعادة</button></div>`
+    : L.loading ? '' : `<div class="libsetup"><b>مذكراتنا تنضاف هنا</b> بعد تشغيل سكربت الشيت (نفس سكربت التنبيهات): يجمع كل «مذكرة رد» و«مذكرة جوابية» كتبناها من درايف المكتب، ويتحدّث كل ساعة وحده. <button class="link" data-act="menu">افتح الإعدادات ←</button></div>`;
+  if (!L.q.trim()) return head + memoNote + libHome();
+  const res = LIB.search(L.rows.filter(r => L.f === 'all' || r.grp === L.f), L.q, 300);
+  // كلمات الإبراز في النافذة: كلمات النص وحدها، لا ما طابق اسم النظام («المؤسسات الصحية»)
+  L.hw = res.words;
+  if (!res.hits.length) return head + memoNote + `<div class="empty">ما لقيت شيء لـ«${esc(L.q)}»${res.art ? `<br><small>ابحث برقم المادة مع كلمة من اسم النظام، مثل «المادة ${ar(res.art)} المؤسسات»</small>` : ''}</div>`;
+  const shown = res.hits.slice(0, L.n);
+  const idx = new Map(L.rows.map((r, i) => [r, i]));
+  return head + `<div class="bh">${ar(res.hits.length)} نتيجة${res.art ? ' · المادة ' + ar(res.art) : ''}</div>` + shown.map(h => libResult(h.d, res.words, idx.get(h.d))).join('')
+    + (res.hits.length > L.n ? `<button class="more sm" style="margin-top:12px" data-act="libmore">عرض المزيد</button>` : '') + memoNote;
+}
+// بلا بحث: الأكثر استشهادًا في مذكراتنا، ثم الأنظمة تُتصفّح مادةً مادة
+function libHome() {
+  const L = S.lib, top = [...(L.citeMap || new Map()).values()].sort((a, b) => b.list.length - a.list.length).slice(0, 8);
+  const idx = new Map(L.rows.map((r, i) => [r, i]));
+  const grp = g => (L.regs || []).filter(d => d.g === g);
+  const regRow = d => `<button class="row1" data-act="libreg" data-v="${esc(d.id)}"><span class="t"><b>${esc(d.t)}</b><small>${d.big ? 'ملفٌ كبير لم يُقرأ نصّه — يُفتح من الأصل' : d.a ? ar(d.a.filter(x => x[0]).length) + ' مادة' : ar(d.np) + (d.np <= 10 ? ' صفحات' : ' صفحة')}</small></span><span class="cv" style="color:var(--mute)">‹</span></button>`;
+  return (top.length ? `<div class="bh">الأكثر استشهادًا في مذكراتنا</div><div class="box">${top.map(g => `<button class="row1" ${g.row ? `data-act="libart" data-v="${idx.get(g.row)}"` : `data-act="libcite" data-v="${esc(g.reg + '|' + g.n)}"`}><span class="t"><b>المادة ${ar(g.n)}</b><small>${esc(g.reg)}</small></span><span class="r2" style="color:var(--a)">${ar(g.list.length)}<span class="k">${g.list.length === 1 ? 'مذكرة' : g.list.length === 2 ? 'مذكرتان' : 'مذكرات'}</span></span></button>`).join('')}</div>` : '')
+    + ['أنظمة ولوائح', 'تعاميم وأدلة', 'مرفقات لائحة المؤسسات الصحية الخاصة'].map(g => grp(g).length ? `<div class="bh">${g}<span class="c">${ar(grp(g).length)}</span></div><div class="box regs">${(g.startsWith('مرفقات') && !L.axOpen ? grp(g).slice(0, 6) : grp(g)).map(regRow).join('')}${g.startsWith('مرفقات') && !L.axOpen ? `<button class="row1" data-act="libax"><span class="t"><b style="color:var(--b)">عرض كل المرفقات (${ar(grp(g).length)})</b></span></button>` : ''}</div>` : '').join('')
+    + `<div class="ocrnote" style="margin:14px 16px 0">نصوص الأنظمة مقروءة آليًّا من ملفات «أنظمة صحية» في درايف المكتب، وقد يخطئ فيها حرف. للاستشهاد افتح الملف الأصلي من زرّه.</div>`;
+}
+const pdfUrl = id => `https://drive.google.com/file/d/${encodeURIComponent(id)}/view`;
+function artHtml(i) {
+  const L = S.lib, r = L.rows[i]; if (!r) return '';
+  const d = (L.regs || []).find(x => x.id === r.id);
+  const sib = L.rows.filter(x => x.id === r.id && x.kind === r.kind);
+  const at = sib.indexOf(r), prev = sib[at - 1], next = sib[at + 1];
+  const idx = new Map(L.rows.map((x, j) => [x, j]));
+  const words = L.q.trim() ? L.hw || [] : [];
+  const ms = [...new Map((r.cites || []).map(c => [c.m, c])).values()];
+  return `<div class="meta">${esc(r.docTitle)}</div><h2 style="margin-top:2px">${artName(r)}${r.page ? `<small style="font-weight:500;color:var(--mute);font-size:12.5px"> · صفحة ${ar(r.page)} في الملف</small>` : ''}</h2>
+  <div class="atext">${words.length ? hl(LIB.snippet(r.text, words, 1e6)) : esc(r.text)}</div>
+  <div class="ocrnote">مقروءٌ آليًّا من الملف المصوَّر: قارن بالأصل قبل النقل الحرفي.</div>
+  <div class="btns"><button class="pri" data-act="libcopy" data-v="${i}">📋 نسخ النص</button><a class="drive" style="flex:1;margin:0" href="${pdfUrl(r.id)}" target="_blank" rel="noopener">📄 الملف الأصلي${r.page ? ' · ص ' + ar(r.page) : ''}</a></div>
+  ${ms.length ? `<label>استشهدنا بها في</label>${ms.map(c => `<button class="res" style="margin:8px 0 0;width:100%" data-act="libmemo" data-v="${esc(c.m.id)}"><div class="src"><span class="tg memo">مذكرتنا</span>${esc(memoLine(c.m))}</div><h3>${esc(c.m.title)}</h3>${c.sub ? `<div class="meta">الفقرة ${esc(c.sub)}</div>` : ''}${c.quote ? `<div class="quote">«${esc(c.quote)}»</div>` : `<div class="sn">${esc(c.ctx)}</div>`}</button>`).join('')}` : ''}
+  <div class="anav">${next ? `<button data-act="libart" data-v="${idx.get(next)}" data-nav="1">‹ ${artName(next)}</button>` : '<span style="flex:1"></span>'}${d ? `<button data-act="libreg" data-v="${esc(d.id)}">كل المواد</button>` : ''}${prev ? `<button data-act="libart" data-v="${idx.get(prev)}" data-nav="1">${artName(prev)} ›</button>` : '<span style="flex:1"></span>'}</div>`;
+}
+function regHtml(id) {
+  const L = S.lib, d = (L.regs || []).find(x => x.id === id); if (!d) return '';
+  const idx = new Map(L.rows.map((x, j) => [x, j]));
+  const rows = L.rows.filter(x => x.id === id && x.kind !== 'مذكره');
+  let lastPart = 0;
+  return `<div class="meta">${d.g}</div><h2 style="margin-top:2px">${esc(d.t)}</h2>
+  <a class="drive" href="${pdfUrl(id)}" target="_blank" rel="noopener">📄 فتح الملف الأصلي${d.np ? ` (${ar(d.np)} ${d.np <= 10 ? 'صفحات' : 'صفحة'})` : ''}</a>
+  ${d.big ? '<div class="meta" style="margin-top:10px">هذا الملف أكبر من أن يُقرأ آليًّا هنا، فنصّه غير داخلٍ في البحث. افتحه من الأصل.</div>' : ''}
+  <div class="box" style="margin:12px 0 0">${rows.map(r => {
+    const ph = r.part !== lastPart && r.part > 1 ? `<div class="bh" style="margin:10px 14px 4px">${esc((d.parts || {})[r.part] || 'الجزء ' + ar(r.part))}</div>` : ''; lastPart = r.part || lastPart;
+    const first = r.text.split('\n').find(x => x.trim().length > 3) || '';
+    return ph + `<button class="row1" data-act="libart" data-v="${idx.get(r)}"><span class="t"><b>${artName(r)}${r.cites && r.cites.length ? ' <span class="chip a" style="font-size:10.5px">استشهدنا بها</span>' : ''}</b><small style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(first.slice(0, 120))}</small></span></button>`;
+  }).join('')}</div>`;
+}
+function memoHtml(id, focus) {
+  const m = (S.lib.memos || []).find(x => x.id === id); if (!m) return '';
+  const words = S.lib.q.trim() ? S.lib.hw || [] : [];
+  const idx = new Map(S.lib.rows.map((x, j) => [x, j]));
+  const cited = [...new Map(m.cites.map(c => [LIB.norm(c.reg) + c.n + c.sub, c])).values()];
+  return `<div class="meta">${esc(memoLine(m))}</div><h2 style="margin-top:2px">${esc(m.title)}</h2>
+  <a class="drive" href="${esc(m.url || `https://drive.google.com/open?id=${encodeURIComponent(m.id)}`)}" target="_blank" rel="noopener">📄 فتح المذكرة في درايف</a>
+  ${cited.length ? `<label>الأنظمة التي استشهدنا بها</label><div class="chips">${cited.map(c => { const d = regOf(c.reg); const r = d && S.lib.rows.find(x => x.id === d.id && x.n === c.n); return `<button class="chip ${r ? 'b' : 'n'}" style="border:0" ${r ? `data-act="libart" data-v="${idx.get(r)}"` : ''}>م ${ar(c.n)}${c.sub ? '/' + esc(c.sub) : ''} · ${esc(c.reg.replace(/^اللائحة التنفيذية لنظام/, 'لائحة').slice(0, 40))}</button>`; }).join('')}</div>` : ''}
+  ${m.secs.map((s, i) => `<div id="ms${i}">${s.h ? `<label style="color:var(--navy);font-size:13.5px">${esc(s.h)}</label>` : ''}<div class="atext small" style="margin-top:${s.h ? 4 : 12}px${i === focus ? ';border-color:var(--gold)' : ''}">${words.length ? hl(LIB.snippet(s.t, words, 1e6)) : esc(s.t)}</div></div>`).join('')}`;
+}
+function citeHtml(k) {
+  const g = (S.lib.citeMap || new Map()).get('x|' + LIB.norm(k.split('|')[0]) + '|' + k.split('|')[1]) || [...(S.lib.citeMap || new Map()).values()].find(x => x.reg + '|' + x.n === k);
+  if (!g) return '';
+  return `<div class="meta">${esc(g.reg)}</div><h2 style="margin-top:2px">المادة ${ar(g.n)}</h2><div class="meta" style="margin-top:6px">هذا النظام ليس في مجلد «أنظمة صحية»، فهنا ما نقلناه منه في مذكراتنا:</div>
+  ${g.list.map(c => `<button class="res" style="margin:8px 0 0;width:100%" data-act="libmemo" data-v="${esc(c.m.id)}"><div class="src"><span class="tg memo">مذكرتنا</span>${esc(memoLine(c.m))}</div><h3>${esc(c.m.title)}</h3>${c.quote ? `<div class="quote">«${esc(c.quote)}»</div>` : `<div class="sn">${esc(c.ctx)}</div>`}</button>`).join('')}`;
+}
+
 /* ───────── النوافذ ───────── */
 function renderSheet() {
   document.querySelector('.sheet')?.remove();
@@ -609,11 +814,17 @@ function renderSheet() {
   else if (o.type === 'new') html = newHtml();
   else if (o.type === 'menu') html = menuHtml();
   else if (o.type === 'case') html = caseHtml(o.c);
+  else if (o.type === 'art') html = artHtml(o.i);
+  else if (o.type === 'reg') html = regHtml(o.id);
+  else if (o.type === 'memo') html = memoHtml(o.id, o.sec);
+  else if (o.type === 'cite') html = citeHtml(o.k);
   else if (o.type === 'calAndroid') html = `<h2>تقويم الأندرويد</h2><div class="meta">نُسخ الرابط. Google Calendar يضيفه من الموقع لا من التطبيق:</div><div class="kv" style="padding:10px 12px;line-height:1.9;font-size:13.5px">١. افتح <b>calendar.google.com</b> من المتصفح (أو الكمبيوتر)<br>٢. «تقويمات أخرى» ← <b>+</b> ← <b>من عنوان URL</b><br>٣. الصق الرابط ← <b>إضافة تقويم</b></div><input readonly dir="ltr" value="${esc(o.url)}" style="margin-top:10px;font-size:12px" onclick="this.select()"><div class="meta" style="margin-top:6px">بعدها يتحدّث وحده في جوال الأندرويد (Google يحدّثه كل بضع ساعات).</div>`;
   if (!html) { S.open = null; return; }
   const el = document.createElement('div'); el.className = 'sheet'; el.dataset.act = 'close';
   el.innerHTML = `<div class="in"><button class="xbtn" data-act="back" aria-label="رجوع">✕</button><div class="grab"></div>${html}</div>`;
   document.body.appendChild(el);
+  // مذكرةٌ فُتحت من نتيجة بحث: تنزل إلى القسم الذي فيه الكلام
+  if (o.type === 'memo' && o.sec > 0) { const t = el.querySelector('#ms' + o.sec); if (t) el.querySelector('.in').scrollTop = t.offsetTop - 60; }
 }
 function taskHtml(k) {
   const it = items().find(i => i.key === k); if (!it) return '';
@@ -800,6 +1011,7 @@ function setup() {
   const P = PropertiesService.getDocumentProperties();
   SpreadsheetApp.getActive().getSheets().forEach(sh => { if (!SKIP.test(sh.getName())) scan(sh, 2, sh.getLastRow(), P, true); });
   send(ME, '✓ سكربت الشيت مربوط', 'أي تعديل في المحامي أو المهلة يوصل صاحبه على طول', 'm');
+  libSetup();
 }
 
 function onSheetEdit(e) {
@@ -851,7 +1063,123 @@ function send(to, title, body, tab, key) {
   UrlFetchApp.fetch(HOOK, { method: 'post', contentType: 'application/json', muteHttpExceptions: true,
     payload: JSON.stringify({ secret: SECRET, to: to, title: title, body: body, tab: tab, k: 'sh:' + (key || '') + ':' + Date.now() }) });
 }
-`;
+${LIBCODE.toString().replace(/^function LIBCODE\(\) \{\n?/, '').replace(/\}\s*$/, '')}`;
+}
+/* ───────── مكتبة المذكرات: الجزء الثاني من سكربت الشيت ─────────
+   يُكتب هنا شيفرةً حقيقية (لا نصًّا) ليفحصها المتصفح نحويًّا، ثم يُلصق نصُّه في السكربت كما هو.
+   لا يُنفَّذ في الموقع أبدًا. يجمع نصوص المذكرات من درايف المكتب إلى جدولٍ في مجلد الحمادي،
+   فلا تمرّ المذكرات بأي خادمٍ غير Google. والتحليل (أقسام، استشهادات، مذكرتنا أم الخصم) في الموقع */
+function LIBCODE() {
+// ── مكتبة المذكرات ── يجمع «مذكرة رد» و«مذكرة جوابية» والكليشات في جدول «مكتبة الحمادي»
+const LIB_KEY = 'hammadi_lib';
+const LIB_COLS = ['المعرّف', 'العنوان', 'النوع', 'آخر تعديل', 'المالك', 'الرابط', 'المجلد', 'داخل مجلد الحمادي', 'النص', 'الدورة'];
+
+function libSetup() {
+  libSheet();
+  ScriptApp.getProjectTriggers().filter(t => /^libRun/.test(t.getHandlerFunction())).forEach(t => ScriptApp.deleteTrigger(t));
+  ScriptApp.newTrigger('libRun').timeBased().everyHours(1).create();
+  libRun();
+}
+
+// جدول المكتبة: يُنشأ مرةً في مجلد جدول القضايا (فيراه الفريق بمشاركة المجلد)، ورقمه يُعلَّق على جدول القضايا
+function libSheet() {
+  const ss = SpreadsheetApp.getActive();
+  const md = ss.getDeveloperMetadata().filter(m => m.getKey() === LIB_KEY)[0];
+  if (md) { try { return SpreadsheetApp.openById(md.getValue()); } catch (e) { md.remove(); } }
+  const lib = SpreadsheetApp.create('مكتبة الحمادي — نصوص المذكرات (يحدّثه السكربت)');
+  const sh = lib.getSheets()[0]; sh.setName('مذكرات');
+  sh.getRange(1, 1, 1, LIB_COLS.length).setValues([LIB_COLS]).setFontWeight('bold');
+  sh.setFrozenRows(1);
+  try { DriveApp.getFileById(lib.getId()).moveTo(DriveApp.getFileById(ss.getId()).getParents().next()); } catch (e) { console.warn('ما انتقل لمجلد الحمادي: ' + e); }
+  ss.addDeveloperMetadata(LIB_KEY, lib.getId());
+  return lib;
+}
+
+// يمرّ على المذكرات: الجديد والمعدّل يُقرأ نصّه، والباقي كما هو. والدورة تتمّ على أكثر من تشغيل إن طالت
+function libRun() {
+  const lock = LockService.getScriptLock();
+  if (!lock.tryLock(2000)) return;
+  const t0 = Date.now(), P = PropertiesService.getScriptProperties();
+  try {
+    const ss = SpreadsheetApp.getActive(), sh = libSheet().getSheetByName('مذكرات');
+    const root = DriveApp.getFileById(ss.getId()).getParents().next().getId();
+    let pass = P.getProperty('libPass');
+    if (!pass) { pass = String(Date.now()); P.setProperty('libPass', pass); }
+    const n = sh.getLastRow() - 1;
+    const old = n > 0 ? sh.getRange(2, 1, n, 10).getValues() : [];
+    const at = new Map(old.map((r, i) => [r[0], i]));
+    const inRootCache = {};
+    const ids = libFind();
+    for (const f of ids) {
+      if (Date.now() - t0 > 4 * 60e3) {
+        // الوقت قارب حدّ التشغيل: يكمل بعد دقيقة من حيث وقف
+        ScriptApp.getProjectTriggers().filter(t => t.getHandlerFunction() === 'libRunMore').forEach(t => ScriptApp.deleteTrigger(t));
+        ScriptApp.newTrigger('libRunMore').timeBased().after(60e3).create();
+        return;
+      }
+      const mod = f.getLastUpdated().toISOString(), i = at.get(f.getId());
+      if (i != null && String(old[i][3]) === mod) { if (old[i][9] !== pass) sh.getRange(i + 2, 10).setValue(pass); old[i][9] = pass; continue; }
+      let text = '';
+      try { text = libText(f); } catch (e) { console.warn(f.getName() + ': ' + e); }
+      const inRoot = libInRoot(f, root, inRootCache) ? '1' : '0';
+      let folder = ''; try { folder = f.getParents().next().getName(); } catch (e) { }
+      // نصٌّ يبدأ بـ«=» أو «+» يقرؤه الجدول معادلة: الفاصلة العليا تبقيه نصًّا
+      const lit = v => /^[=+\-@]/.test(v) ? "'" + v : v;
+      const row = [f.getId(), lit(f.getName()), f.getMimeType(), mod, (f.getOwner() || { getEmail: () => '' }).getEmail(), f.getUrl(), lit(folder), inRoot, lit(String(text).slice(0, 49000)), pass];
+      if (i != null) { sh.getRange(i + 2, 1, 1, 10).setValues([row]); old[i] = row; }
+      else { sh.appendRow(row); at.set(row[0], old.length); old.push(row); }
+    }
+    // دورةٌ تمّت: ما لم يُرَ فيها حُذف من الدرايف أو تغيّر اسمه، فيُحذف من الجدول (من الأسفل للأعلى)
+    for (let i = old.length - 1; i >= 0; i--) if (old[i][9] !== pass) sh.deleteRow(i + 2);
+    P.deleteProperty('libPass');
+    ScriptApp.getProjectTriggers().filter(t => t.getHandlerFunction() === 'libRunMore').forEach(t => ScriptApp.deleteTrigger(t));
+  } finally { lock.releaseLock(); }
+}
+function libRunMore() { libRun(); }
+
+// كل ملفٍ عنوانه مذكرة أو كليشة، مستندًا أو وورد أو PDF؛ وكل ما في مجلدات الكليشات
+function libFind() {
+  const types = "(mimeType = 'application/vnd.google-apps.document' or mimeType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' or mimeType = 'application/msword' or mimeType = 'application/pdf')";
+  const out = new Map();
+  for (const q of ["title contains 'مذكرة'", "title contains 'مذكره'", "title contains 'كليشة'", "title contains 'كليشه'"]) {
+    const it = DriveApp.searchFiles(q + ' and trashed = false and ' + types);
+    while (it.hasNext()) { const f = it.next(); out.set(f.getId(), f); }
+  }
+  const fo = DriveApp.searchFolders("title contains 'كليشات' and trashed = false");
+  while (fo.hasNext()) { const it = fo.next().searchFiles('trashed = false and ' + types); while (it.hasNext()) { const f = it.next(); out.set(f.getId(), f); } }
+  return [...out.values()];
+}
+
+function libInRoot(f, root, cache) {
+  let level = [...libParents(f)];
+  for (let d = 0; d < 10 && level.length; d++) {
+    const next = [];
+    for (const p of level) {
+      const id = p.getId();
+      if (id === root) return true;
+      if (cache[id] != null) { if (cache[id]) return true; continue; }
+      cache[id] = false;
+      next.push(...libParents(p));
+    }
+    level = next;
+  }
+  return false;
+}
+function libParents(x) { const out = [], it = x.getParents(); while (it.hasNext()) out.push(it.next()); return out; }
+
+// النص: المستند يُصدَّر نصًّا مباشرة. والوورد والـPDF يُنسخان مستندًا مؤقتًا (بقراءةٍ آلية للعربي إن كان صورة)
+// في درايف صاحب السكربت، يُقرأ ثم يُحذف نهائيًّا — فلا يظهر في مجلدات القضايا شيء
+function libText(f) {
+  const H = { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() };
+  const API = 'https://www.googleapis.com/drive/v3/files/';
+  const exp = id => UrlFetchApp.fetch(API + id + '/export?mimeType=text/plain', { headers: H }).getContentText('UTF-8');
+  if (f.getMimeType() === 'application/vnd.google-apps.document') return exp(f.getId());
+  const r = UrlFetchApp.fetch(API + f.getId() + '/copy?supportsAllDrives=true&ocrLanguage=ar', { method: 'post', contentType: 'application/json', headers: H, muteHttpExceptions: true,
+    payload: JSON.stringify({ mimeType: 'application/vnd.google-apps.document', name: '~ مؤقت للمكتبة', parents: [DriveApp.getRootFolder().getId()] }) });
+  if (r.getResponseCode() !== 200) throw new Error('تحويل ' + r.getResponseCode());
+  const tmp = JSON.parse(r.getContentText()).id;
+  try { return exp(tmp); } finally { UrlFetchApp.fetch(API + tmp, { method: 'delete', headers: H, muteHttpExceptions: true }); }
+}
 }
 function hookHtml() {
   const sec = S.cfg.hookSecret;
@@ -863,7 +1191,8 @@ function hookHtml() {
       ٢. على اليسار جنب «الملفات» اضغط <b>+</b> ← <b>نص برمجي</b>، وسمّه <b>تنبيهات</b>. (لا تمسح ملف النسخة الاحتياطية)<br>
       ٣. امسح ما فيه، والصق السكربت اللي تحت، واضغط 💾 <b>حفظ</b>.<br>
       ٤. من القائمة فوق اختر <b>setup</b> واضغط <b>▶ تشغيل</b>، ووافق على الأذونات (Advanced ← Go to … ← Allow).<br>
-      ٥. يوصلك على جوالك «✓ سكربت الشيت مربوط». بعدها فعّل الخيار اللي تحت.</div>
+      ٥. يوصلك على جوالك «✓ سكربت الشيت مربوط». بعدها فعّل الخيار اللي تحت.<br>
+      <span style="color:var(--mute)">والسكربت نفسه يجمع مذكراتنا للمكتبة القانونية: أول مرة تاخذ دقائق، وبعدها يتحدّث كل ساعة. إن كنت ركّبته قبل، الصق النسخة الجديدة وشغّل setup مرة ثانية.</span></div>
     <textarea id="hookcode" readonly dir="ltr" style="margin-top:8px;height:110px;font-family:monospace;font-size:11px">${esc(hookScript(sec))}</textarea>
     <div class="btns"><button class="pri" data-act="hookcopy">📋 نسخ السكربت</button></div>
     <div class="btns">${S.cfg.hookOn ? '<button data-act="hookon" data-v="0">✓ السكربت شغّال — إيقاف الاعتماد عليه</button>' : '<button class="ok" data-act="hookon" data-v="1">وصلني «✓ سكربت الشيت مربوط»</button>'}</div>
@@ -1034,6 +1363,23 @@ document.addEventListener('click', async e => {
     case 'calsub': return subscribeCal(v === 'team' ? '__team' : me());
     case 'calopen': { if (S.docs[v] || items().some(i => i.key === v)) { S.back = []; S.open = { type: 'task', k: v }; return renderSheet(); } S.pendingOpen = v; return tryOpen(); }
     case 'seg': S.seg = v; return render();
+    case 'libf': S.lib.f = v; S.lib.n = 30; return render();
+    case 'libtry': { S.lib.q = v; S.lib.n = 30; render(); return; }
+    case 'libmore': S.lib.n += 30; return render();
+    case 'libax': S.lib.axOpen = true; return render();
+    case 'libload': S.lib.err = ''; return loadLib(v === '1');
+    // من نافذةٍ مفتوحة يُحفظ ما قبلها، فيرجع ✕ خطوةً لا يُغلق الكل؛ والتنقّل بين المواد يستبدل ولا يُكدّس
+    case 'libart': case 'libreg': case 'libmemo': case 'libcite': {
+      const nx = a === 'libart' ? { type: 'art', i: +v } : a === 'libreg' ? { type: 'reg', id: v } : a === 'libmemo' ? { type: 'memo', id: v, sec: t.dataset.i != null ? +t.dataset.i : -1 } : { type: 'cite', k: v };
+      if (S.open && !t.dataset.nav) S.back.push(S.open); else if (!S.open) S.back = [];
+      S.open = nx; return renderSheet();
+    }
+    case 'libcopy': {
+      const r = S.lib.rows[+v]; if (!r) return;
+      const txt = `${artName(r)} من ${r.docTitle}:\n${r.text}`;
+      try { await navigator.clipboard.writeText(txt); toast('✓ نُسخ نص ' + artName(r)); } catch (e2) { toast('ما قدرت أنسخ — حدّد النص يدويًا', true); }
+      return;
+    }
     case 'sheet': return loadSheet(true);
     case 'more': S.archN += 50; return render();
     case 'open': if (S.open && !(S.open.type === 'task' && S.open.k === k)) S.back.push(S.open); else if (!S.open) S.back = []; S.open = { type: 'task', k }; return renderSheet();
@@ -1145,6 +1491,8 @@ document.addEventListener('click', async e => {
 document.addEventListener('change', e => { if (['remk', 'remat'].includes(e.target.id) && S.open?.type === 'task') S.draft = { ...(S.draft.k === S.open.k ? S.draft : { k: S.open.k }), [e.target.id]: e.target.value }; if (e.target.id === 'remk') { const a = document.getElementById('remat'); if (a) a.style.display = e.target.value === 'at' ? '' : 'none'; } });
 document.addEventListener('input', e => { if (e.target.id === 'remat' && S.open?.type === 'task') S.draft = { ...(S.draft.k === S.open.k ? S.draft : { k: S.open.k }), remat: e.target.value }; });
 document.addEventListener('input', e => {
+  // بحث المكتبة: يُرسم مع كل حرف، ويعود المؤشّر حيث كان
+  if (e.target.id === 'lq') { S.lib.q = e.target.value; S.lib.n = 30; const pos = e.target.selectionStart; render(); const q = document.getElementById('lq'); q.focus(); q.setSelectionRange(pos, pos); return; }
   if (e.target.id === 'q') { S.q = e.target.value; const pos = e.target.selectionStart; render(); const q = document.getElementById('q'); q.focus(); q.setSelectionRange(pos, pos); }
   if (e.target.id === 'doneDate') { const h = document.getElementById('hd'); if (h) h.textContent = ' — ' + hijri(e.target.value || TODAY()); }
 });
@@ -1186,6 +1534,7 @@ async function initDB() {
       saveTask: (k, d) => { D.tasks[k] = d; save(); },
       patchTask: (k, p, entry) => { D.tasks[k] = applyPatch(D.tasks[k] || {}, p, entry); save(); },
       // ?demo&nosheet: كأن إذن الشيت انتهى، لفحص العرض من الملخّص المحفوظ
+      readLib: async () => { await new Promise(r => setTimeout(r, 200)); if (/nolib/.test(location.search)) return null; return { rows: demoMemos() }; },
       readSheet: async () => { await new Promise(r => setTimeout(r, 250)); if (/nosheet/.test(location.search)) return null; return demoSheet().map(([t, rows]) => [t, rows, [], rows.map(r => r[0] === '4870000107' ? 'https://drive.google.com/drive/folders/demo-4870000107' : '')]); },
     };
     return;
@@ -1294,9 +1643,41 @@ async function initDB() {
       } catch (e) { console.error('links', e); }
       return out;
     },
+    // جدول المكتبة: سكربت الشيت ينشئه في مجلد الحمادي ويعلّق رقمه على جدول القضايا (بياناتٍ مخفية
+    // للمطوّر، لا خلية ولا تبويب). فيُقرأ الرقم من هناك، ثم المذكرات — بالإذن نفسه، بلا نافذة دخول
+    async readLib(id) {
+      const t = token();
+      if (!t) throw new Error('إذن قراءة درايف انتهى — اضغط «تحديث» فوق ثم ارجع للمكتبة');
+      const get = async u => { const r = await fetch(u, { headers: { Authorization: 'Bearer ' + t } }); if (r.status === 401) { localStorage.removeItem(TK); throw new Error('انتهت الجلسة — اضغط «تحديث» فوق'); } if (!r.ok) throw new Error('ما وصلت لجدول المكتبة (' + r.status + ')'); return r.json(); };
+      const meta = await get(`https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(id)}?fields=developerMetadata(metadataKey,metadataValue)`);
+      const lib = (meta.developerMetadata || []).find(m => m.metadataKey === 'hammadi_lib');
+      if (!lib) return null;
+      const v = await get(`https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(lib.metadataValue)}/values/${encodeURIComponent("'مذكرات'!A2:J")}`);
+      return { rows: v.values || [] };
+    },
   };
 }
 // الشيت التجريبي بعناوين الشيت الحقيقي نفسها، وبأسماءٍ وأرقامٍ مختلَقة
+// مذكراتٌ مختلَقة بشكل جدول المكتبة نفسه: [المعرّف، العنوان، النوع، آخر تعديل، المالك، الرابط، المجلد، داخل المجلد، النص]
+function demoMemos() {
+  const D = 'application/vnd.google-apps.document';
+  return [
+    ['demo-m1', 'مذكرة رد سامي التجريبي', D, '2026-10-20T10:00:00Z', 'demo', '', '4870000101', '1', `صاحب الفضيلة رئيس الدائرة حفظه الله
+إشارة إلى المذكرة المقدمة من المدعى عليه في القضية رقم (4870000101)، نجيب بما يلي:
+أولاً: الرد على الدفع بعدم الموافقة على التكلفة:
+فقد استثنت الفقرة (2) من المادة (7) من اللائحة التنفيذية لنظام المؤسسات الصحية الخاصة من أخذ الموافقة الخطية "الحالات الطارئة والتي تحتاج لتدخل فوري"، وحالة المدعى عليه حالةٌ طارئة استقبلها قسم الطوارئ.
+ثانياً: الرد على الدفع بالإهمال:
+نصت المادة (26) من نظام مزاولة المهن الصحية على أن "التزام الممارس الصحي الخاضع لأحكام هذا النظام هو التزام ببذل عناية يقظة تتفق مع الأصول العلمية المتعارف عليها".
+الطلبات:
+نطلب إلزام المدعى عليه بسداد الفاتورة.`],
+    ['demo-m2', 'مذكرة جوابية منى التجريبية', D, '2026-09-02T10:00:00Z', 'demo', '', '4870000102', '1', `صاحب الفضيلة رئيس الدائرة
+أولاً: الرد على القول بأن المستشفى طالب بالمبلغ قبل العلاج:
+تلتزم موكلتي بما نصت عليه المادة السادسة عشرة من نظام المؤسسات الصحية الخاصة من تقديم العلاج الإسعافي للحالات الطارئة دون مطالبة مالية مسبقة، وقد استُقبلت الحالة وعولجت ثم صدرت الفاتورة بعد استقرارها.
+ثانياً: الإثراء بلا سبب:
+وقد نصت المادة (144) من نظام المعاملات المدنية على: "كل شخص يثري دون سبب مشروع على حساب شخص آخر يلزمه في حدود ما أثرى به تعويض هذا الشخص عما لحقه من خسارة".`],
+    ['demo-m3', 'مذكرة رد من خصمٍ تجريبي', D, '2026-09-01T10:00:00Z', 'demo', '', '4870000102', '1', 'مذكرة الخصم — لا تظهر في المكتبة'],
+  ];
+}
 function demoSheet() {
   const T = (d) => hijri(iso(new Date(Date.now() + d * 864e5)));
   const H = ['رقم القضية', 'رقم الملف', 'السنة', 'المحامي', 'المحكمة', 'الدائرة', 'اسم المدعي', 'اسم المدعى عليه', 'قيمة المطالبة', 'المبلغ المحكوم', 'نوع القضية', 'تاريخ الجلسة', 'رابط الجلسة', 'عدد الجلسات', 'عدد المذكرات', 'آخر اجراء', 'المطلوب', 'نوع المذكرة', 'المتبقي', 'عداد المهلة', 'حالة القضية', 'التقرير المالي'];
