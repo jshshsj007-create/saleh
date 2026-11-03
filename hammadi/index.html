@@ -471,7 +471,7 @@ function topHtml(all) {
     ${mi('view', 'cal', 'تقويم المكتب', 'var(--gold)', null, 0, S.view === 'cal')}
     <div class="sep"></div><div class="grp">الأقسام</div>
     ${['m', 'a', 's', 'e'].map(k => mi('sec', k, TABN[k], SECC[k], open.filter(i => i.kind === k).length, myLate(k), S.view === 'sec' && S.tab === k)).join('')}</div>`;
-  const st = sh.loading ? '⏳ جاري القراءة…' : sh.at ? 'آخر تحميل ' + hm12(sh.at.toTimeString().slice(0, 5)) : sh.cachedAt ? 'من الملخّص' : '';
+  const st = sh.loading ? '⏳ جاري القراءة…' : sh.at ? 'آخر تحميل ' + hm12(sh.at.toTimeString().slice(0, 5)) : sh.cachedAt ? 'محفوظ ' + (iso(new Date(sh.cachedAt)) === TODAY() ? hm12(new Date(sh.cachedAt).toTimeString().slice(0, 5)) : hijri(iso(new Date(sh.cachedAt)))) : '';
   return `<div class="top"><div class="wrap">
     <div class="bar1"><img src="wael-icon.png?v=3" alt=""><span><b>مشروع الحمادي</b><small>مرحبًا ${esc(me())}${DEMO ? ' · وضع التجربة' : ''}</small></span>
       <button class="av" data-act="menu" aria-label="الإعدادات">${esc(me().replace(/^ال/, '')[0])}</button></div>
@@ -581,7 +581,8 @@ function render() {
   if (!me()) return renderWho();
   const all = items().filter(matchQ), sh = S.sheet;
   const banner = sh.err ? `<div class="banner bad"><span>${esc(sh.err)}</span><button class="sm" data-act="sheet">إعادة</button></div>`
-    : !sh.at && !sh.loading ? `<div class="banner info"><span>${sh.cachedAt ? `معروضة من آخر تحميل (${hijri(iso(new Date(sh.cachedAt)))} · ${hm12(new Date(sh.cachedAt).toTimeString().slice(0, 5))}). حمّل الشيت لآخر التعديلات والتفاصيل.` : 'المهام تُقرأ من الشيت. اضغط لتحميلها.'}</span><button class="sm pri" data-act="sheet">تحميل الشيت</button></div>` : '';
+    // الملخّص المحفوظ يكفي للمهام والتنبيهات، فلا شريط كبير إلا إن لم يكن ملخّص، أو صار أقدم من يوم
+    : !sh.at && !sh.loading && (!sh.cachedAt || Date.now() - sh.cachedAt > 864e5) ? `<div class="banner info"><span>${sh.cachedAt ? `آخر قراءة للشيت قبل أكثر من يوم (${hijri(iso(new Date(sh.cachedAt)))}). حدّثه لآخر التعديلات.` : 'المهام تُقرأ من الشيت. اضغط لتحميلها.'}</span><button class="sm pri" data-act="sheet">تحميل الشيت</button></div>` : '';
   const main = S.view === 'mine' ? mineHtml(all) : S.view === 'team' ? teamHtml(all) : S.view === 'cal' ? calHtml(true)
     : lateHtml(all) + calHtml() + sectionHtml(all);
   $app().innerHTML = `${topHtml(all)}<div class="wrap">${banner}${main}</div><button class="fab" data-act="new">+ مهمة</button>`;
