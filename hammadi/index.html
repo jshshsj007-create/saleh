@@ -228,7 +228,7 @@ mark{background:color-mix(in srgb,var(--gold) 38%,transparent);color:inherit;bor
 <body>
 <div id="app"><div class="login"><p>جاري التحميل…</p></div></div>
 <script type="module">
-import * as LIB from './lib.js?v=3';
+import * as LIB from './lib.js?v=5';
 // ?demo: الموقع كاملًا ببياناتٍ وهمية في الجهاز، بلا Firebase ولا شيت — للتجربة والفحص قبل النشر
 const DEMO = new URLSearchParams(location.search).has('demo');
 
@@ -639,7 +639,7 @@ function archiveHtml() {
    الأنظمة الصحية في regs.json: قُرئت صفحاتها آليًّا (أغلبها صورٌ ممسوحة) وقُسّمت موادَّ.
    ومذكراتنا لا تمرّ بالمستودع أبدًا (فيها أسماء مرضى وقضايا): سكربت الشيت يجمع نصوصها في جدولٍ
    داخل درايف المكتب، والموقع يقرؤه بإذن الداخل كما يقرأ جدول القضايا. وكل شيءٍ يُبحث فيه معًا */
-const REGV = 3;
+const REGV = 4;
 async function loadLib(force) {
   const L = S.lib;
   if (L.loading) return;
@@ -668,7 +668,7 @@ function memosFrom(res) {
   const seen = new Map();
   for (const r of res.rows) {
     const [id, title, mime, mod, owner, url, folder, inRoot, text] = r;
-    if (!id || !text || LIB.memoTheirs(title)) continue;
+    if (!id || !text || !LIB.memoOurs(title, text)) continue;
     // ملفٌ خارج مجلد الحمادي لا يُعدّ إلا إن ذكر الحمادي في نصّه
     if (String(inRoot) !== '1' && !/حماد/.test(text)) continue;
     const k = LIB.norm(String(title).replace(/\.[a-z]{2,5}$/i, '')).replace(/[_\-\s()]+/g, '');
@@ -693,7 +693,9 @@ function regOf(name) {
   for (const d of S.lib.regs) {
     if (d.ax) continue;
     // كم من كلمات اسم النظام وردت في الاستشهاد: الاستشهاد قد يجرّ بعده كلماتٍ من الجملة («… الخاصة من أخذ الموافقة»)
-    const dw = new Set(sig(d.t)), hit = [...dw].filter(x => w.includes(x)).length, sc = hit / (dw.size || 1) + hit / w.length * 0.01;
+    // واللائحة تذهب إلى ملف اللائحة لا النظام إن كانا ملفين («اللائحة التنفيذية لنظام الضمان الصحي» ≠ «نظام الضمان الصحي التعاوني»)
+    const cl = /لايح|اجرايي/.test(LIB.norm(name)), dl = /لايح/.test(LIB.norm(d.t)), lead = /^(اللايحه|لايحه)/.test(LIB.norm(d.t));
+    const dw = new Set(sig(d.t)), hit = [...dw].filter(x => w.includes(x)).length, sc = hit / (dw.size || 1) + hit / w.length * 0.01 + (cl === dl ? 0.05 : 0) - (!cl && lead ? 0.05 : 0);
     if (hit >= Math.min(2, dw.size) && sc > bs) { bs = sc; best = d; }
   }
   return bs >= 0.75 ? best : null;
@@ -704,19 +706,26 @@ function libRows() {
   for (const d of L.regs || []) {
     const grp = d.ax ? 'ax' : 'reg';
     if (d.a) for (const [n, part, page, text] of d.a) rows.push({ kind: 'ماده', grp, id: d.id, n, part, page, text, docTitle: d.t + (part > 1 ? ' — ' + ((d.parts || {})[part] || 'الجزء ' + ar(part)) : ''), cites: [] });
-    else (d.p || []).forEach((text, i) => rows.push({ kind: 'صفحه', grp, id: d.id, page: i + 1, text, docTitle: d.t }));
+    else (d.p || []).forEach((text, i) => rows.push({ kind: 'صفحه', grp, id: d.id, page: i + 1, text, docTitle: d.t, cites: [] }));
   }
   // استشهاداتنا تُعلَّق على موادّها: فمن فتح المادة رأى أين استشهدنا بها، ومن بحث برقمها وجد المذكرة
   const byArt = new Map(rows.filter(r => r.kind === 'ماده' && r.n).map(r => [r.id + '|' + r.part + '|' + r.n, r]));
+  // الاستشهاد ← ملفّه وموضعه: «المرفق (66)» إلى أول صفحات المرفق، والمادة إلى صفّها في نظامها
+  L.target = c => {
+    if (c.ax) { const d = (L.regs || []).find(x => x.ax === c.ax); return { d, r: d && rows.find(x => x.id === d.id) }; }
+    const d = regOf(c.reg);
+    return { d, r: d && (byArt.get(d.id + '|1|' + c.n) || [...byArt.values()].find(x => x.id === d.id && x.n === c.n)) };
+  };
   L.citeMap = new Map();
   for (const m of L.memos || []) {
-    m.regIds = [...new Set(m.cites.map(c => (regOf(c.reg) || {}).id).filter(Boolean))];
+    m.regIds = [...new Set(m.cites.map(c => (L.target(c).d || {}).id).filter(Boolean))];
     m.secs.forEach((sec, i) => rows.push({ kind: 'مذكره', grp: 'memo', memo: m, sec: i, text: sec.t, h: sec.h, docTitle: m.title, cites: [] }));
     for (const c of m.cites) {
-      const d = regOf(c.reg), key = d ? d.id + '|' + c.n : 'x|' + LIB.norm(c.reg) + '|' + c.n;
-      const r = d && (byArt.get(d.id + '|1|' + c.n) || [...byArt.values()].find(x => x.id === d.id && x.n === c.n));
+      // مادةٌ لم يُعرف نظامها تبقى في المذكرة، ولا تُعدّ في «الأكثر استشهادًا» بلا اسم
+      if (!c.reg && !c.ax) continue;
+      const { d, r } = L.target(c), key = d ? d.id + '|' + c.n : 'x|' + LIB.norm(c.reg) + '|' + c.n;
       if (r && !r.cites.some(x => x.m === m && x.sub === c.sub)) r.cites.push({ m, ...c });
-      const g = L.citeMap.get(key) || { reg: d ? d.t : c.reg, d, n: c.n, row: r, list: [] };
+      const g = L.citeMap.get(key) || { reg: d ? d.t : c.reg, d, n: c.n, ax: c.ax, row: r, list: [] };
       if (!g.list.some(x => x.m === m)) g.list.push({ m, ...c });
       L.citeMap.set(key, g);
     }
@@ -797,7 +806,7 @@ function libHome() {
   const idx = new Map(L.rows.map((r, i) => [r, i]));
   const grp = g => (L.regs || []).filter(d => d.g === g);
   const regRow = d => `<button class="row1" data-act="libreg" data-v="${esc(d.id)}"><span class="t"><b>${esc(d.t)}</b><small>${d.big ? 'ملفٌ كبير لم يُقرأ نصّه — يُفتح من الأصل' : d.a ? ar(d.a.filter(x => x[0]).length) + ' مادة' : cnt(d.np, 'صفحة واحدة', 'صفحتان', 'صفحات', 'صفحة')}</small></span><span class="cv" style="color:var(--mute)">‹</span></button>`;
-  return (top.length ? `<div class="bh">الأكثر استشهادًا في مذكراتنا</div><div class="box">${top.map(g => `<button class="row1" ${g.row ? `data-act="libart" data-v="${idx.get(g.row)}"` : `data-act="libcite" data-v="${esc(g.reg + '|' + g.n)}"`}><span class="t"><b>المادة ${ar(g.n)}</b><small>${esc(g.reg)}</small></span><span class="r2" style="color:var(--a)">${ar(g.list.length)}<span class="k">${g.list.length === 1 ? 'مذكرة' : g.list.length === 2 ? 'مذكرتان' : 'مذكرات'}</span></span></button>`).join('')}</div>` : '')
+  return (top.length ? `<div class="bh">الأكثر استشهادًا في مذكراتنا</div><div class="box">${top.map(g => `<button class="row1" ${g.row ? `data-act="libart" data-v="${idx.get(g.row)}"` : `data-act="libcite" data-v="${esc(g.reg + '|' + g.n)}"`}><span class="t"><b>${g.ax ? 'مرفق ' + ar(g.ax) : 'المادة ' + ar(g.n)}</b><small>${esc(g.ax && g.d ? g.d.t.replace(/^مرفق \d+\s*/, '') : g.reg)}</small></span><span class="r2" style="color:var(--a)">${ar(g.list.length)}<span class="k">${g.list.length === 1 ? 'مذكرة' : g.list.length === 2 ? 'مذكرتان' : 'مذكرات'}</span></span></button>`).join('')}</div>` : '')
     + ['أنظمة ولوائح', 'تعاميم وأدلة', 'مرفقات لائحة المؤسسات الصحية الخاصة'].map(g => grp(g).length ? `<div class="bh">${g}<span class="c">${ar(grp(g).length)}</span></div><div class="box regs">${(g.startsWith('مرفقات') && !L.axOpen ? grp(g).slice(0, 6) : grp(g)).map(regRow).join('')}${g.startsWith('مرفقات') && !L.axOpen && grp(g).length > 6 ? `<button class="row1" data-act="libax"><span class="t"><b style="color:var(--b)">عرض كل المرفقات (${ar(grp(g).length)})</b></span></button>` : ''}</div>` : '').join('')
     + `<div class="ocrnote" style="margin:14px 16px 0">نصوص الأنظمة مقروءة آليًّا من ملفات «أنظمة صحية» في درايف المكتب، وقد يخطئ فيها حرف. للاستشهاد افتح الملف الأصلي من زرّه.</div>`;
 }
@@ -835,10 +844,10 @@ function memoHtml(id, focus) {
   const m = (S.lib.memos || []).find(x => x.id === id); if (!m) return '';
   const words = S.lib.q.trim() ? S.lib.hw || [] : [];
   const idx = new Map(S.lib.rows.map((x, j) => [x, j]));
-  const cited = [...new Map(m.cites.map(c => [LIB.norm(c.reg) + c.n + c.sub, c])).values()];
+  const cited = [...new Map(m.cites.filter(c => c.reg || c.ax).map(c => [LIB.norm(c.reg) + c.n + c.sub + (c.ax || ''), c])).values()];
   return `<div class="meta">${esc(memoLine(m))}</div><h2 style="margin-top:2px">${esc(m.title)}</h2>
   <a class="drive" href="${esc(m.url || `https://drive.google.com/open?id=${encodeURIComponent(m.id)}`)}" target="_blank" rel="noopener">📄 فتح المذكرة في درايف</a>
-  ${cited.length ? `<label>الأنظمة التي استشهدنا بها</label><div class="chips">${cited.map(c => { const d = regOf(c.reg); const r = d && S.lib.rows.find(x => x.id === d.id && x.n === c.n); return `<button class="chip ${r ? 'b' : 'n'}" style="border:0" ${r ? `data-act="libart" data-v="${idx.get(r)}"` : ''}>م ${ar(c.n)}${c.sub ? '/' + esc(c.sub) : ''} · ${esc(c.reg.replace(/^اللائحة التنفيذية لنظام/, 'لائحة').slice(0, 40))}</button>`; }).join('')}</div>` : ''}
+  ${cited.length ? `<label>الأنظمة التي استشهدنا بها</label><div class="chips">${cited.map(c => { const { r } = S.lib.target(c); return `<button class="chip ${r ? 'b' : 'n'}" style="border:0" ${r ? `data-act="libart" data-v="${idx.get(r)}"` : ''}>${c.ax ? 'مرفق ' + ar(c.ax) : 'م ' + ar(c.n) + (c.sub ? '/' + esc(c.sub) : '')}${c.reg ? ' · ' + esc(c.reg.replace(/^اللائحة التنفيذية لنظام/, 'لائحة').slice(0, 40)) : ''}</button>`; }).join('')}</div>` : ''}
   ${m.secs.map((s, i) => `<div id="ms${i}">${s.h ? `<label style="color:var(--navy);font-size:13.5px">${esc(s.h)}</label>` : ''}<div class="atext small" style="margin-top:${s.h ? 4 : 12}px${i === focus ? ';border-color:var(--gold)' : ''}">${words.length ? hl(LIB.snippet(s.t, words, 1e6)) : esc(s.t)}</div></div>`).join('')}`;
 }
 function citeHtml(k) {
@@ -1731,6 +1740,7 @@ function demoMemos() {
     ['demo-m2', 'مذكرة جوابية منى التجريبية', D, '2026-09-02T10:00:00Z', 'demo', '', '4870000102', '1', `صاحب الفضيلة رئيس الدائرة
 أولاً: الرد على القول بأن المستشفى طالب بالمبلغ قبل العلاج:
 تلتزم موكلتي بما نصت عليه المادة السادسة عشرة من نظام المؤسسات الصحية الخاصة من تقديم العلاج الإسعافي للحالات الطارئة دون مطالبة مالية مسبقة، وقد استُقبلت الحالة وعولجت ثم صدرت الفاتورة بعد استقرارها.
+وقد أوجب المرفق (66) من اللائحة التنفيذية لنظام المؤسسات الصحية إبلاغ شركة إدارة المطالبات خلال (24) ساعة، وأبلغت موكلتي في يوم الدخول نفسه.
 ثانياً: الإثراء بلا سبب:
 وقد نصت المادة (144) من نظام المعاملات المدنية على: "كل شخص يثري دون سبب مشروع على حساب شخص آخر يلزمه في حدود ما أثرى به تعويض هذا الشخص عما لحقه من خسارة".`],
     ['demo-m3', 'مذكرة رد من خصمٍ تجريبي', D, '2026-09-01T10:00:00Z', 'demo', '', '4870000102', '1', 'مذكرة الخصم — لا تظهر في المكتبة'],

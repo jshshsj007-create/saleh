@@ -96,6 +96,10 @@ function dropFooter(lines) {
   }
   return out;
 }
+// صفحةٌ من ملفٍ بلا مواد (المرفقات والتعاميم): بلا ترويسة ولا تذييل ولا سطور الشعار
+export function cleanPage(txt) {
+  return dropFooter(String(txt || '').split('\n')).map(l => l.trim()).filter(l => l && !/^[\d\s|.\-_]+$/.test(l) && !noise(l)).join('\n');
+}
 const HEAD = /^[\s\-–•|«"'\u200e\u200f]*(?:ال)?ماد[تة]*[ةه]\s*[:\-–]?\s*(.+)$/;
 export function articles(pages) {
   const out = [];
@@ -132,6 +136,8 @@ export function articles(pages) {
 /* ───────── المذكرات ───────── */
 
 // «مذكرة رد من فلان» و«مقدمة من» مذكرةُ الخصم، لا مذكرتنا
+// ومذكرةٌ لا تذكر «موكلتي/موكلي» أبدًا كتبها الخصم بنفسه وإن خلا عنوانها من «من»
+export function memoOurs(title, text) { return !memoTheirs(title) && /موكل/.test(String(text || '')); }
 export function memoTheirs(title) {
   return /(^|[\s_\-])(من|مقدمه|مقدمة)(?=[\s_\-]|$)/.test(String(title || '').replace(/\.[a-z]{2,5}$/i, ''));
 }
@@ -175,43 +181,85 @@ export function memoSections(text) {
   return secs.map(s => ({ h: s.h, t: s.t.join('\n') }));
 }
 
-/* الاستشهاد: «المادة (15)» أو «الفقرة (2) من المادة (7) من اللائحة التنفيذية لنظام …»
-   واسمُ النظام إن لم يأتِ بعدها أُخذ من آخر نظامٍ ذُكر في الفقرة نفسها («نظام مزاولة … إذ نصت المادة (9/أ)») */
-const REG = /((?:اللائحة التنفيذية ل)?(?:نظام|لائحة|اللائحة|وثيقة|تنظيم|قواعد|معايير|دليل)\s+[^،,.؛:"«»()\n]{3,70})/;
-function regName(s) {
+/* الاستشهاد كما يكتبه الفريق (من مذكراتٍ حقيقية):
+   «المادة (15) من نظام …»، «الفقرة (2) من المادة (7) من اللائحة التنفيذية لنظام …»،
+   «الفقرة (2/7) من اللائحة» (الفقرة ثم المادة بلا كلمة «المادة»)، «البند (7) من المادة (التاسعة)»،
+   «المادتان (53) و(54)»، «للمادتين (14) و(17)»، «المادة (29) من الأدلة الإجرائية لنظام الإثبات»،
+   «… منه» و«من النظام ذاته» و«من ذات النظام» (إحالةٌ إلى آخر نظامٍ سُمّي ولو في فقرةٍ سابقة).
+   ومادةٌ بلا اسم نظام تأخذ نظام ما قبلها في الفقرة إن قرب (سلسلة «ونصت المادة (15)… ونصت المادة (26)»)،
+   وإلا تبقى بلا نظام: الربط الخاطئ أسوأ من عدمه */
+const REG = /((?:اللائحة التنفيذية ل|الأدلة الإجرائية ل|الادلة الاجرائية ل)?(?:نظام|لائحة|اللائحة|وثيقة|تنظيم|قواعد|معايير|دليل)\s+[^،,.؛:"«»()\n]{3,70})/;
+const REG_STOP = /\s+(على|في|أن|ان|إذ|اذ|وقد|حيث|والتي|التي|الذي|بأن|بان|وما|ما|بشأن|للمدعي|للمدعى|للمحكمة|للخصم|لمن|وهو|وهي|فقد|فإن|فهو|ولم|لم|ثم|كما|بقوله|بنص|من|منه|عن|إلى|الى|حال|حين|عند|بعد|قبل|وذلك|ذلك|و?يكون|تعديلها|بتوفير|بتحمل|حجة|وفق|وفقا|وفقاً|يجب|ويجب|تلتزم|يلتزم|نصت|ونصت|وأن|وإن|إن|لا|ولا|قد|كل|هو|هي|و?تكون)(\s.*)?$/;
+function regName(s, at0) {
+  // بعد «من» مباشرةً: الاسم أول ما يأتي (وقد يكون بين قوسين «من (نظام الإثبات)»)، لا نظامٌ يُذكر بعد سطرين
+  if (at0) s = s.replace(/^\s*\(\s*/, '');
   const m = s.match(REG);
-  if (!m) return '';
-  return m[1].replace(/\s+(على|في|أن|ان|إذ|اذ|وقد|حيث|والتي|التي|بأن|بان|وما|ما|بشأن)(\s.*)?$/, '').replace(/[\s،,]+$/, '').trim();
+  if (!m || (at0 && m.index > 0)) return '';
+  return m[1].replace(REG_STOP, '').replace(/[\s،,]+$/, '').trim();
 }
-export function citations(text) {
+const NUM = String.raw`[0-9٠-٩]{1,3}`;
+const ART = String.raw`\(?\s*(${NUM}(?:\s*[/\\-]\s*[0-9٠-٩أ-ي]{1,3})?|[^\s()]+(?:\s+(?:عشر[ةه]?|و[^\s()]+|بعد\s+[^\s()]+)){0,3})\s*\)?`;
+// ثلاثة أشكال، يُجمع ما يطابقها ثم يُرتَّب بموضعه في الفقرة
+const RE_ART = new RegExp(String.raw`(?:(?:ال)?(?:فقر[ةه]|بند|البند)\s*\(?([^()\s]{1,4})\)?\s*من\s*)?(?:ال|لل|بال|و?ب?ال)?ماد[ةه]\s*(?:رقم\s*)?` + ART, 'g');
+// «المادتان (53) و(54)»، «المادتين (الثانية) و(الثالثة)»، «المادة (٦٥ و ٦٩)»
+const RE_PAIR = new RegExp(String.raw`(?:ال|لل|بال)?مادت(?:ان|ين)\s*\(?\s*([^()،,]{1,25}?)\s*\)?\s*(?:و|،|,)\s*\(?\s*([^()،,]{1,25}?)\s*\)(?=\s|$|[،,.:])|(?:ال|لل|بال)?ماد[ةه]\s*\(\s*(${NUM})\s*(?:و|،|,)\s*(${NUM})\s*\)`, 'g');
+// «المرفق (66) من اللائحة التنفيذية…»: مرفقٌ من اللائحة، لا «المرفق رقم ٢» من مرفقات المذكرة
+const RE_AX = new RegExp(String.raw`(?:ال)?مرفق\s*(?:رقم\s*)?\(?\s*(${NUM})\s*\)?(?=\s*(?:\([^()]{0,60}\)\s*)?من\s*(?:ال)?لائح)`, 'g');
+const RE_SUBART = new RegExp(String.raw`(?:ال)?(?:فقر[ةه]|بند)\s*\(\s*([0-9٠-٩أ-ي]{1,3})\s*/\s*(${NUM})\s*\)(?!\s*من\s*(?:ال)?ماد)`, 'g');
+export function citations(text, ctx = { last: '' }) {
   const out = [];
   const paras = String(text || '').replace(/\*\*/g, '').split(/\n+/);
   for (const p of paras) {
-    let last = '';
-    const re = /(?:(?:ال)?فقر[ةه]\s*\(?([^()\s]{1,4})\)?\s*من\s*)?(?:ال)?ماد[ةه]\s*(?:رقم\s*)?\(?\s*([0-9٠-٩]{1,3}(?:\s*[/\\-]\s*[0-9٠-٩أ-ي]{1,3})?|[^\s()]+(?:\s+(?:عشر[ةه]?|و[^\s()]+|بعد\s+[^\s()]+)){0,3})\s*\)?/g;
-    let m;
     const regsBefore = [];
-    for (let i = 0, mm, r2 = new RegExp(REG.source, 'g'); (mm = r2.exec(p));) regsBefore.push({ at: mm.index, name: regName(mm[0]) });
-    while ((m = re.exec(p))) {
-      const raw = m[2].trim();
-      const sub = raw.match(/^([0-9٠-٩]+)\s*[/\\-]\s*(.+)$/);
+    for (let mm, r2 = new RegExp(REG.source, 'g'); (mm = r2.exec(p));) regsBefore.push({ at: mm.index, end: mm.index + mm[0].length, name: regName(mm[0]) });
+    const hits = [];
+    for (let m; (m = RE_ART.exec(p));) {
+      const raw = m[2].trim(), sub = raw.match(/^([0-9٠-٩]+)\s*[/\\-]\s*(.+)$/);
       const n = sub ? +norm(sub[1]) : ordinal(raw);
-      if (n == null || !(n > 0 && n < 400)) continue;
-      const tail = p.slice(m.index + m[0].length, m.index + m[0].length + 120);
-      let reg = '';
-      const near = tail.match(/^\s*(?:من|في|ب)\s*(.*)$/);
-      const prev = (regsBefore.filter(r => r.at < m.index).pop() || {}).name || last;
-      const base = prev.replace(/^اللائحة التنفيذية ل/, '');
-      // «من النظام» و«من اللائحة» يحيلان إلى ما ذُكر قبلها في الفقرة
-      if (near && /^النظام(\s|$|[،,.])/.test(near[1]) && base) reg = base;
-      else if (near && /^(اللائحة|لائحته|لائحتها)(\s|$|[،,.])/.test(near[1]) && base) reg = 'اللائحة التنفيذية ل' + base;
-      else if (near) reg = regName(near[1]);
-      if (!reg) reg = prev;
-      if (reg) last = reg;
-      const after = p.slice(m.index + m[0].length, m.index + m[0].length + 900);
-      const q = after.match(/[\"“«]([^\"”»]{8,700})[\"”»]/);
-      out.push({ reg, n, sub: sub ? norm(sub[2]) : (m[1] ? norm(m[1]) : ''), quote: q ? q[1].replace(/\*\*/g, '').trim() : '', ctx: p.slice(Math.max(0, m.index - 160), m.index + m[0].length + 260).trim() });
+      if (n == null || !(n > 0 && n < 1000)) continue;
+      hits.push({ at: m.index, end: m.index + m[0].length, list: [{ n, sub: sub ? norm(sub[2]) : (m[1] ? norm(m[1]) : '') }] });
     }
+    for (let m; (m = RE_PAIR.exec(p));) {
+      const a = m[1] != null ? ordinal(m[1]) : +norm(m[3]), b = m[2] != null ? ordinal(m[2]) : +norm(m[4]);
+      if (a > 0 && b > 0 && a < 1000 && b < 1000) hits.push({ at: m.index, end: m.index + m[0].length, list: [{ n: a, sub: '' }, { n: b, sub: '' }] });
+    }
+    for (let m; (m = RE_AX.exec(p));) hits.push({ at: m.index, end: m.index + m[0].length, ax: true, list: [{ n: +norm(m[1]), sub: '', ax: +norm(m[1]) }] });
+    // «الفقرة (2/7)»: الأول الفقرة والثاني المادة (كما في «الفقرة (12/83) من لائحته»)
+    for (let m; (m = RE_SUBART.exec(p));) hits.push({ at: m.index, end: m.index + m[0].length, list: [{ n: +norm(m[2]), sub: norm(m[1]) }] });
+    hits.sort((a, b) => a.at - b.at || b.end - a.end);
+    // «المادتين (14) و(17)» يطابقها نمطان: يُبقى الأطول ويُترك ما وقع داخله
+    for (let i = hits.length - 1; i > 0; i--) if (hits.slice(0, i).some(h => h.at <= hits[i].at && h.end >= hits[i].end)) hits.splice(i, 1);
+    let chain = null;
+    const res = [];
+    for (const h of hits) {
+      const tail = p.slice(h.end, h.end + 140);
+      const near = tail.match(/^\s*(?:من|في|ب)\s*(.*)$/);
+      const back = /^\s*(منه|منها|ذاته|ذاتها)(\s|$|[،,.])/.test(tail) || (near && /^(النظام|ذات النظام|نفس النظام|اللائحة(?!\s+التنفيذية\s+ل)|لائحته|لائحتها|ذات اللائحة)(\s|$|[،,.])/.test(near[1]));
+      const before = regsBefore.filter(r => r.end <= h.at).pop();
+      // القريب يُورَث ما لم تنتهِ الجملة بينهما («… إذ نصت المادة (9) …، ونصت المادة (15)» نعم؛ «… . وإنما عُدّل إلى المادة (144)» لا)
+      const near2 = (from, txt) => from != null && h.at - from < 250 && !/[.!؟](\s|$)/.test(p.slice(from, h.at).replace(/["“«][^"”»]*["”»]/g, '')) ? txt : '';
+      const prevNear = (before && near2(before.end, before.name)) || (chain && near2(chain.end, chain.reg)) || '';
+      const prevAny = prevNear || (before && before.name) || ctx.last;
+      let reg = '';
+      if (h.ax) {
+        const nm = regName(tail.replace(/^\s*(?:\([^()]{0,60}\)\s*)?من\s*/, ''), true);
+        res.push({ h, reg: nm, items: h.list.map(c => ({ reg: nm, n: 0, sub: '', ax: c.ax, quote: '', ctx: p.slice(Math.max(0, h.at - 160), h.end + 260).trim() })) });
+        continue;
+      }
+      if (back) {
+        const base = prevAny.replace(/^(اللائحة التنفيذية|الأدلة الإجرائية) ل/, '');
+        // «من النظام» يعني النظام نفسه لا لائحته، و«من اللائحة» لائحتَه، و«منه/ذاته» ما سُمّي كما هو
+        reg = !near || !base ? prevAny : /^(اللائحة|لائحته|لائحتها|ذات اللائحة)/.test(near[1]) ? 'اللائحة التنفيذية ل' + base : /^(النظام|ذات النظام|نفس النظام)/.test(near[1]) ? base : prevAny;
+      } else if (near) reg = regName(near[1], true);
+      if (!reg) reg = prevNear;
+      if (reg) { ctx.last = reg; chain = { reg, end: h.end }; }
+      const after = p.slice(h.end, h.end + 900);
+      const q = after.match(/["“«]([^"”»]{8,700})["”»]/);
+      res.push({ h, reg, items: h.list.map(c => ({ reg, n: c.n, sub: c.sub, ...(c.ax ? { ax: c.ax } : {}), quote: q ? q[1].trim() : '', ctx: p.slice(Math.max(0, h.at - 160), h.end + 260).trim() })) });
+    }
+    // «الفقرة (ط) من المادة (17) والمادة (57) من نظام المرافعات»: الأولى تأخذ نظام التالية المعطوفة عليها
+    for (let i = res.length - 2; i >= 0; i--) if (!res[i].reg && res[i + 1].reg && /^[\s،,و]*$/.test(p.slice(res[i].h.end, res[i + 1].h.at))) { res[i].reg = res[i + 1].reg; res[i].items.forEach(c => { c.reg = res[i].reg; }); }
+    for (const r of res) out.push(...r.items);
   }
   return out;
 }
@@ -220,10 +268,10 @@ export function citations(text) {
    النقطة كلها — من فقرة الاستشهاد إلى آخر قسمها («أولاً: …»)، أو إلى أول فقرةٍ بعدها تستشهد
    بمادةٍ غير التي فيها (فتلك حجةٌ أخرى) */
 export function memoCites(secs) {
-  const out = [];
+  const out = [], ctx = { last: '' };
   secs.forEach((sec, si) => {
     const paras = String(sec.t || '').split('\n').map(x => x.trim()).filter(Boolean);
-    const cs = paras.map(p => citations(p));
+    const cs = paras.map(p => citations(p, ctx));
     cs.forEach((list, pi) => {
       if (!list.length) return;
       const mine = new Set(list.map(c => c.n));
@@ -233,6 +281,8 @@ export function memoCites(secs) {
       for (const c of list) out.push({ ...c, h: sec.h, sec: si, arg });
     });
   });
+  // مادةٌ بقيت بلا نظام: إن سمّى نظامَها استشهادٌ آخر بالرقم نفسه في المذكرة أُخذ منه
+  for (const c of out) if (!c.reg) { const o = out.find(x => x.reg && x.n === c.n); if (o) c.reg = o.reg; }
   return out;
 }
 
