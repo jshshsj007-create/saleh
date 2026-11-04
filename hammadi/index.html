@@ -234,7 +234,7 @@ mark{background:color-mix(in srgb,var(--gold) 38%,transparent);color:inherit;bor
 <body>
 <div id="app"><div class="login"><p>جاري التحميل…</p></div></div>
 <script type="module">
-import * as LIB from './lib.js?v=9';
+import * as LIB from './lib.js?v=10';
 // ?demo: الموقع كاملًا ببياناتٍ وهمية في الجهاز، بلا Firebase ولا شيت — للتجربة والفحص قبل النشر
 const DEMO = new URLSearchParams(location.search).has('demo');
 
@@ -689,6 +689,12 @@ function memosFrom(res) {
   // ونصٌّ متطابق بعنوانين مختلفين: يُبقى أحدهما
   const byText = new Map();
   for (const m of seen.values()) { const f = LIB.norm(m.text).replace(/\s+/g, '').slice(0, 500); if (!byText.has(f) || pref(m.mime) < pref(byText.get(f).mime)) byText.set(f, m); }
+  // نصّ الـPDF يُصلح من كلماته المقلوبة بمفردات النصوص السليمة: المستندات والوورد والأنظمة
+  const clean = [...byText.values()].filter(m => !/pdf/.test(m.mime));
+  if (clean.length < byText.size) {
+    const vocab = LIB.vocabOf(clean.map(m => m.text).concat((S.lib.regs || []).flatMap(d => (d.a || []).map(x => x[3]).concat(d.p || []))));
+    for (const m of byText.values()) if (/pdf/.test(m.mime)) m.text = LIB.unreverse(m.text, vocab);
+  }
   // كل المذكرات تُحفظ، ومذكرتنا منها ما رجّحته العلامات أو ما صحّحه الفريق يدويًا (ownOf)
   return [...byText.values()].map(m => ({
     ...m, kind: LIB.memoKind(m.title), caseNo: LIB.caseNoOf(m.title, m.text), opp: LIB.oppOf(m.title),
