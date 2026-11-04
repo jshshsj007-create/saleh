@@ -518,7 +518,9 @@ export function search(docs, q, limit = 60) {
    «الطلبات:») عريضة تحتها خط، ورقم البند («1-»، «أ-») عريض، والختام في الوسط عريض والتوقيع بعده.
    و**هكذا** يبقى عريضًا كما لُصق، و__هكذا__ تحته خط */
 const KL_ORD = /^(اولا|تانيا|تالتا|رابعا|خامسا|سادسا|سابعا|تامنا|تاسعا|عاشرا|الحادي عشر|التاني عشر|التالت عشر)\s*[-–:/)]/;
-const KL_HEAD = /^(الطلبات|المرفقات|الاسانيد|الوقايع|الدفوع|الخلاصه|الخلاصه والطلبات|الدفوع الشكليه|الدفوع الموضوعيه|الاسانيد النظاميه|المستندات)\s*:?\s*$/;
+const KL_HEAD = /^(الطلبات|المرفقات|الاسانيد|الوقايع|الدفوع|الخلاصه|الخلاصه والطلبات|الدفوع الشكليه|الدفوع الموضوعيه|الاسانيد النظاميه|المستندات|الاطراف|اطراف الدعوي|الوقايع والاسانيد)\s*:?\s*$/;
+// «الوجه الأول: الخطأ في التقرير:» عنوانٌ في لوائح الاستئناف
+const KL_FACE = /^الوجه (الاول|التاني|التالت|الرابع|الخامس|السادس|السابع|التامن|التاسع|العاشر)\s*[:\-–]/;
 const KL_CLOSE = /^(والله (يحفظكم|ولي|الموفق|يرعاكم|اعلم)|وتفضلوا|وفقكم الله|هذا والله|والسلام عليكم)/;
 export function klRuns(s) {
   // **عريض** و__تحته خط__ كما لُصقا؛ وما سواهما نصٌّ عادي
@@ -533,7 +535,8 @@ export function klRuns(s) {
   push();
   return out;
 }
-export function klBlocks(text) {
+export function klBlocks(text, opt = {}) {
+  const closeBold = opt.closeBold !== false;
   const lines = String(text || '').replace(/\r/g, '').split('\n');
   const out = [];
   let addrDone = false, closed = false;
@@ -548,7 +551,13 @@ export function klBlocks(text) {
     else if (/^بسم الله الرحمن الرحيم/.test(n.replace(/ه/g, 'ة')) || /^بسم الله الرحمن الرحيم/.test(p)) blk = { type: 'basmala', runs: all(true) };
     else if (!addrDone && /^(صاحب|اصحاب|فضيله|معالي|سعاده|الي صاحب|الي اصحاب)/.test(n)) { blk = { type: 'addr', runs: all(true) }; addrDone = true; }
     else if (/^السلام عليكم/.test(p)) blk = { type: 'salam', runs: klRuns(line) };
-    else if (KL_CLOSE.test(n) && p.length < 80) { blk = { type: 'close', runs: all(true) }; closed = true; }
+    else if (KL_CLOSE.test(n) && p.length < 80) { blk = { type: 'close', runs: all(closeBold) }; closed = true; }
+    // سطرٌ قصير بعد البسملة وقبل المخاطبة عنوانُ الورقة («لائحة استئناف ( مرافعة )»، «مذكرة جوابية»)
+    else if (!addrDone && out.length && out[out.length - 1].type === 'basmala' && p.length < 60 && !/[.،:]$/.test(p)) blk = { type: 'title', runs: all(true, true) };
+    else if (KL_FACE.test(n)) {
+      const i = p.search(/[:\-–]/), rest = p.slice(i + 1).trim();
+      blk = rest.length > 70 && !/:$/.test(p) ? { type: 'p', runs: [{ t: p.slice(0, i + 1) + ' ', b: true, u: true }, ...klRuns(rest)] } : { type: 'head', runs: all(true, true) };
+    }
     else if (KL_HEAD.test(n) || KL_ORD.test(n)) {
       // «أولاً- الوقائع:» عنوانٌ كله؛ و«أولاً: إن موكلي لم يوقّع …» عنوانه «أولاً:» والباقي متن
       const i = p.search(/[:\-–/)]/), rest = i >= 0 ? p.slice(i + 1).trim() : '';
@@ -563,7 +572,9 @@ export function klBlocks(text) {
         // بندٌ قصير ينتهي بنقطتين («1- الدفع بعدم جواز نظر الدعوى:») عنوانٌ فرعي عريضٌ كله
         // (أما البند الطويل المنتهي بـ«وهي:» فرقمه وحده العريض)
         const sub = body.length < 75 && (/:$/.test(body) || (/^الدفع ب/.test(body) && !/[.،]$/.test(body)));
-        blk = { type: 'item', runs: sub ? all(true) : [{ t: m[0].trim() + '  ', b: true }, ...klRuns(line.slice(line.length - body.length))] };
+        // «1- عدم وجود خطأ طبي يوجب التعويض: ذكر مصدر …»: رقمه وعنوانه قبل النقطتين عريضان، والباقي متن
+        const il = !sub && body.match(/^([^:()«"]{3,60}):\s*(\S.*)$/);
+        blk = { type: 'item', runs: sub ? all(true) : il && !/\*\*/.test(line) ? [{ t: m[0].trim() + '  ', b: true }, { t: il[1] + ': ', b: true }, ...klRuns(il[2])] : [{ t: m[0].trim() + '  ', b: true }, ...klRuns(line.slice(line.length - body.length))] };
       } else {
         // «الموضوع: …» و«السند المطلوب إيقاف تنفيذه: …»: عنوانٌ قصير قبل النقطتين ثم المتن
         const lb = p.match(/^([^:()\d«"]{2,45}):\s*(\S.*)$/);
@@ -573,7 +584,7 @@ export function klBlocks(text) {
     }
     if (blk.type === 'label' && /^الموضوع/.test(p)) blk.gap = true;
     // قبل كل عنوانٍ فراغ (٨ نقاط) كما في الكليشة
-    if ((blk.type === 'head' || blk.type === 'close') && out.length) out[out.length - 1].gap = true;
+    if ((blk.type === 'head' || blk.type === 'close') && out.length && out[out.length - 1].type !== 'title') out[out.length - 1].gap = true;
     out.push(blk);
   }
   return out;

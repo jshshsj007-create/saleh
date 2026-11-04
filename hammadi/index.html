@@ -228,38 +228,12 @@ mark{background:color-mix(in srgb,var(--gold) 38%,transparent);color:inherit;bor
 .dupbox{margin:-4px 14px 0;width:calc(100% - 28px);background:var(--card2);border:1px solid var(--line);border-top:0;border-radius:0 0 14px 14px;padding:8px 6px 4px}
 .dupbox>.link{font-size:12.5px;padding:0 8px 4px}
 .dupbox .row1{background:none}
-/* المذكرة على الكليشة: الموقع يقسّم المذكرة صفحاتِ A4 بنفسه (لا يعتمد على طباعة الجوال)،
-   كل صفحةٍ بخلفية الكليشة كاملة. المقاسات من مذكرةٍ فعلية للمكتب: هامش أعلى 28مم وأسفل 24مم
-   وجانبان ~9مم، سطرٌ كل 22.4 نقطة، و٨ نقاط قبل كل عنوان. والخط Sakkal Majalla 14 إن كان في الجهاز
-   (ويندوز)، وإلا Amiri (رخصته مفتوحة، مستضاف هنا) بمقاسٍ يعادل عرض Majalla: 12.9 */
-@font-face{font-family:KLAmiri;src:url(fonts/amiri-arabic-400.woff2) format('woff2');font-weight:400;font-display:block;unicode-range:U+0600-06FF, U+0750-077F, U+0870-0891, U+0897-08E1, U+08E3-08FF, U+200C-200E, U+2010-2011, U+204F, U+2E41, U+FB50-FDFF, U+FE70-FE74, U+FE76-FEFC, U+102E0-102FB, U+10E60-10E7E, U+10EC2-10EC7, U+10EC9-10EEE, U+10EF0-10EFF, U+1EE00-1EE03, U+1EE05-1EE1F, U+1EE21-1EE22, U+1EE24, U+1EE27, U+1EE29-1EE32, U+1EE34-1EE37, U+1EE39, U+1EE3B, U+1EE42, U+1EE47, U+1EE49, U+1EE4B, U+1EE4D-1EE4F, U+1EE51-1EE52, U+1EE54, U+1EE57, U+1EE59, U+1EE5B, U+1EE5D, U+1EE5F, U+1EE61-1EE62, U+1EE64, U+1EE67-1EE6A, U+1EE6C-1EE72, U+1EE74-1EE77, U+1EE79-1EE7C, U+1EE7E, U+1EE80-1EE89, U+1EE8B-1EE9B, U+1EEA1-1EEA3, U+1EEA5-1EEA9, U+1EEAB-1EEBB, U+1EEF0-1EEF1}
-@font-face{font-family:KLAmiri;src:url(fonts/amiri-latin-400.woff2) format('woff2');font-weight:400;font-display:block;unicode-range:U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD}
-@font-face{font-family:KLAmiri;src:url(fonts/amiri-arabic-700.woff2) format('woff2');font-weight:700;font-display:block;unicode-range:U+0600-06FF, U+0750-077F, U+0870-0891, U+0897-08E1, U+08E3-08FF, U+200C-200E, U+2010-2011, U+204F, U+2E41, U+FB50-FDFF, U+FE70-FE74, U+FE76-FEFC, U+102E0-102FB, U+10E60-10E7E, U+10EC2-10EC7, U+10EC9-10EEE, U+10EF0-10EFF, U+1EE00-1EE03, U+1EE05-1EE1F, U+1EE21-1EE22, U+1EE24, U+1EE27, U+1EE29-1EE32, U+1EE34-1EE37, U+1EE39, U+1EE3B, U+1EE42, U+1EE47, U+1EE49, U+1EE4B, U+1EE4D-1EE4F, U+1EE51-1EE52, U+1EE54, U+1EE57, U+1EE59, U+1EE5B, U+1EE5D, U+1EE5F, U+1EE61-1EE62, U+1EE64, U+1EE67-1EE6A, U+1EE6C-1EE72, U+1EE74-1EE77, U+1EE79-1EE7C, U+1EE7E, U+1EE80-1EE89, U+1EE8B-1EE9B, U+1EEA1-1EEA3, U+1EEA5-1EEA9, U+1EEAB-1EEBB, U+1EEF0-1EEF1}
-@font-face{font-family:KLAmiri;src:url(fonts/amiri-latin-700.woff2) format('woff2');font-weight:700;font-display:block;unicode-range:U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD}
+/* المذكرة على الكليشة: الموقع يرسم صفحاتها بنفسه (انظر klLayout). والخط Sakkal Majalla 14 إن كان في الجهاز،
+   وإلا Amiri (رخصته مفتوحة، مستضاف هنا) بمقاسٍ يعادل عرض Majalla */
 .klin{width:100%;min-height:40vh;font:15px/1.8 "IBM Plex Sans Arabic",sans-serif;padding:12px;border-radius:14px}
 .klpages{margin:12px 14px 0}
 .klpw{overflow:hidden;border-radius:4px;box-shadow:0 1px 3px rgba(0,0,0,.12),0 6px 16px rgba(0,0,0,.08);background:#fff;margin-bottom:14px;position:relative}
-.klpw .klp{transform-origin:top right;position:absolute;top:0;right:0}
 .klpn{position:absolute;bottom:6px;left:8px;font-size:11px;color:#999;z-index:2}
-.klp{width:210mm;height:297mm;position:relative;background:#fff;color:#000;overflow:hidden}
-.klp .klbgs{position:absolute;inset:0;width:210mm;height:297mm}
-.klc{position:absolute;top:28mm;right:9.2mm;left:8.3mm;height:245mm}
-.klc,.klmeasure .klc{font-family:"Sakkal Majalla",KLAmiri,serif;font-size:var(--klfs,12.9pt);line-height:22.4pt;text-align:justify;direction:rtl}
-.klc p{margin:0}
-.klc p.gap{margin-bottom:8pt}
-.klc p.split{text-align-last:justify}
-.klc .kc{text-align:center}.klc .kr{text-align:right}
-.klc b{font-weight:700}.klc u{text-decoration:underline;text-underline-offset:3pt}
-.klmeasure{position:absolute;left:-10000px;top:0;visibility:hidden}
-#klprint{display:none}
-@media print{
-  @page{size:A4;margin:0}
-  html,body{background:#fff!important;padding:0!important;margin:0!important;min-height:0!important}
-  body.klprinting>*:not(#klprint){display:none!important}
-  body.klprinting #klprint{display:block}
-  #klprint .klp{break-after:page;page-break-after:always}
-  #klprint .klp:last-child{break-after:auto;page-break-after:auto}
-}
 .libsetup{margin:14px;background:var(--card);border:1px dashed color-mix(in srgb,var(--a) 45%,var(--line));border-radius:14px;padding:12px 14px;font-size:13.5px;line-height:1.8}
 </style>
 </head>
@@ -982,94 +956,117 @@ function citeHtml(k) {
    لا من الموقع، فرخصته لا تُمسّ؛ وفي غيره يحلّ محلّه خطٌّ نسخيّ قريب */
 const KLK = 'hammadi.kl';
 const klText = () => { try { return localStorage.getItem(KLK) || ''; } catch (e) { return ''; } };
-const klRun = r => { let h = esc(r.t); if (r.u) h = `<u>${h}</u>`; if (r.b) h = `<b>${h}</b>`; return h; };
-const klCls = b => [b.type === 'basmala' || b.type === 'close' ? 'kc' : b.type === 'sign' ? 'kr' : '', b.gap ? 'gap' : ''].filter(Boolean).join(' ');
+// كليشة المكتب (لائحة استئناف): المقاسات من ملف الوورد نفسه، بالنقطة (التوين ÷ ٢٠)
+const KLT = { bg: 'kl2.jpg', W: 595.28, H: 841.89, top: 2835 / 20, right: 566 / 20, bottom: 1440 / 20, left: 426 / 20,
+  size: 14, line: 259 / 240, after: 8, closeBold: false };
 // Sakkal Majalla في الجهاز؟ (ويندوز). يُقاس عرض نصٍّ به وبخطٍّ احتياطي: إن اختلفا فهو موجود
 function klHasMajalla() {
   const c = document.createElement('canvas').getContext('2d'), t = 'مذكرة بالدفوع الشكلية في الدعوى';
   c.font = '40px monospace'; const a = c.measureText(t).width;
   c.font = '40px "Sakkal Majalla", monospace'; return Math.abs(c.measureText(t).width - a) > 1;
 }
-// تقسيم المذكرة صفحات: فقرةٌ فقرة، وما لم يتسع في الصفحة يُقسم عند آخر كلمةٍ تتسع، ويكمل في التالية.
-// والعنوان لا يبقى وحده في آخر الصفحة. يُقاس في صفحةٍ حقيقية المقاس خارج الشاشة
-async function klPages(text) {
+const klImg = src => new Promise((ok, bad) => { const i = new Image(); i.onload = () => ok(i); i.onerror = () => bad(new Error('ما تحمّلت الكليشة')); i.src = src; });
+/* التخطيط: الموقع يقسّم الأسطر والصفحات بنفسه، ويرسم كل كلمةٍ كاملةً بمحرّك الجهاز (فالحروف تتصل كما
+   يعرضها الجوال في أي صفحة). السطر يُضبط من الجانبين بتوزيع الفراغ بين الكلمات، وآخر سطر الفقرة إلى اليمين.
+   والأرقام والكلمات اللاتينية المتتالية وحدةٌ تُكتب من اليسار. وحدة القياس النقطة؛ والرسم يكبّرها */
+async function klLayout(text) {
   const maj = klHasMajalla();
-  document.documentElement.style.setProperty('--klfs', maj ? '14pt' : '12.9pt');
-  if (!maj) await Promise.all(['400', '700'].map(w => document.fonts.load(`${w} 12.9pt KLAmiri`, 'مذكرة 123')));
-  const box = document.createElement('div'); box.className = 'klmeasure';
-  box.innerHTML = '<div class="klp"><div class="klc"></div></div>'; document.body.appendChild(box);
-  const c = box.querySelector('.klc'), limit = c.clientHeight;
-  const pages = [];
-  let cur = [];
-  const fits = () => c.scrollHeight <= limit + 1;
-  const flush = () => { pages.push(cur); cur = []; c.innerHTML = ''; };
-  const add = (cls, html) => { const el = document.createElement('p'); if (cls) el.className = cls; el.innerHTML = html; c.appendChild(el); return el; };
-  for (const b of LIB.klBlocks(text)) {
-    const cls = klCls(b);
-    let el = add(cls, b.runs.map(klRun).join('') || '&nbsp;');
-    if (fits()) { cur.push(el.outerHTML); continue; }
-    el.remove();
-    // كلمات الفقرة بتنسيقها: تُقسم عند أطول جزءٍ يتسع
-    let toks = b.runs.flatMap(r => r.t.split(/(\s+)/).filter(Boolean).map(t => ({ ...r, t })));
-    while (toks.length) {
-      let lo = 0, hi = toks.length;
-      while (lo < hi) { const mid = Math.ceil((lo + hi) / 2); const e = add(cls.replace('gap', '') + ' split', toks.slice(0, mid).map(klRun).join('')); const ok = fits(); e.remove(); if (ok) lo = mid; else hi = mid - 1; }
-      if (lo === toks.length) { cur.push(add(cls, toks.map(klRun).join('')).outerHTML); break; }
-      if (lo > 0) { while (lo > 0 && /^\s+$/.test(toks[lo - 1].t)) lo--; cur.push(add(cls.replace('gap', '') + ' split', toks.slice(0, lo).map(klRun).join('')).outerHTML); toks = toks.slice(lo).filter((t, i) => i || !/^\s+$/.test(t.t)); }
-      // عنوانٌ في آخر الصفحة ينتقل مع ما بعده
-      else if (cur.length && /<u>/.test(cur[cur.length - 1]) && cur.length > 1) { const h = cur.pop(); c.lastElementChild?.remove(); flush(); c.insertAdjacentHTML('beforeend', h); cur.push(h); continue; }
-      flush();
-    }
+  const fam = maj ? '"Sakkal Majalla"' : 'KLAmiri', fs = maj ? KLT.size : KLT.size * 0.922;
+  if (!maj) await Promise.all(['400', '700'].map(w => document.fonts.load(`${w} ${fs}px KLAmiri`, 'مذكرة 123')));
+  const P = 19.48 * KLT.line;  // مسافة السطر: ارتفاع Majalla ١٤ الطبيعي (من مذكرةٍ فعلية) × تباعد الكليشة
+  const ctx = document.createElement('canvas').getContext('2d');
+  const font = b => `${b ? '700' : '400'} ${fs}px ${fam}`;
+  const meas = (t, b) => { ctx.font = font(b); return ctx.measureText(t).width; };
+  const sw = meas(' ', false), W = KLT.W - KLT.left - KLT.right, H = KLT.H - KLT.top - KLT.bottom;
+  const AR = /[؀-ۿ]/;
+  const lines = [];
+  for (const blk of LIB.klBlocks(text, { closeBold: KLT.closeBold })) {
+    let words = [];
+    // الكلمة تُرسم باتجاه السطر (يمين ← يسار)، والجهاز يرتّب داخلها الأرقام والأقواس والنقطة كما يفعل وورد
+    // («(1234567890)»، «4000000000.»، «1/8/1447هـ»). والكلمات اللاتينية المتتالية وحدها تُكتب من اليسار وحدةً واحدة
+    for (const r of blk.runs) for (const t of r.t.split(/\s+/).filter(Boolean)) words.push({ t, b: !!r.b, u: !!r.u, ltr: /[A-Za-z]/.test(t) && !AR.test(t) });
+    const g = []; for (const w of words) { const p = g[g.length - 1]; if (w.ltr && p && p.ltr && p.b === w.b) p.t += ' ' + w.t; else g.push({ ...w }); } words = g;
+    for (const w of words) w.w = meas(w.t, w.b);
+    const align = /basmala|title|close/.test(blk.type) ? 'c' : blk.type === 'sign' ? 'r' : 'j';
+    let cur = [], width = 0;
+    const push = last => { lines.push({ words: cur, align: align === 'j' && last ? 'r' : align, gap: last && blk.gap ? KLT.after : 0, keep: blk.type === 'head' || blk.type === 'title' }); cur = []; width = 0; };
+    for (const w of words) { const add = (cur.length ? sw : 0) + w.w; if (cur.length && width + add > W) push(false); width += (cur.length ? sw : 0) + w.w; cur.push(w); }
+    push(true);
   }
-  if (cur.length || !pages.length) flush();
-  box.remove();
-  return pages.map(ps => `<div class="klp"><img class="klbgs" src="kl.jpg" alt=""><div class="klc">${ps.join('')}</div></div>`);
+  // الصفحات: لا يبقى عنوانٌ وحده في ذيل الصفحة
+  const pages = [[]]; let y = 0;
+  lines.forEach((l, i) => {
+    const need = P + (l.keep && lines[i + 1] ? P : 0);
+    if (y + need > H + 0.5 && pages[pages.length - 1].length) { pages.push([]); y = 0; }
+    pages[pages.length - 1].push({ ...l, y }); y += P + l.gap;
+  });
+  return { pages, P, W, font, sw, maj };
+}
+async function klDraw(L, k) {
+  const bg = await klImg(KLT.bg);
+  return L.pages.map(lines => {
+    const cv = document.createElement('canvas'); cv.width = Math.round(KLT.W * k); cv.height = Math.round(KLT.H * k);
+    const c = cv.getContext('2d'); c.fillStyle = '#fff'; c.fillRect(0, 0, cv.width, cv.height); c.drawImage(bg, 0, 0, cv.width, cv.height);
+    c.scale(k, k); c.fillStyle = '#000'; c.textBaseline = 'alphabetic'; c.textAlign = 'right';
+    for (const l of lines) {
+      const base = KLT.top + l.y + L.P * 0.74, sum = l.words.reduce((a, w) => a + w.w, 0), n = l.words.length;
+      const gap = l.align === 'j' && n > 1 ? (L.W - sum) / (n - 1) : L.sw;
+      const total = sum + gap * (n - 1);
+      let x = l.align === 'c' ? KLT.left + (L.W + total) / 2 : KLT.W - KLT.right;
+      l.words.forEach((w, i) => {
+        c.font = L.font(w.b); c.direction = w.ltr ? 'ltr' : 'rtl'; c.fillText(w.t, x, base);
+        if (w.u) { const nx = l.words[i + 1]; c.fillRect(x - w.w - (nx && nx.u ? gap : 0), base + 2.2, w.w + (nx && nx.u ? gap : 0), 0.75); }
+        x -= w.w + gap;
+      });
+    }
+    return cv;
+  });
 }
 function klHtml() {
   const t = klText();
   setTimeout(klPreview, 0);
-  return `<div class="h1">مذكرة على الكليشة</div><div class="sub">الصق المذكرة، وتطلع صفحاتها على كليشة المكتب، ثم حمّلها PDF</div>
+  return `<div class="h1">مذكرة على الكليشة</div><div class="sub">الصق المذكرة، وتطلع صفحاتها على كليشة المكتب، ثم حمّلها PDF أو وورد</div>
   <div style="padding:12px 14px 0"><textarea class="klin" id="klin" placeholder="الصق نص المذكرة هنا…" dir="rtl">${esc(t)}</textarea>
-  <div class="hint" style="margin:6px 4px 0">العناوين («أولاً-»، «الطلبات:») والبنود («1-»، «أ-») و«الموضوع:» والختام والتوقيع تُنسّق وحدها. وما لصقته عريضًا من وورد أو مستندات Google يبقى عريضًا (يظهر بين **نجمتين**).</div>
-  <div class="btns"><button class="pri" data-act="klpdf">⬇️ تحميل PDF</button><button data-act="klprint">🖨 طباعة</button><button data-act="klclear">مسح</button></div></div>
+  <div class="hint" style="margin:6px 4px 0">العنوان بعد البسملة، والنقاط («أولاً-»، «الوجه الأول:»، «الطلبات:») والبنود («1-»، «أ-») و«المستأنف:» والختام تُنسّق وحدها. وما لصقته عريضًا من وورد أو مستندات Google يبقى عريضًا (يظهر بين **نجمتين**).</div>
+  <div class="btns"><button class="pri" data-act="klpdf">⬇️ PDF</button><button class="pri" data-act="kldocx" style="background:#2b579a;border-color:#2b579a">📝 وورد للتعديل</button><button data-act="klclear">مسح</button></div></div>
   <div id="klprev"></div>`;
 }
-// المعاينة: الصفحات نفسها التي تُحمَّل، مصغّرةً لعرض الشاشة
-let klLast = '';
+// المعاينة: الصفحات نفسها التي تُحمَّل، مرسومةً بدقةٍ أقل
+let klLast = '', klBusy = false;
 async function klPreview() {
   const box = document.getElementById('klprev'); if (!box) return;
   const t = klText();
   if (!t.trim()) { box.innerHTML = ''; klLast = ''; return; }
-  // إعادة رسم الصفحة (تحديثٌ وصل) لا تعيد التقسيم ما لم يتغيّر النص
-  const pages = klLast === t && S.klPagesHtml ? S.klPagesHtml : await klPages(t); S.klPagesHtml = pages; klLast = t;
-  if (!document.getElementById('klprev')) return;
-  box.innerHTML = `<div class="bh">المعاينة · ${cnt(pages.length, 'صفحة واحدة', 'صفحتان', 'صفحات', 'صفحة')}</div><div class="klpages">${pages.map((h, i) => `<div class="klpw">${h}<span class="klpn">${ar(i + 1)}</span></div>`).join('')}</div>
-  <div class="ocrnote" style="margin:0 16px">${klHasMajalla() ? 'بخط Sakkal Majalla من جهازك.' : 'الخط هنا Amiri بمقاسٍ يعادل Sakkal Majalla 14 (Majalla غير موجود في هذا الجهاز)، فتطلع الصفحات بعددها في وورد تقريبًا.'}</div>`;
-  klFit();
+  if (klLast === t && S.klPrev) { box.replaceChildren(...S.klPrev); return; }
+  if (klBusy) return; klBusy = true;
+  try {
+    const L = await klLayout(t), cvs = await klDraw(L, 1.6);
+    const head = document.createElement('div'); head.innerHTML = `<div class="bh">المعاينة · ${cnt(cvs.length, 'صفحة واحدة', 'صفحتان', 'صفحات', 'صفحة')}</div>`;
+    const wrap = document.createElement('div'); wrap.className = 'klpages';
+    cvs.forEach((cv, i) => { const w = document.createElement('div'); w.className = 'klpw'; cv.style.cssText = 'width:100%;height:auto;display:block'; w.append(cv); const n = document.createElement('span'); n.className = 'klpn'; n.textContent = ar(i + 1); w.append(n); wrap.append(w); });
+    const note = document.createElement('div'); note.className = 'ocrnote'; note.style.margin = '0 16px';
+    note.textContent = L.maj ? 'بخط Sakkal Majalla من جهازك.' : 'الخط هنا Amiri بمقاسٍ يعادل Sakkal Majalla 14 (غير موجود في هذا الجهاز). ملف الوورد بخط Sakkal Majalla نفسه.';
+    S.klPrev = [head.firstChild, wrap, note]; klLast = t;
+    if (document.getElementById('klprev')) document.getElementById('klprev').replaceChildren(...S.klPrev);
+  } catch (e) { console.error(e); box.innerHTML = `<div class="banner bad"><span>${esc(e.message)}</span></div>`; }
+  klBusy = false;
+  if (klText() !== klLast) klPreview();
 }
-function klFit() {
-  for (const w of document.querySelectorAll('.klpw')) { const p = w.querySelector('.klp'); const k = w.clientWidth / p.offsetWidth; p.style.transform = `scale(${k})`; w.style.height = p.offsetHeight * k + 'px'; }
-}
-addEventListener('resize', () => { if (S.view === 'kl') klFit(); });
-// اسم الملف: موضوع المذكرة قبل «رقم/وتاريخ» ثم رقم القضية: «مذكرة بالدفوع الشكلية في الدعوى - 4870550139»
+// اسم الملف: موضوع المذكرة أو عنوانها قبل «رقم/وتاريخ» ثم رقم القضية
 const klName = t => {
-  const subj = ((t.match(/الموضوع\s*:\s*([^\n]{3,120})/) || [])[1] || '').split(/\s+(?:رقم|وتاريخ|المقامة|المقدمة)(?=\s|$|\()|[،,(.]/)[0].replace(/\*\*|__/g, '').trim();
-  const no = (t.match(/(?<!\d)4\d{9}(?!\d)/) || [])[0] || '';
+  const subj = ((t.match(/الموضوع\s*:\s*([^\n]{3,120})/) || [])[1] || (LIB.klBlocks(t).find(b => b.type === 'title') || { runs: [{ t: '' }] }).runs[0].t || '').split(/\s+(?:رقم|وتاريخ|المقامة|المقدمة)(?=\s|$|\()|[،,(.]/)[0].replace(/\*\*|__/g, '').trim();
+  // رقم القضية ما سبقته «القضية/الدعوى»، لا رقم الحكم أو الصك
+  const no = (t.match(/(?:القضية|الدعوى|قضية|دعوى)[^\d\n]{0,15}(4\d{9})(?!\d)/) || t.match(/(?<!\d)(4\d{9})(?!\d)/) || [])[1] || '';
   return ([subj || 'مذكرة', no].filter(Boolean).join(' - ')).replace(/[\\/:*?"<>|]/g, '').replace(/\s+/g, ' ').trim().slice(0, 80);
 };
-async function klPrint() {
-  const t = klText(); if (!t.trim()) return toast('الصق المذكرة أولًا', true);
-  const pages = await klPages(t);
-  document.getElementById('klprint')?.remove();
-  const el = document.createElement('div'); el.id = 'klprint'; el.innerHTML = pages.join('');
-  document.body.appendChild(el); document.body.classList.add('klprinting');
-  const old = document.title; document.title = klName(t);
-  await Promise.all([...el.querySelectorAll('img')].map(i => i.complete ? 0 : new Promise(r => { i.onload = i.onerror = r; })));
-  addEventListener('afterprint', () => { document.body.classList.remove('klprinting'); el.remove(); document.title = old; }, { once: true });
-  print();
+const klLib = src => new Promise((ok, bad) => { if (document.querySelector(`script[src="${src}"]`)) return ok(); const s = document.createElement('script'); s.src = src; s.onload = ok; s.onerror = () => bad(new Error('ما تحمّلت أداة التحويل — تأكد من الإنترنت')); document.head.appendChild(s); });
+// الملف الجاهز: في الجوال زرّ «حفظ أو مشاركة» (الآيفون لا يفتح المشاركة إلا عقب ضغطةٍ قريبة)، وفي الكمبيوتر تنزيل
+function klReady(blob, name, type) {
+  const file = new File([blob], name, { type });
+  S.klFile = { file, blob, name };
+  if (navigator.canShare && navigator.canShare({ files: [file] }) && /Mobi|iPhone|iPad|Android/.test(navigator.userAgent)) { S.back = []; S.open = { type: 'klready' }; renderSheet(); }
+  else { klDownload(); toast('✓ نزل الملف: ' + name); }
 }
-// تحميل PDF بلا نافذة طباعة (للجوال): كل صفحةٍ تُرسم صورةً بدقة الطباعة وتُجمع في ملف A4
-const klLib = src => new Promise((ok, bad) => { if (document.querySelector(`script[src="${src}"]`)) return ok(); const s = document.createElement('script'); s.src = src; s.onload = ok; s.onerror = () => bad(new Error('ما تحمّلت أداة PDF — تأكد من الإنترنت')); document.head.appendChild(s); });
 function klDownload() {
   const f = S.klFile; if (!f) return;
   const a = document.createElement('a'); a.href = URL.createObjectURL(f.blob); a.download = f.name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 60000);
@@ -1078,28 +1075,39 @@ async function klPdf() {
   const t = klText(); if (!t.trim()) return toast('الصق المذكرة أولًا', true);
   toast('⏳ جاري تجهيز الملف…');
   try {
-    await klLib('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js');
     await klLib('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
-    const pages = await klPages(t);
-    const box = document.createElement('div'); box.className = 'klmeasure'; box.style.visibility = 'visible'; box.innerHTML = pages.join('');
-    document.body.appendChild(box);
-    await Promise.all([...box.querySelectorAll('img')].map(i => i.complete ? 0 : new Promise(r => { i.onload = i.onerror = r; })));
-    const pdf = new window.jspdf.jsPDF({ unit: 'mm', format: 'a4', compress: true });
-    const els = [...box.querySelectorAll('.klp')];
-    for (let i = 0; i < els.length; i++) {
-      // ٢٠٠ نقطة في البوصة تقريبًا: واضحة في الطباعة، والملف بحجمٍ يُرفع في ناجز ويُرسل
-      const cv = await window.html2canvas(els[i], { scale: 2.1, backgroundColor: '#ffffff', useCORS: true, logging: false });
-      if (i) pdf.addPage();
-      pdf.addImage(cv.toDataURL('image/jpeg', 0.82), 'JPEG', 0, 0, 210, 297, undefined, 'FAST');
-    }
-    box.remove();
-    const name = klName(t) + '.pdf', blob = pdf.output('blob'), file = new File([blob], name, { type: 'application/pdf' });
-    // في الجوال: نافذة المشاركة (حفظ في الملفات، واتساب…). والآيفون لا يفتحها إلا عقب ضغطةٍ قريبة،
-    // والتجهيز يأخذ ثوانيَ تُذهبها؛ فيظهر زرٌّ يُضغط فيفتحها. وفي الكمبيوتر تنزيلٌ مباشر
-    S.klFile = { file, blob, name };
-    if (navigator.canShare && navigator.canShare({ files: [file] }) && /Mobi|iPhone|iPad|Android/.test(navigator.userAgent)) { S.back = []; S.open = { type: 'klready' }; renderSheet(); }
-    else { klDownload(); toast('✓ نزل الملف: ' + name); }
+    // نحو ٢٠٠ نقطة في البوصة: واضحة في الطباعة، والملف بحجمٍ يُرفع في ناجز ويُرسل
+    const cvs = await klDraw(await klLayout(t), 2.75);
+    const pdf = new window.jspdf.jsPDF({ unit: 'pt', format: [KLT.W, KLT.H], compress: true });
+    cvs.forEach((cv, i) => { if (i) pdf.addPage([KLT.W, KLT.H]); pdf.addImage(cv.toDataURL('image/jpeg', 0.85), 'JPEG', 0, 0, KLT.W, KLT.H, undefined, 'FAST'); });
+    klReady(pdf.output('blob'), klName(t) + '.pdf', 'application/pdf');
   } catch (e) { console.error(e); toast(e.message || 'ما زبط التحميل', true); }
+}
+/* ملف وورد من كليشة المكتب نفسها (ترويستها وخلفيتها وهوامشها وأنماطها)، بنص المذكرة فقراتٍ بتنسيقها:
+   خط Sakkal Majalla ١٤، والعريض والمسطّر كما في المعاينة، فيُعدَّل في وورد. ولا يُضمَّن الخط في الملف (مرخّص) */
+const KLDOCX = ['[Content_Types].xml', '_rels/.rels', 'word/_rels/document.xml.rels', 'word/_rels/header1.xml.rels', 'word/styles.xml', 'word/settings.xml', 'word/fontTable.xml',
+  'word/header1.xml', 'word/footnotes.xml', 'word/endnotes.xml', 'word/media/image1.png', 'word/media/image2.png'];
+function klDocXml(text, head, sect) {
+  const x = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const F = 'Sakkal Majalla', sz = KLT.size * 2;
+  const run = r => `<w:r><w:rPr><w:rFonts w:ascii="${F}" w:hAnsi="${F}" w:cs="${F}"/>${r.b ? '<w:b/><w:bCs/>' : ''}${r.u ? '<w:u w:val="single"/>' : ''}<w:sz w:val="${sz}"/><w:szCs w:val="${sz}"/>${/[؀-ۿ]/.test(r.t) ? '<w:rtl/>' : ''}</w:rPr><w:t xml:space="preserve">${x(r.t)}</w:t></w:r>`;
+  const jc = b => /basmala|title|close/.test(b.type) ? 'center' : b.type === 'sign' ? 'right' : 'both';
+  const ps = LIB.klBlocks(text, { closeBold: KLT.closeBold }).map(b => `<w:p><w:pPr><w:bidi/><w:jc w:val="${jc(b)}"/><w:spacing w:after="${b.gap ? KLT.after * 20 : 0}" w:line="${Math.round(KLT.line * 240)}" w:lineRule="auto"/></w:pPr>${b.runs.map(run).join('')}</w:p>`);
+  return head + ps.join('') + sect + '</w:body></w:document>';
+}
+async function klDocx() {
+  const t = klText(); if (!t.trim()) return toast('الصق المذكرة أولًا', true);
+  toast('⏳ جاري تجهيز ملف الوورد…');
+  try {
+    await klLib('https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js');
+    const get = async (p, bin) => { const r = await fetch('kl2/' + p.split('/').map(encodeURIComponent).join('/') + '?v=1'); if (!r.ok) throw new Error('ما تحمّل قالب الوورد'); return bin ? r.arrayBuffer() : r.text(); };
+    const zip = new window.JSZip();
+    await Promise.all(KLDOCX.map(async p => zip.file(p, await get(p, /\.png$/.test(p)))));
+    const [head, sect] = await Promise.all([get('doc-head.xml'), get('doc-sect.xml')]);
+    zip.file('word/document.xml', klDocXml(t, head, sect));
+    const blob = await zip.generateAsync({ type: 'blob', mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', compression: 'DEFLATE' });
+    klReady(blob, klName(t) + '.docx', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+  } catch (e) { console.error(e); toast(e.message || 'ما زبط ملف الوورد', true); }
 }
 
 /* ───────── النوافذ ───────── */
@@ -1118,7 +1126,7 @@ function renderSheet() {
   else if (o.type === 'libsel') html = libSelHtml();
   else if (o.type === 'memoex') html = memoExHtml();
   else if (o.type === 'law') html = lawHtml(o.k);
-  else if (o.type === 'klready') html = S.klFile ? `<h2>✓ الملف جاهز</h2><div class="meta">${esc(S.klFile.name)} · ${ar(Math.max(1, Math.round(S.klFile.blob.size / 1024)))} ك.ب</div>
+  else if (o.type === 'klready') html = S.klFile ? `<h2>✓ ${/docx$/.test(S.klFile.name) ? 'ملف الوورد' : 'الملف'} جاهز</h2><div class="meta">${esc(S.klFile.name)} · ${ar(Math.max(1, Math.round(S.klFile.blob.size / 1024)))} ك.ب</div>
     <div class="btns" style="flex-direction:column"><button class="pri" data-act="klshare">📤 حفظ في الملفات أو مشاركة</button><button data-act="kldl">⬇️ فتح الملف</button></div>
     <div class="meta" style="margin-top:8px">«حفظ في الملفات» من نافذة المشاركة يحفظه في جوالك، ومنها ترسله واتساب أو بريدًا.</div>` : '';
   else if (o.type === 'calAndroid') html = `<h2>تقويم الأندرويد</h2><div class="meta">نُسخ الرابط. Google Calendar يضيفه من الموقع لا من التطبيق:</div><div class="kv" style="padding:10px 12px;line-height:1.9;font-size:13.5px">١. افتح <b>calendar.google.com</b> من المتصفح (أو الكمبيوتر)<br>٢. «تقويمات أخرى» ← <b>+</b> ← <b>من عنوان URL</b><br>٣. الصق الرابط ← <b>إضافة تقويم</b></div><input readonly dir="ltr" value="${esc(o.url)}" style="margin-top:10px;font-size:12px" onclick="this.select()"><div class="meta" style="margin-top:6px">بعدها يتحدّث وحده في جوال الأندرويد (Google يحدّثه كل بضع ساعات).</div>`;
@@ -1739,8 +1747,8 @@ document.addEventListener('click', async e => {
     }
     case 'libselclear': S.lib.sel.clear(); saveSel(); if (S.open?.type === 'libsel') renderSheet(); return render();
     case 'libmore': S.lib.n += 30; return libResUpdate();
-    case 'klprint': return klPrint();
     case 'klpdf': return klPdf();
+    case 'kldocx': return klDocx();
     case 'klshare': { const f = S.klFile; if (!f) return; try { await navigator.share({ files: [f.file], title: f.name }); } catch (e2) { if (e2.name !== 'AbortError') klDownload(); } return; }
     case 'kldl': return klDownload();
     case 'klclear': if (!confirm('مسح نص المذكرة؟')) return; try { localStorage.removeItem(KLK); } catch (e2) { } return render();
