@@ -987,7 +987,8 @@ async function klLayout(text) {
     // الكلمة تُرسم باتجاه السطر (يمين ← يسار)، والجهاز يرتّب داخلها الأرقام والأقواس والنقطة كما يفعل وورد
     // («(1234567890)»، «4000000000.»، «1/8/1447هـ»). والكلمات اللاتينية المتتالية وحدها تُكتب من اليسار وحدةً واحدة
     for (const r of blk.runs) for (const t of r.t.split(/\s+/).filter(Boolean)) words.push({ t, b: !!r.b, u: !!r.u, ltr: /[A-Za-z]/.test(t) && !AR.test(t) });
-    const g = []; for (const w of words) { const p = g[g.length - 1]; if (w.ltr && p && p.ltr && p.b === w.b) p.t += ' ' + w.t; else g.push({ ...w }); } words = g;
+    // والجملة الإنجليزية الطويلة تُقسم على قدر السطر، وإلا خرجت وحدةً واحدة عن حدّ الصفحة
+    const g = []; for (const w of words) { const p = g[g.length - 1]; if (w.ltr && p && p.ltr && p.b === w.b && meas(p.t + ' ' + w.t, w.b) <= W) p.t += ' ' + w.t; else g.push({ ...w }); } words = g;
     for (const w of words) w.w = meas(w.t, w.b);
     const align = /basmala|title|close/.test(blk.type) ? 'c' : blk.type === 'sign' ? 'r' : 'j';
     let cur = [], width = 0;
