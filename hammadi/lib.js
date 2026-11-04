@@ -535,6 +535,18 @@ export function klRuns(s) {
   push();
   return out;
 }
+// ما بعد أول n حرفٍ من النص المجرّد، مأخوذًا من السطر بعلامات ** و__ — فالعريضُ داخل البند كان يُطوّل
+// السطرَ فيُقصّ من أول الكلمة بعد الرقم بقدر علاماته («2- مسؤولية» تخرج «2- ة»)
+function klAfter(line, n) {
+  let i = 0, pre = '';
+  while (n > 0 && i < line.length) {
+    if (line.startsWith('**', i) || line.startsWith('__', i)) { pre += line.slice(i, i + 2); i += 2; continue; }
+    i++; n--;
+  }
+  // علامةٌ فُتحت داخل الرقم تبقى مفتوحة على المتن
+  const keep = ['**', '__'].filter(k => pre.split(k).length % 2 === 0).join('');
+  return keep + line.slice(i).replace(/^\s+/, '');
+}
 export function klBlocks(text, opt = {}) {
   const closeBold = opt.closeBold !== false;
   const lines = String(text || '').replace(/\r/g, '').split('\n');
@@ -574,7 +586,7 @@ export function klBlocks(text, opt = {}) {
         const sub = body.length < 75 && (/:$/.test(body) || (/^الدفع ب/.test(body) && !/[.،]$/.test(body)));
         // «1- عدم وجود خطأ طبي يوجب التعويض: ذكر مصدر …»: رقمه وعنوانه قبل النقطتين عريضان، والباقي متن
         const il = !sub && body.match(/^([^:()«"]{3,60}):\s*(\S.*)$/);
-        blk = { type: 'item', runs: sub ? all(true) : il && !/\*\*/.test(line) ? [{ t: m[0].trim() + '  ', b: true }, { t: il[1] + ': ', b: true }, ...klRuns(il[2])] : [{ t: m[0].trim() + '  ', b: true }, ...klRuns(line.slice(line.length - body.length))] };
+        blk = { type: 'item', runs: sub ? all(true) : il && !/\*\*/.test(line) ? [{ t: m[0].trim() + '  ', b: true }, { t: il[1] + ': ', b: true }, ...klRuns(il[2])] : [{ t: m[0].trim() + '  ', b: true }, ...klRuns(klAfter(line, m[0].length))] };
       } else {
         // «الموضوع: …» و«السند المطلوب إيقاف تنفيذه: …»: عنوانٌ قصير قبل النقطتين ثم المتن
         const lb = p.match(/^([^:()\d«"]{2,45}):\s*(\S.*)$/);
