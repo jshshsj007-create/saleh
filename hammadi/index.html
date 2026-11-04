@@ -234,7 +234,7 @@ mark{background:color-mix(in srgb,var(--gold) 38%,transparent);color:inherit;bor
 <body>
 <div id="app"><div class="login"><p>جاري التحميل…</p></div></div>
 <script type="module">
-import * as LIB from './lib.js?v=10';
+import * as LIB from './lib.js?v=11';
 // ?demo: الموقع كاملًا ببياناتٍ وهمية في الجهاز، بلا Firebase ولا شيت — للتجربة والفحص قبل النشر
 const DEMO = new URLSearchParams(location.search).has('demo');
 
@@ -711,16 +711,21 @@ const GENERIC = new Set(['نظام', 'لنظام', 'النظام', 'اللايح
 const sig = t => LIB.norm(t).replace(/[()\-–]/g, ' ').split(/\s+/).filter(w => w && !GENERIC.has(w));
 function regOf(name) {
   const w = sig(name); if (!w.length || !S.lib.regs) return null;
+  // كلمةٌ تطابق بحرفٍ زائدٍ أو ناقص («المسسات» = «المؤسسات»)، لا في الكلمات القصيرة
+  const has = x => w.some(y => y === x || (x.length >= 5 && LIB.lev1(x, y)));
+  const cl = /لايح|اجرايي/.test(LIB.norm(name));
   let best = null, bs = 0;
   for (const d of S.lib.regs) {
     if (d.ax) continue;
-    // كم من كلمات اسم النظام وردت في الاستشهاد: الاستشهاد قد يجرّ بعده كلماتٍ من الجملة («… الخاصة من أخذ الموافقة»)
-    // واللائحة تذهب إلى ملف اللائحة لا النظام إن كانا ملفين («اللائحة التنفيذية لنظام الضمان الصحي» ≠ «نظام الضمان الصحي التعاوني»)
-    const cl = /لايح|اجرايي/.test(LIB.norm(name)), dl = /لايح/.test(LIB.norm(d.t)), lead = /^(اللايحه|لايحه)/.test(LIB.norm(d.t));
-    const dw = new Set(sig(d.t)), hit = [...dw].filter(x => w.includes(x)).length, sc = hit / (dw.size || 1) + hit / w.length * 0.01 + (cl === dl ? 0.05 : 0) - (!cl && lead ? 0.05 : 0);
-    if (hit >= Math.min(2, dw.size) && sc > bs) { bs = sc; best = d; }
+    const dw = [...new Set(sig(d.t))], hit = dw.filter(has).length;
+    if (hit < Math.min(2, dw.size || dw.length)) continue;
+    // كم من كلمات اسم النظام وردت في الاستشهاد: «نظام المؤسسات الصحية» يكفي لـ«… الخاصة ولائحته التنفيذية».
+    // واللائحة تذهب لملف اللائحة والنظام لملف النظام حين يكونان ملفين
+    const dl = /لايح/.test(LIB.norm(d.t)), lead = /^(اللايحه|لايحه)/.test(LIB.norm(d.t));
+    const sc = hit / dw.length + hit / w.length * 0.01 + (cl === dl ? 0.05 : 0) - (!cl && lead ? 0.5 : 0) - (cl && !dl ? 0.2 : 0);
+    if (sc > bs) { bs = sc; best = d; }
   }
-  return bs >= 0.75 ? best : null;
+  return bs >= 0.6 ? best : null;
 }
 // كل ما يُبحث فيه صفوفٌ متجانسة: مادةٌ من نظام، أو صفحةٌ من مرفق، أو قسمٌ من مذكرة
 function libRows() {
