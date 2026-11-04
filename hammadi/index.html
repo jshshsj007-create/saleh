@@ -1245,6 +1245,11 @@ function libRun() {
     const skip = {};
     if (sk.getLastRow() > 0) sk.getRange(1, 1, sk.getLastRow(), 2).getValues().forEach(r => { skip[r[0]] = String(r[1]); });
     // (والعمود الرابع في «مذكرات» كذلك رقم، فيُقارن نصًّا بنص)
+    // ملفٌ تعذّرت قراءته يُعاد في التشغيل التالي، ثلاث مرات لكل نسخة منه ثم يُترك حتى يتعدّل
+    let fl = lib.getSheetByName('تعذّر');
+    if (!fl) { fl = lib.insertSheet('تعذّر'); fl.hideSheet(); }
+    const fails = {};
+    if (fl.getLastRow() > 0) fl.getRange(1, 1, fl.getLastRow(), 3).getValues().forEach(r => { fails[r[0]] = { mod: String(r[1]), n: +r[2] || 0, why: r[2] }; });
     const ids = libFind();
     for (const f of ids) {
       if (Date.now() - t0 > 4 * 60e3) {
@@ -1257,9 +1262,17 @@ function libRun() {
       const mod = String(f.getLastUpdated().getTime()), i = at.get(f.getId());
       if (skip[f.getId()] === mod) continue;
       // والجدول يعيد الأرقام أرقامًا: كل مقارنةٍ هنا نصٌّ بنص
-      if (i != null && String(old[i][3]) === mod) { if (String(old[i][9]) !== pass) sh.getRange(i + 2, 10).setValue(pass); old[i][9] = pass; continue; }
+      if (fails[f.getId()] && fails[f.getId()].mod === mod && fails[f.getId()].n >= 3) continue;
+      // صفٌّ بلا نص (تعذّرت قراءته في نسخةٍ سابقة من السكربت) يُعاد، لا يُعدّ مقروءًا
+      if (i != null && String(old[i][3]) === mod && String(old[i][8] || '').trim()) { if (String(old[i][9]) !== pass) sh.getRange(i + 2, 10).setValue(pass); old[i][9] = pass; continue; }
       let text = '';
-      try { text = libText(f); } catch (e) { console.warn(f.getName() + ': ' + e); }
+      try { text = libText(f); } catch (e) {
+        console.warn(f.getName() + ': ' + e.message);
+        const o = fails[f.getId()] && fails[f.getId()].mod === mod ? fails[f.getId()] : { mod, n: 0 };
+        o.n++; fails[f.getId()] = o; fl.appendRow([f.getId(), mod, o.n, String(e.message).slice(0, 300)]);
+        continue;
+      }
+      if (!String(text).trim()) continue;
       const inRoot = libInRoot(f, root, inRootCache) ? '1' : '0';
       if (inRoot === '0' && !/حماد/.test(text)) { skip[f.getId()] = mod; sk.appendRow([f.getId(), mod]); continue; }
       let folder = ''; try { folder = f.getParents().next().getName(); } catch (e) { }
@@ -1306,18 +1319,43 @@ function libInRoot(f, root, cache) {
 }
 function libParents(x) { const out = [], it = x.getParents(); while (it.hasNext()) out.push(it.next()); return out; }
 
-// النص: المستند يُصدَّر نصًّا مباشرة. والوورد والـPDF يُنسخان مستندًا مؤقتًا (بقراءةٍ آلية للعربي إن كان صورة)
-// في درايف صاحب السكربت، يُقرأ ثم يُحذف نهائيًّا — فلا يظهر في مجلدات القضايا شيء
+// النص:
+// - المستند يُصدَّر نصًّا مباشرة.
+// - الوورد (docx) يُقرأ من داخله: ملفٌ مضغوط فيه word/document.xml — بلا نسخٍ ولا تحويل
+//   (Google رفض نسخ بعض ملفات الوورد للتحويل: «تحويل 403»).
+// - الـPDF يُحوَّل مستندًا مؤقتًا (بقراءةٍ آلية للعربي إن كان صورة) في درايف صاحب السكربت، يُقرأ ثم يُحذف:
+//   نسخًا، فإن رُفض فرفعًا لمحتواه. وسبب الرفض يُكتب في السجل
 function libText(f) {
   const H = { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() };
   const API = 'https://www.googleapis.com/drive/v3/files/';
-  const exp = id => UrlFetchApp.fetch(API + id + '/export?mimeType=text/plain', { headers: H }).getContentText('UTF-8');
-  if (f.getMimeType() === 'application/vnd.google-apps.document') return exp(f.getId());
-  const r = UrlFetchApp.fetch(API + f.getId() + '/copy?supportsAllDrives=true&ocrLanguage=ar', { method: 'post', contentType: 'application/json', headers: H, muteHttpExceptions: true,
-    payload: JSON.stringify({ mimeType: 'application/vnd.google-apps.document', name: '~ مؤقت للمكتبة', parents: [DriveApp.getRootFolder().getId()] }) });
-  if (r.getResponseCode() !== 200) throw new Error('تحويل ' + r.getResponseCode());
+  const why = r => { try { return JSON.parse(r.getContentText()).error.message; } catch (e) { return ''; } };
+  const exp = id => { const r = UrlFetchApp.fetch(API + id + '/export?mimeType=text/plain', { headers: H, muteHttpExceptions: true }); if (r.getResponseCode() !== 200) throw new Error('تصدير ' + r.getResponseCode() + ' ' + why(r)); return r.getContentText('UTF-8'); };
+  const mt = f.getMimeType();
+  if (mt === 'application/vnd.google-apps.document') return exp(f.getId());
+  if (mt === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') return libDocx(f);
+  const GDOC = 'application/vnd.google-apps.document', name = '~ مؤقت للمكتبة', parent = DriveApp.getRootFolder().getId();
+  let r = UrlFetchApp.fetch(API + f.getId() + '/copy?supportsAllDrives=true&ocrLanguage=ar', { method: 'post', contentType: 'application/json', headers: H, muteHttpExceptions: true,
+    payload: JSON.stringify({ mimeType: GDOC, name, parents: [parent] }) });
+  if (r.getResponseCode() !== 200) {
+    const first = r.getResponseCode() + ' ' + why(r);
+    const blob = f.getBlob(), b = 'libpart' + Date.now();
+    const head = Utilities.newBlob('--' + b + '\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n' + JSON.stringify({ mimeType: GDOC, name, parents: [parent] }) + '\r\n--' + b + '\r\nContent-Type: ' + blob.getContentType() + '\r\n\r\n').getBytes();
+    const tail = Utilities.newBlob('\r\n--' + b + '--').getBytes();
+    r = UrlFetchApp.fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&ocrLanguage=ar&supportsAllDrives=true', { method: 'post', contentType: 'multipart/related; boundary=' + b, headers: H, muteHttpExceptions: true,
+      payload: head.concat(blob.getBytes()).concat(tail) });
+    if (r.getResponseCode() !== 200) throw new Error('تحويل: نسخ ' + first + ' / رفع ' + r.getResponseCode() + ' ' + why(r));
+  }
   const tmp = JSON.parse(r.getContentText()).id;
-  try { return exp(tmp); } finally { UrlFetchApp.fetch(API + tmp, { method: 'delete', headers: H, muteHttpExceptions: true }); }
+  try { return exp(tmp); } finally { UrlFetchApp.fetch(API + tmp + '?supportsAllDrives=true', { method: 'delete', headers: H, muteHttpExceptions: true }); }
+}
+function libDocx(f) {
+  const parts = Utilities.unzip(f.getBlob().setContentType('application/zip'));
+  const doc = parts.filter(x => x.getName() === 'word/document.xml')[0];
+  if (!doc) throw new Error('وورد بلا محتوى');
+  return doc.getDataAsString('UTF-8')
+    .replace(/<w:tab\/>/g, '\t').replace(/<w:br[^>]*\/>/g, '\n').replace(/<\/w:p>/g, '\n').replace(/<[^>]+>/g, '')
+    .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&#(\d+);/g, (m, n) => String.fromCharCode(+n)).replace(/&amp;/g, '&')
+    .replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
 }
 }
 function hookHtml() {
