@@ -240,7 +240,7 @@ mark{background:color-mix(in srgb,var(--gold) 38%,transparent);color:inherit;bor
 <body>
 <div id="app"><div class="login"><p>جاري التحميل…</p></div></div>
 <script type="module">
-import * as LIB from './lib.js?v=14';
+import * as LIB from './lib.js?v=15';
 // ?demo: الموقع كاملًا ببياناتٍ وهمية في الجهاز، بلا Firebase ولا شيت — للتجربة والفحص قبل النشر
 const DEMO = new URLSearchParams(location.search).has('demo');
 
@@ -958,7 +958,9 @@ const KLK = 'hammadi.kl';
 const klText = () => { try { return localStorage.getItem(KLK) || ''; } catch (e) { return ''; } };
 // كليشة المكتب (لائحة استئناف): المقاسات من ملف الوورد نفسه، بالنقطة (التوين ÷ ٢٠)
 const KLT = { bg: 'kl2.jpg', W: 595.28, H: 841.89, top: 2835 / 20, right: 566 / 20, bottom: 1440 / 20, left: 426 / 20,
-  size: 14, line: 259 / 240, after: 8, closeBold: false };
+  size: 14, line: 259 / 240, after: 8, closeBold: false,
+  // وورد يترك آخر سطرٍ فوق عنوان التذييل (أدنى نصٍّ في لائحتكم عند ٧٥٦ نقطة)، وهامش ٧٢ وحده يُنزل السطر عليه
+  foot: 86 };
 // Sakkal Majalla في الجهاز؟ (ويندوز). يُقاس عرض نصٍّ به وبخطٍّ احتياطي: إن اختلفا فهو موجود
 function klHasMajalla() {
   const c = document.createElement('canvas').getContext('2d'), t = 'مذكرة بالدفوع الشكلية في الدعوى';
@@ -977,7 +979,7 @@ async function klLayout(text) {
   const ctx = document.createElement('canvas').getContext('2d');
   const font = b => `${b ? '700' : '400'} ${fs}px ${fam}`;
   const meas = (t, b) => { ctx.font = font(b); return ctx.measureText(t).width; };
-  const sw = meas(' ', false), W = KLT.W - KLT.left - KLT.right, H = KLT.H - KLT.top - KLT.bottom;
+  const sw = meas(' ', false), W = KLT.W - KLT.left - KLT.right, H = KLT.H - KLT.top - KLT.foot;
   const AR = /[؀-ۿ]/;
   const lines = [];
   for (const blk of LIB.klBlocks(text, { closeBold: KLT.closeBold })) {

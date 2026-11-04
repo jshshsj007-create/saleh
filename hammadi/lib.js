@@ -578,7 +578,7 @@ export function klBlocks(text, opt = {}) {
       else blk = { type: 'head', runs: all(true, true) };
     }
     else {
-      const m = p.match(/^((?:\d{1,2}|[أ-ي]|هـ)\s*[-–)]|\d{1,2}\.)\s*/);
+      const m = p.match(/^((?:[\d٠-٩]{1,2}|[أ-ي]|هـ)\s*[-–)]|[\d٠-٩]{1,2}\.)\s*/);
       if (m) {
         const body = p.slice(m[0].length);
         // بندٌ قصير ينتهي بنقطتين («1- الدفع بعدم جواز نظر الدعوى:») عنوانٌ فرعي عريضٌ كله
