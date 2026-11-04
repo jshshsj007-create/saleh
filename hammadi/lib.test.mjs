@@ -218,3 +218,29 @@ test('البحث بالمادة واسم نظامٍ في المكتبة يجد �
   const r = L.search(docs, 'المادة ١٦ المؤسسات');
   assert.deepEqual(r.hits.map(h => h.d.docTitle).sort(), ['مذكرة رد فلان', 'نظام المؤسسات الصحية الخاصة'].sort());
 });
+
+test('المذكرة على الكليشة: أجزاؤها كما في كليشة المكتب', () => {
+  const B = L.klBlocks(`بسم الله الرحمن الرحيم
+صاحب الفضيلة ناظر القضية رقم (1)، حفظه الله
+السلام عليكم ورحمة الله وبركاته، وبعد:
+الموضوع: مذكرة بالدفوع الشكلية.
+إشارة إلى صحيفة الدعوى، فإني أجيب بما يلي:
+
+أولاً- الوقائع الإجرائية ذات الصلة:
+1- أقامت موكلتي الدعوى رقم (4772510030).
+2- تقدم المدعي في القضية ذاتها بعد صدور الحكم بستة طلبات لدى محكمة الاستئناف العمالية، وهي:
+أ- طلب التماس إعادة نظر.
+1- الدفع بعدم جواز نظر الدعوى لسبق الفصل فيها:
+نص **عريض** وعادي.
+الطلبات:
+والله يحفظكم ويرعاكم،،،
+مقدمه بالوكالة`);
+  assert.deepEqual(B.map(b => b.type), ['basmala', 'addr', 'salam', 'label', 'p', 'head', 'item', 'item', 'item', 'item', 'p', 'head', 'close', 'sign']);
+  assert.deepEqual(B[3].runs.map(r => [r.t, !!r.b]), [['الموضوع: ', true], ['مذكرة بالدفوع الشكلية.', false]]);
+  assert.equal(B[3].gap, true); assert.equal(B[4].gap, true);
+  assert.deepEqual(B[7].runs.map(r => !!r.b), [true, false]);
+  assert.equal(B[9].runs.length, 1); assert.equal(B[9].runs[0].b, true);
+  assert.deepEqual(B[10].runs.map(r => [r.t, !!r.b]), [['نص ', false], ['عريض', true], [' وعادي.', false]]);
+  assert.equal(B[10].gap, true);
+  assert.ok(B[5].runs[0].u && B[11].runs[0].u);
+});

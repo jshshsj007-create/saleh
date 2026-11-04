@@ -511,3 +511,70 @@ export function search(docs, q, limit = 60) {
   hits.sort((a, b) => b.score - a.score);
   return { art, sub, words: textWords, hits: hits.slice(0, limit) };
 }
+
+/* ───────── المذكرة على كليشة المكتب ─────────
+   نصٌّ ملصوق ← فقراتٌ بأنواعها كما في كليشة المكتب (مأخوذة من مذكرةٍ فعلية على الكليشة):
+   البسملة في الوسط عريضة، والمخاطبة عريضة، و«الموضوع:» ونحوه عنوانه عريض، والنقاط («أولاً-»،
+   «الطلبات:») عريضة تحتها خط، ورقم البند («1-»، «أ-») عريض، والختام في الوسط عريض والتوقيع بعده.
+   و**هكذا** يبقى عريضًا كما لُصق، و__هكذا__ تحته خط */
+const KL_ORD = /^(اولا|تانيا|تالتا|رابعا|خامسا|سادسا|سابعا|تامنا|تاسعا|عاشرا|الحادي عشر|التاني عشر|التالت عشر)\s*[-–:/)]/;
+const KL_HEAD = /^(الطلبات|المرفقات|الاسانيد|الوقايع|الدفوع|الخلاصه|الخلاصه والطلبات|الدفوع الشكليه|الدفوع الموضوعيه|الاسانيد النظاميه|المستندات)\s*:?\s*$/;
+const KL_CLOSE = /^(والله (يحفظكم|ولي|الموفق|يرعاكم|اعلم)|وتفضلوا|وفقكم الله|هذا والله|والسلام عليكم)/;
+export function klRuns(s) {
+  // **عريض** و__تحته خط__ كما لُصقا؛ وما سواهما نصٌّ عادي
+  const out = [];
+  let b = false, u = false, cur = '';
+  const push = () => { if (cur) out.push({ t: cur, b, u }); cur = ''; };
+  for (let i = 0; i < s.length; i++) {
+    if (s.startsWith('**', i)) { push(); b = !b; i++; continue; }
+    if (s.startsWith('__', i)) { push(); u = !u; i++; continue; }
+    cur += s[i];
+  }
+  push();
+  return out;
+}
+export function klBlocks(text) {
+  const lines = String(text || '').replace(/\r/g, '').split('\n');
+  const out = [];
+  let addrDone = false, closed = false;
+  const plain = l => l.replace(/\*\*|__/g, '').trim();
+  for (const raw of lines) {
+    const line = raw.replace(/[ \t]+/g, ' ').trim();
+    if (!line) { if (out.length) out[out.length - 1].gap = true; continue; }
+    const p = plain(line), n = norm(p);
+    const all = (b, u) => [{ t: p, b, u }];
+    let blk;
+    if (closed) blk = { type: 'sign', runs: all(true) };
+    else if (/^بسم الله الرحمن الرحيم/.test(n.replace(/ه/g, 'ة')) || /^بسم الله الرحمن الرحيم/.test(p)) blk = { type: 'basmala', runs: all(true) };
+    else if (!addrDone && /^(صاحب|اصحاب|فضيله|معالي|سعاده|الي صاحب|الي اصحاب)/.test(n)) { blk = { type: 'addr', runs: all(true) }; addrDone = true; }
+    else if (/^السلام عليكم/.test(p)) blk = { type: 'salam', runs: klRuns(line) };
+    else if (KL_CLOSE.test(n) && p.length < 80) { blk = { type: 'close', runs: all(true) }; closed = true; }
+    else if (KL_HEAD.test(n) || KL_ORD.test(n)) {
+      // «أولاً- الوقائع:» عنوانٌ كله؛ و«أولاً: إن موكلي لم يوقّع …» عنوانه «أولاً:» والباقي متن
+      const i = p.search(/[:\-–/)]/), rest = i >= 0 ? p.slice(i + 1).trim() : '';
+      if (KL_ORD.test(n) && rest && (rest.length > 110 || /[.،]$/.test(rest)))
+        blk = { type: 'p', runs: [{ t: p.slice(0, i + 1) + ' ', b: true, u: true }, ...klRuns(rest)] };
+      else blk = { type: 'head', runs: all(true, true) };
+    }
+    else {
+      const m = p.match(/^((?:\d{1,2}|[أ-ي]|هـ)\s*[-–)]|\d{1,2}\.)\s*/);
+      if (m) {
+        const body = p.slice(m[0].length);
+        // بندٌ قصير ينتهي بنقطتين («1- الدفع بعدم جواز نظر الدعوى:») عنوانٌ فرعي عريضٌ كله
+        // (أما البند الطويل المنتهي بـ«وهي:» فرقمه وحده العريض)
+        const sub = body.length < 75 && (/:$/.test(body) || (/^الدفع ب/.test(body) && !/[.،]$/.test(body)));
+        blk = { type: 'item', runs: sub ? all(true) : [{ t: m[0].trim() + '  ', b: true }, ...klRuns(line.slice(line.length - body.length))] };
+      } else {
+        // «الموضوع: …» و«السند المطلوب إيقاف تنفيذه: …»: عنوانٌ قصير قبل النقطتين ثم المتن
+        const lb = p.match(/^([^:()\d«"]{2,45}):\s*(\S.*)$/);
+        if (lb && lb[1].trim().split(/\s+/).length <= 6 && !/[.،]/.test(lb[1])) blk = { type: 'label', runs: [{ t: lb[1].trim() + ': ', b: true }, ...klRuns(lb[2])] };
+        else blk = { type: 'p', runs: klRuns(line) };
+      }
+    }
+    if (blk.type === 'label' && /^الموضوع/.test(p)) blk.gap = true;
+    // قبل كل عنوانٍ فراغ (٨ نقاط) كما في الكليشة
+    if ((blk.type === 'head' || blk.type === 'close') && out.length) out[out.length - 1].gap = true;
+    out.push(blk);
+  }
+  return out;
+}
