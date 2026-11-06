@@ -529,7 +529,8 @@ function fail(e) { console.error(e); toast('ما انحفظ: ' + (e.code || e.me
 const saveProfile = () => { DB.saveProfile({ v: 2, system: S.system, ex: S.ex, plans: S.plans }); syncPush(); };
 const saveY = () => { DB.saveY(Y); syncPush(); };
 // كل رقم كان ثابت صار إعداد تعدّله: زيادات الوزن، وخطوة الوزن، ومدد الراحة، والأنشطة، والجدول
-const DEF_SET = { gymTime: '21:00', wsteps: [2.5, 5], wstep: 2.5, rests: [60, 90, 120, 180], acts: ['كورة', 'مشي', 'جري', 'سباحة', 'دراجة'], autoDay: true };
+// والجدول يدوي من الأصل: كل يوم صاحبه يختار تمرينه، والتلقائي اختيار في صفحة الجدول
+const DEF_SET = { gymTime: '21:00', wsteps: [2.5, 5], wstep: 2.5, rests: [60, 90, 120, 180], acts: ['كورة', 'مشي', 'جري', 'سباحة', 'دراجة'], autoDay: false };
 const emptyY = () => ({ v: 1, tasks: [], longs: [], rems: [], set: { ...DEF_SET } });
 const SET = () => ({ ...DEF_SET, ...(Y && Y.set || {}) });
 const manual = () => SET().autoDay === false;
