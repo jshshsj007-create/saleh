@@ -530,7 +530,7 @@ const saveProfile = () => { DB.saveProfile({ v: 2, system: S.system, ex: S.ex, p
 const saveY = () => { DB.saveY(Y); syncPush(); };
 // كل رقم كان ثابت صار إعداد تعدّله: زيادات الوزن، وخطوة الوزن، ومدد الراحة، والأنشطة، والجدول
 // والجدول يدوي من الأصل: كل يوم صاحبه يختار تمرينه، والتلقائي اختيار في صفحة الجدول
-const DEF_SET = { gymTime: '21:00', wsteps: [2.5, 5], wstep: 2.5, rests: [60, 90, 120, 180], acts: ['كورة', 'مشي', 'جري', 'سباحة', 'دراجة'], autoDay: false };
+const DEF_SET = { gymTime: '21:00', weekTime: '21:00', wsteps: [2.5, 5], wstep: 2.5, rests: [60, 90, 120, 180], acts: ['كورة', 'مشي', 'جري', 'سباحة', 'دراجة'], autoDay: false };
 const emptyY = () => ({ v: 1, tasks: [], longs: [], rems: [], set: { ...DEF_SET } });
 const SET = () => ({ ...DEF_SET, ...(Y && Y.set || {}) });
 const manual = () => SET().autoDay === false;
@@ -624,12 +624,59 @@ function item(id) {
   return it;
 }
 const incTarget = (id, it) => lastLog(id).sets.map(s => ({ reps: Math.max(0, +s.reps + (+it.inc.reps || 0)), weight: Math.max(0, +s.weight + (+it.inc.weight || 0)) }));
+/* ───────── الجدول بالترتيب ─────────
+   الترتيب (مثل علوي ← سفلي ← أوف) يتكرّر، وكل يوم يكمل من آخر تمرين سوّيته، لا من اسم اليوم.
+   فلو أخذت أوف في يوم تمرين، التمرين ينتقل لبكرة والباقي يتأخر يوم. ولو اخترت غير
+   المقترح، اللي بعده يكمل من اختيارك */
+const cycle = () => {
+  const c = (SET().cycle || []).filter(x => x === 'off' || dayById(x));
+  return c.length ? c : [...plan().days.map(d => d.id), 'off'];
+};
+// أقرب مكان لهالتمرين في الترتيب بعد المكان الحالي (الترتيب ممكن يتكرر فيه التمرين نفسه)
+const nextIdx = (c, i, id) => { for (let k = 1; k <= c.length; k++) { const j = ((i + k) % c.length + c.length) % c.length; if (c[j] === id) return j; } return i; };
+// آخر مكانٍ وصلت له في الترتيب قبل اليوم: من المحفوظ لو تدرّبت فعلًا ذاك اليوم، وإلا من آخر تمرين بالسجل
+function cycleBase() {
+  const c = cycle(), ptr = SET().cptr;
+  const ld = Object.keys(logsByDate).filter(d => d < TODAY && logsByDate[d].day?.id && c.includes(logsByDate[d].day.id)).sort().pop();
+  if (ptr && ptr.d < TODAY && loggedOn(ptr.d) && (!ld || ptr.d >= ld) && ptr.i < c.length) return ptr.i;
+  return ld ? c.indexOf(logsByDate[ld].day.id) : -1;
+}
+// تمرين كل يوم من اليوم لقدّام، والمقترح لليوم لو ما اخترت
+function projection(n = 16) {
+  const c = cycle(), out = {};
+  let i = cycleBase();
+  const pick = L.sess && L.sess.date === TODAY ? L.sess.part : null;
+  const doneId = logsByDate[TODAY]?.day?.id;
+  for (let k = 0; k < n; k++) {
+    const d = addD(TODAY, k);
+    if (k === 0) {
+      const id = pick ?? (doneId && c.includes(doneId) ? doneId : null);
+      if (id === 'off') {
+        // أوف مخطّط ينحسب، وأوف بدال تمرين ما ينحسب: التمرين يتأجل لبكرة
+        if (c[(i + 1) % c.length] === 'off') i = (i + 1) % c.length;
+        out[d] = 'off'; continue;
+      }
+      if (id) { i = nextIdx(c, i, id); out[d] = id; continue; }
+    }
+    i = (i + 1) % c.length; out[d] = c[i];
+  }
+  return out;
+}
+let projCache = null;
+// تمرين يوم معيّن: اللي صار للأيام اللي فاتت، والمتوقّع لليوم وقدّام
+function planOn(d) {
+  if (!S || !plan().days.length) return null;
+  if (d < TODAY) { const r = logsByDate[d]; return r?.day?.id || (loggedOn(d) ? 'act' : 'off'); }
+  if (!manual()) return d === TODAY ? (session().part ?? schedOf(dow(d))) : schedOf(dow(d));
+  if (!projCache || projCache.key !== TODAY + JSON.stringify([L.sess?.part, SET().cycle, SET().cptr, Object.keys(logsByDate).length, logsByDate[TODAY]?.day?.id])) {
+    projCache = { key: TODAY + JSON.stringify([L.sess?.part, SET().cycle, SET().cptr, Object.keys(logsByDate).length, logsByDate[TODAY]?.day?.id]), p: projection() };
+  }
+  return projCache.p[d] ?? null;
+}
 function nextTraining() {
-  const d = new Date();
-  for (let i = 1; i <= 7; i++) {
-    d.setDate(d.getDate() + 1);
-    const p = schedOf(d.getDay());
-    if (p !== 'off') return { day: i === 1 ? 'بكرة' : DAYS[d.getDay()], id: p };
+  for (let i = 1; i <= 14; i++) {
+    const d = addD(TODAY, i), p = planOn(d);
+    if (p && p !== 'off') return { day: i === 1 ? 'بكرة' : DAYS[dow(d)], id: p };
   }
   return null;
 }
@@ -729,7 +776,7 @@ function weekStrip() {
   const ws = wkStart(TODAY);
   return `<div class="week">${WEEK.map((wd, i) => {
     const d = addD(ws, i), past = d < TODAY;
-    let c = colorOf(schedOf(wd)), miss = '';
+    let c = colorOf(planOn(d)), miss = '';
     if (past) {
       if (loggedOn(d)) c = logDay(d).color;
       else { if (!manual() && schedOf(wd) !== 'off') miss = '<span class="miss">✕</span>'; c = OFF; }
@@ -744,8 +791,13 @@ function viewGymDay() {
     <div class="sub" style="margin-top:6px">سوّ أول يوم، مثل «صدر وباي»، وحط فيه تمارينك</div>
     <div class="btns" style="justify-content:center"><button class="pri" data-act="newDay">+ سوّ أول يوم</button></div></div>`;
   const pick = `<div class="chips">${[...days.map(x => [x.id, x.name]), ['off', 'أوف']].map(([id, name]) => `<button class="${s.part === id ? 'on' : ''}" data-act="todayPart" data-v="${id}">${esc(name)}</button>`).join('')}</div>`;
-  if (s.part == null) return `<div class="hero"><div class="sub">${DAYS[wd]} ${dm(TODAY)}</div><div class="big" style="font-size:28px">وش تمرين اليوم؟</div>
-    <div class="sub">اختر يومك، أو سجّل نشاط تحت</div>${pick}</div>` + actsCard() + weekStrip();
+  if (s.part == null) {
+    const sug = planOn(TODAY), sd = dayById(sug);
+    return `<div class="hero" style="--pc:${sd ? sd.color : OFF}"><div class="sub">${DAYS[wd]} ${dm(TODAY)}</div><div class="big" style="font-size:28px">وش تمرين اليوم؟</div>
+      ${sug ? `<div class="sub">على ترتيبك، اليوم دور: <b style="color:var(--text)">${sd ? esc(sd.name) : 'أوف'}</b></div>
+        <div class="btns"><button class="pri" data-act="todayPart" data-v="${sug}">${sd ? `ابدأ ${esc(sd.name)}` : 'خذ أوف'}</button></div>
+        <div class="sub" style="margin-top:10px">أو اختر غيره، والأيام اللي بعده تمشي على اختيارك:</div>` : '<div class="sub">اختر يومك، أو سجّل نشاط تحت</div>'}${pick}</div>` + actsCard() + weekStrip() + upNext();
+  }
   const d = dayById(s.part), list = dayEx(d), col = d ? d.color : OFF;
   const done = list.filter(e => item(e.id).step === 'done').length;
   let h = `<div class="hero" style="--pc:${col}"><div class="row between">
@@ -756,7 +808,7 @@ function viewGymDay() {
     ${d && !loggedOn(TODAY) ? `<div class="warnline">لو ما سجّلت ولا عدّة قبل ١١:٥٩ م، ينحسب اليوم أوف</div>` : ''}
     ${L.showPart ? `<div class="fade">${pick}</div>`
       : `<div style="margin-top:8px"><button class="link" data-act="showPart">غيّر يوم اليوم</button></div>`}</div>`;
-  h += weekStrip();
+  h += weekStrip() + (manual() ? upNext() : '');
   if (!d) {
     const nx = manual() ? null : nextTraining(), acted = Object.keys(actsOn(TODAY)).length;
     return h + actsCard() + (acted ? '' : `<div class="card rest"><div class="big">😴</div><div class="name" style="margin-top:8px">اليوم راحة، العضلة تكبر وأنت مرتاح</div>
@@ -785,12 +837,26 @@ function actsCard() {
       <div class="two"><input id="actMin" type="number" inputmode="numeric" min="0" placeholder="كم دقيقة؟ (اختياري)" value="${A !== '__new' && now[A] ? now[A] : ''}"><button class="okb" data-act="actSave">✓ ${A !== '__new' && A in now ? 'عدّل' : 'سجّل'}</button></div></div>` : ''}</div>`;
 }
 
-const autoCard = () => `<div class="card"><div class="name" style="font-size:15px">تمرين اليوم</div>
-  <div class="seg"><button class="${!manual() ? 'on' : ''}" data-act="autoDay" data-v="1">تلقائي من الجدول</button><button class="${manual() ? 'on' : ''}" data-act="autoDay" data-v="0">أختاره بنفسي كل يوم</button></div>
-  <div class="sub" style="margin-top:8px">${manual() ? 'كل يوم تختار تمرينك، أو تسجّل نشاط مثل الكورة. وما فيه «ما رحت النادي» لأن ما فيه جدول، بس بعد يومين بلا ولا شي يقول لك: لازم تروح.' : 'كل يوم ينفتح على تمرينه من الجدول تحت، وتقدر تغيّره من «غيّر يوم اليوم».'}</div></div>`;
+const autoCard = () => `<div class="card"><div class="name" style="font-size:15px">الجدول يمشي</div>
+  <div class="seg"><button class="${manual() ? 'on' : ''}" data-act="autoDay" data-v="0">بالترتيب</button><button class="${!manual() ? 'on' : ''}" data-act="autoDay" data-v="1">على أيام الأسبوع</button></div>
+  <div class="sub" style="margin-top:8px">${manual() ? 'كل يوم يقترح عليك التمرين اللي عليه الدور، وأنت تختار. لو أخذت أوف، التمرين يتأجل لبكرة والأيام اللي بعده تتأخر معه. ولو اخترت غيره، الباقي يكمل من اختيارك.' : 'كل يوم من أيام الأسبوع له تمرينه الثابت تحت، وتقدر تغيّره من «غيّر يوم اليوم».'}</div></div>`;
+// الأيام الجاية على الترتيب، تشوفها وتعرف وش ينتظرك
+function upNext() {
+  const ds = Array.from({ length: 7 }, (_, i) => addD(TODAY, i + 1));
+  return `<div class="card"><div class="row between"><div class="name" style="font-size:15px">الأيام الجاية</div><button class="sm ghost" data-act="gv" data-v="sched">✎ الترتيب</button></div>
+    <div class="chips">${ds.map(d => { const id = planOn(d), dd = dayById(id); return `<span class="pill" style="background:${tint(dd ? dd.color : OFF)};color:${dd ? dd.color : 'var(--mute)'};padding:5px 10px">${SHORT[dow(d)]} · ${dd ? esc(dd.name) : 'أوف'}</span>`; }).join('')}</div></div>`;
+}
+function cycleCard() {
+  const c = cycle(), opts = [...plan().days.map(x => [x.id, x.name, x.color]), ['off', 'أوف', OFF]];
+  return `<div class="card"><div class="name" style="font-size:15px">ترتيبك</div><div class="sub">يتكرّر من أوله لما يخلص</div>
+    <div class="list" style="margin-top:6px">${c.map((id, i) => { const dd = dayById(id); return `<div class="item"><span class="no">${n(i + 1)}</span><div class="grow">${pill(dd ? dd.name : 'أوف', dd ? dd.color : OFF)}</div>
+      <button class="ic" data-act="cyUp" data-i="${i}" ${i ? '' : 'disabled style="opacity:.3"'} aria-label="فوق">▲</button><button class="ic" data-act="cyDown" data-i="${i}" ${i < c.length - 1 ? '' : 'disabled style="opacity:.3"'} aria-label="تحت">▼</button>
+      <button class="x" data-act="cyDel" data-i="${i}" ${c.length > 1 ? '' : 'disabled style="opacity:.3"'} aria-label="احذف">✕</button></div>`; }).join('')}</div>
+    <div class="sub" style="margin-top:8px">أضف للآخر:</div><div class="opts" style="margin-top:6px">${opts.map(([id, name, col]) => `<button style="--c:${col}" data-act="cyAdd" data-v="${id}">+ ${esc(name)}</button>`).join('')}</div></div>`;
+}
 function viewSched() {
   const days = plan().days;
-  if (manual()) return autoCard() + `<div class="card"><div class="sub">الجدول متوقف لأنك تختار بنفسك. رجّعه «تلقائي» فوق إذا تبيه.</div></div>`;
+  if (manual()) return autoCard() + (days.length ? cycleCard() + upNext() : '');
   if (!days.length) return `<div class="card rest"><div class="sub">سوّ أيامك أول من «التمارين»، وبعدها وزّعها هنا على الأسبوع</div>
     <div class="btns" style="justify-content:center"><button class="pri" data-act="newDay">+ سوّ أول يوم</button></div></div>`;
   const opts = [...days.map(x => [x.id, x.name, x.color]), ['off', 'أوف', OFF]];
@@ -1175,7 +1241,7 @@ function viewWeek() {
   if (L.form && L.form.tab === 'week') h += formHtml();
   else if (S && ws <= TODAY) h += reportCard(L.wk === 0 && L.repPrev ? addD(ws, -7) : ws);
   h += days.map(d => {
-    const ts = tasksOn(d), g = S && plan().days.length ? schedOf(dow(d)) : null;
+    const ts = tasksOn(d), g0 = S && plan().days.length ? (d < TODAY ? (loggedOn(d) ? null : 'off') : planOn(d)) : null, g = g0 === 'act' ? null : g0;
     return `<div class="card wday ${d === TODAY ? 'today' : d < TODAY ? 'past' : ''}" id="wd-${d}">
       <div class="row between"><div><b>${DAYS[dow(d)]}</b> <span class="sub">${dm(d)}${d === TODAY ? ' · اليوم' : ''}</span></div>
       <div class="row" style="gap:6px">${g ? pill(g === 'off' ? 'أوف' : nameOf(g), colorOf(g)) : ''}<button class="sm ghost" data-act="newTask" data-d="${d}">+ مهمة</button></div></div>
@@ -1228,7 +1294,7 @@ function viewRem() {
 function alerts(forNotify) {
   const out = [];
   if (S) {
-    const d = gymDay(), noLog = !loggedOn(TODAY), st = offStreak();
+    const p0 = planOn(TODAY), d = gymDay() || (session().part == null && p0 && p0 !== 'off' ? dayById(p0) : null), noLog = !loggedOn(TODAY), st = offStreak();
     if (noLog && st >= 2) out.push({ k: 's:' + TODAY, lvl: 'bad', t: 'لازم تروح النادي اليوم', s: `صار لك ${cnt(st, 'يوم', 'يومين', 'أيام')} أوف`, tab: 'gym' });
     else if (d && noLog && nowHM() >= (Y.set.gymTime || '21:00')) out.push({ k: 'g:' + TODAY, lvl: 'warn', t: 'ترا ما رحت النادي اليوم', s: `اليوم ${d.name}، ولو ما سجّلت شي قبل ١١:٥٩ م ينحسب أوف`, tab: 'gym' });
   }
@@ -1243,7 +1309,8 @@ function alerts(forNotify) {
   const ws = wkStart(TODAY), wt = Array.from({ length: 7 }, (_, i) => addD(ws, i)).filter(d => d >= TODAY).reduce((a, d) => a + tasksOn(d).filter(t => !isDone(t, d)).length, 0);
   // المهمة البعيدة القريبة لها شريطها فوق، فلا نكرّرها في الشريط (والإشعار يوصل)
   out.push(...preAlerts().filter(a => !(!forNotify && a.long && daysLeft(a.long) <= 3)));
-  if (wt && dow(TODAY) === 6) out.push({ k: 'w:' + ws, lvl: 'info', t: `بداية الأسبوع: عندك ${cnt(wt, 'مهمة', 'مهمتين', 'مهام')}`, s: weekBrief(ws), tab: 'week' });
+  if (dow(TODAY) === 6 && nowHM() >= SET().weekTime) out.push({ k: 'w:' + ws, lvl: 'info', t: '📋 وش عندك هالأسبوع', s: weekFull(ws), tab: 'week' });
+  void wt;
   return out;
 }
 // تذكيرات «قبلها»: لكل موعد جاي، أقرب «قبل» فات وقته. والمفتاح فيه «القبل» نفسه،
@@ -1271,6 +1338,14 @@ function preAlerts() {
   }
   for (const l of Y.longs) if (!l.done) add(l, l.due, DEF_T, `«${l.title}»`, 'long');
   return out;
+}
+// ملخّص الأسبوع للتنبيه: المهام يوم يوم، وتمارين النادي على ترتيبك
+function weekFull(ws) {
+  const ds = Array.from({ length: 7 }, (_, i) => addD(ws, i));
+  const tl = ds.reduce((a, d) => a + tasksOn(d).length, 0);
+  const gym = S && plan().days.length ? ds.map(d => { const p = planOn(d), dd = dayById(p); return dd ? `${SHORT[dow(d)]} ${dd.name}` : ''; }).filter(Boolean) : [];
+  const parts = [tl ? `${cnt(tl, 'مهمة', 'مهمتين', 'مهام')}: ${weekBrief(ws)}` : 'ما فيه مهام', gym.length ? `🏋️ ${gym.join('، ')}` : ''];
+  return parts.filter(Boolean).join(' · ');
 }
 function weekBrief(ws) {
   return Array.from({ length: 7 }, (_, i) => addD(ws, i)).map(d => { const ts = tasksOn(d); return ts.length ? `${DAYS[dow(d)]}: ${ts.map(t => t.title).join('، ')}` : ''; }).filter(Boolean).join(' · ');
@@ -1310,9 +1385,9 @@ function schedule() {
     }
     for (const r of remsOn(d)) { add(at(d, r.time), `r:${r.id}:${d}`, '🔔 ' + r.title, hm(r.time), 'rem'); pres(r, d, r.time, '🔔 ' + r.title, 'rem'); }
     // يوم تمرين ما انسجّل فيه شي: «ترا ما رحت النادي». ولو سجّلت، المزامنة تشيله
-    if (S && !manual() && plan().days.length && schedOf(dow(d)) !== 'off' && !loggedOn(d))
-      add(at(d, Y.set.gymTime || '21:00'), `g:${d}`, 'ترا ما رحت النادي اليوم', `اليوم ${nameOf(schedOf(dow(d)))}، ولو ما سجّلت شي قبل ١١:٥٩ م ينحسب أوف`, 'gym');
-    if (dow(d) === 6) { const b = weekBrief(d); if (b) add(at(d, '08:00'), `w:${d}`, 'مهام هذا الأسبوع', b, 'week'); }
+    if (S && plan().days.length && planOn(d) && planOn(d) !== 'off' && !loggedOn(d))
+      add(at(d, Y.set.gymTime || '21:00'), `g:${d}`, 'ترا ما رحت النادي اليوم', `اليوم ${nameOf(planOn(d))}، ولو ما سجّلت شي قبل ١١:٥٩ م ينحسب أوف`, 'gym');
+    if (dow(d) === 6) add(at(d, SET().weekTime), `w:${d}`, '📋 وش عندك هالأسبوع', weekFull(d), 'week');
   }
   for (const l of Y.longs) if (!l.done) {
     add(at(l.due, DEF_T), `ld:${l.id}`, `«${l.title}»: اليوم آخر يوم`, 'مهمة بعيدة المدى', 'long');
@@ -1574,6 +1649,9 @@ function viewSet() {
     ` + `<div class="card form"><div class="name" style="font-size:15px">تنبيه «ما رحت النادي»</div>
     <div class="sub">في يوم التمرين، لو ما سجّلت شي لين هالساعة يذكّرك. ولو ما سجّلت لين ١١:٥٩ م ينحسب اليوم أوف، وبعد يومين أوف ورا بعض يقول لك: لازم تروح.</div>
     <input type="time" data-f="set.gymTime" value="${Y.set.gymTime || '21:00'}"></div>
+    <div class="card form"><div class="name" style="font-size:15px">تنبيه «وش عندك هالأسبوع»</div>
+    <div class="sub">كل سبت بهالساعة: مهامك يوم يوم، وتمارين النادي على ترتيبك.</div>
+    <input type="time" data-f="set.weekTime" value="${SET().weekTime}"></div>
     ${autoCard()}
     <div class="card form"><div class="name" style="font-size:15px">النادي: أرقامك</div>
       <label>زيادات الوزن السريعة (كجم)، افصل بينها بفاصلة</label><input class="txt" data-f="cfg.wsteps" value="${SET().wsteps.join('، ')}" placeholder="٢٫٥، ٥، ١٠">
@@ -1930,7 +2008,20 @@ document.addEventListener('click', ev => {
 
     // النادي
     case 'showPart': L.showPart = true; break;
-    case 'todayPart': session().part = v; session().open = undefined; L.showPart = false; break;
+    case 'todayPart': {
+      session().part = v; session().open = undefined; L.showPart = false;
+      // مكان اختيارك في الترتيب ينحفظ، فبكرة يكمل منه (لو تدرّبت فعلًا)
+      if (manual() && v !== 'off') { projCache = null; const c = cycle(); Y.set.cptr = { d: TODAY, i: nextIdx(c, cycleBase(), v) }; saveY(); }
+      break;
+    }
+    case 'cyUp': case 'cyDown': case 'cyDel': case 'cyAdd': {
+      const c = [...cycle()], i = +b.dataset.i;
+      if (act === 'cyUp' && i > 0) [c[i - 1], c[i]] = [c[i], c[i - 1]];
+      if (act === 'cyDown' && i < c.length - 1) [c[i + 1], c[i]] = [c[i], c[i + 1]];
+      if (act === 'cyDel' && c.length > 1) c.splice(i, 1);
+      if (act === 'cyAdd') c.push(v);
+      Y.set.cycle = c; delete Y.set.cptr; projCache = null; saveY(); break;
+    }
     case 'autoDay': Y.set.autoDay = v === '1'; if (L.sess) { L.sess.part = manual() ? null : schedOf(new Date().getDay()); L.sess.open = undefined; } saveY(); toast(manual() ? '✓ صرت تختار تمرينك بنفسك' : '✓ رجع الجدول التلقائي'); break;
     case 'actPick': L.act = L.act === v ? null : v; render(); document.getElementById(v === '__new' ? 'actName' : 'actMin')?.focus(); return;
     case 'actSave': {
@@ -2132,6 +2223,7 @@ document.addEventListener('input', ev => {
   if (!f) return;
   if (f === 'draft.name') { if (L.edit) L.edit.name = t.value; return; }
   if (f === 'set.gymTime') { if (t.value) { Y.set.gymTime = t.value; saveY(); } return; }
+  if (f === 'set.weekTime') { if (t.value) { Y.set.weekTime = t.value; saveY(); } return; }
   if (f.startsWith('cfg.')) return;
   if (f === 'pp.reps' || f === 'pp.weight') { if (L.past) L.past.sets[+t.dataset.i][f.slice(3)] = t.value; return; }
   if (f === 'le.reps' || f === 'le.weight') { if (L.logEdit) L.logEdit.sets[+t.dataset.i][f.slice(3)] = t.value; return; }
