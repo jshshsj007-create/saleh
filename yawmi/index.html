@@ -778,10 +778,10 @@ function actsCard() {
   const now = actsOn(TODAY), names = SET().acts, A = L.act;
   return `<div class="card"><div class="row between"><div class="name" style="font-size:15px">⚽ نشاط ثاني اليوم؟</div><button class="sm ghost" data-act="go" data-v="set">تعديل القائمة</button></div>
     <div class="sub">يحسب يوم تمرين، فما ينحسب اليوم أوف</div>
-    ${Object.keys(now).length ? `<div class="chips">${Object.entries(now).map(([k, m]) => `<span class="pill" style="background:${tint(ACT_C)};color:${ACT_C};font-size:13px;padding:5px 12px">✓ ${esc(k)}${m ? ` · ${n(m)} د` : ''} <button class="x" style="padding:0 0 0 2px" data-act="actDel" data-v="${esc(k)}" aria-label="احذف">✕</button></span>`).join('')}</div>` : ''}
+    ${Object.keys(now).length ? `<div class="chips">${Object.entries(now).map(([k, m]) => `<span class="pill" style="background:${tint(ACT_C)};color:${ACT_C};font-size:13px;padding:5px 12px"><span data-act="actPick" data-v="${esc(k)}" style="cursor:pointer">✓ ${esc(k)}${m ? ` · ${n(m)} د` : ''} ✎</span> <button class="x" style="padding:0 0 0 2px" data-act="actDel" data-v="${esc(k)}" aria-label="احذف">✕</button></span>`).join('')}</div>` : ''}
     <div class="opts" style="margin-top:10px">${names.map(k => `<button class="${A === k ? 'on' : ''}" style="--c:${ACT_C}" data-act="actPick" data-v="${esc(k)}">${esc(k)}</button>`).join('')}<button style="--c:var(--mute)" data-act="actPick" data-v="__new">+ غيره</button></div>
     ${A ? `<div class="form fade" style="margin-top:10px">${A === '__new' ? '<input id="actName" class="txt" placeholder="اسم النشاط، مثلًا: بادل">' : ''}
-      <div class="two"><input id="actMin" type="number" inputmode="numeric" min="0" placeholder="كم دقيقة؟ (اختياري)"><button class="okb" data-act="actSave">✓ سجّل</button></div></div>` : ''}</div>`;
+      <div class="two"><input id="actMin" type="number" inputmode="numeric" min="0" placeholder="كم دقيقة؟ (اختياري)" value="${A !== '__new' && now[A] ? now[A] : ''}"><button class="okb" data-act="actSave">✓ ${A !== '__new' && A in now ? 'عدّل' : 'سجّل'}</button></div></div>` : ''}</div>`;
 }
 
 const autoCard = () => `<div class="card"><div class="name" style="font-size:15px">تمرين اليوم</div>
@@ -867,6 +867,22 @@ function logDay(d) {
   }
   return { name: 'تمرين', color: OFF };
 }
+// نسيت تسجّل أمس؟ تختار اليوم وتضيف له تمرين بجولاته، أو نشاط
+function pastForm() {
+  const P = L.past;
+  if (!P) return `<button class="ghost" data-act="pastOpen" data-v="${addD(TODAY, -1)}">+ سجّل ليوم فات</button>`;
+  const exs = S.ex.map(e => `<option value="${e.id}" ${P.id === e.id ? 'selected' : ''}>${esc(e.name)}</option>`).join('');
+  return `<div class="card form fade"><div class="name">سجّل ليوم فات</div>
+    <label>اليوم</label><input id="pDate" type="date" max="${TODAY}" value="${P.date}">
+    <div class="seg"><button class="${P.kind !== 'act' ? 'on' : ''}" data-act="pastKind" data-v="ex">تمرين</button><button class="${P.kind === 'act' ? 'on' : ''}" data-act="pastKind" data-v="act">نشاط (كورة…)</button></div>
+    ${P.kind === 'act' ? `<label>النشاط</label><select id="pAct" class="txt">${SET().acts.map(k => `<option>${esc(k)}</option>`).join('')}</select>
+      <input id="pMin" type="number" inputmode="numeric" min="0" placeholder="كم دقيقة؟ (اختياري)">`
+    : `<label>التمرين</label><select id="pEx" class="txt">${exs}</select>
+      <div class="setrow"><span class="no"></span><span class="grow sub" style="text-align:center">العدّات</span><span class="grow sub" style="text-align:center">الوزن (كجم)</span><span style="width:32px"></span></div>
+      ${P.sets.map((st, i) => `<div class="setrow"><span class="no">${n(i + 1)}</span>${stepper('pp.reps', st.reps, 1, `data-i="${i}"`)}${stepper('pp.weight', st.weight, SET().wstep, `data-i="${i}"`)}<button class="x" data-act="ppDelSet" data-i="${i}">✕</button></div>`).join('')}
+      <button class="sm ghost" data-act="ppAddSet" style="align-self:flex-start">+ جولة</button>`}
+    <div class="btns"><button class="pri grow" data-act="pastSave">احفظ</button><button class="ghost" data-act="pastClose">إلغاء</button></div></div>`;
+}
 function viewHist() {
   let h = `<div class="seg" style="margin-top:0"><button class="${L.hist !== 'prog' ? 'on' : ''}" data-act="hist" data-v="days">الأيام</button><button class="${L.hist === 'prog' ? 'on' : ''}" data-act="hist" data-v="prog">التقدّم</button></div>`;
   if (L.hist === 'prog') {
@@ -880,6 +896,7 @@ function viewHist() {
     return h + (rows.length ? `<div class="card list">${rows.join('')}</div>` : '<div class="empty">سجّل كم تمرين ويطلع لك تقدّمك هنا</div>');
   }
   const dates = Object.keys(logsByDate).filter(loggedOn).sort().reverse();
+  h += pastForm();
   if (!dates.length) return h + '<div class="empty">ما سجّلت شي للحين</div>';
   // أيام الأوف بين أول تسجيل وأمس، تنعرض في مكانها من السجل
   const first = dates[dates.length - 1], all = [];
@@ -897,10 +914,11 @@ function viewHist() {
     if (!loggedOn(d)) { offRun.push(d); continue; }
     out += flush();
     const items = logsByDate[d].items || {}, acts = actsOn(d), dd = logDay(d), LE = L.logEdit;
-    out += `<div class="card day" style="--pc:${dd.color}"><div class="row between" style="margin-bottom:4px"><b>${fmtDate(d)}</b>${pill(dd.name, dd.color)}</div>` +
+    out += `<div class="card day" style="--pc:${dd.color}"><div class="row between" style="margin-bottom:4px"><b>${fmtDate(d)}</b><span class="row" style="gap:6px">${pill(dd.name, dd.color)}<button class="sm ghost" data-act="pastOpen" data-v="${d}">+ أضف</button></span></div>` +
       Object.keys(items).map(id => {
         const e = exById(id), nm = e ? esc(e.name) : '<span class="sub">تمرين محذوف</span>';
         if (LE && LE.date === d && LE.id === id) return `<div class="exl" style="display:block"><b>${nm}</b>
+          <div class="setrow"><span class="no"></span><span class="grow sub" style="text-align:center">العدّات</span><span class="grow sub" style="text-align:center">الوزن (كجم)</span><span style="width:32px"></span></div>
           ${LE.sets.map((st, i) => `<div class="setrow"><span class="no">${n(i + 1)}</span>${stepper('le.reps', st.reps, 1, `data-i="${i}"`)}${stepper('le.weight', st.weight, SET().wstep, `data-i="${i}"`)}<button class="x" data-act="leDelSet" data-i="${i}">✕</button></div>`).join('')}
           <div class="btns"><button class="sm ghost" data-act="leAddSet">+ جولة</button><button class="sm okb" data-act="leSave">احفظ</button><button class="sm ghost" data-act="leCancel">إلغاء</button><button class="sm ghost" style="color:var(--danger)" data-act="leDel">احذف التمرين</button></div></div>`;
         return `<div class="exl"><span>${nm}</span><span class="row" style="gap:4px">${summary(items[id])}<button class="ic" data-act="leOpen" data-v="${d}" data-id="${esc(id)}" aria-label="تعديل">✎</button></span></div>`;
@@ -1056,7 +1074,7 @@ function reportText(ws) {
 
 /* ───────── المهام والتذكيرات ───────── */
 // مهمة لها تاريخ واحد، أو تتكرر كل أسبوع في يومها (wd) من تاريخ بدايتها
-const tasksOn = d => Y.tasks.filter(t => t.date === d || (t.wd != null && t.wd === dow(d) && (!t.from || t.from <= d)))
+const tasksOn = d => Y.tasks.filter(t => t.date === d || (t.wd != null && t.wd === dow(d) && (!t.from || t.from <= d) && !(t.skip && t.skip[d])))
   .sort((a, b) => (a.time || '99') < (b.time || '99') ? -1 : (a.time || '99') > (b.time || '99') ? 1 : 0);
 const isDone = (t, d) => !!(t.done && t.done[d]);
 const remsOn = d => Y.rems.filter(r => r.rep === 'daily' ? d >= r.date : r.rep === 'weekly' ? d >= r.date && dow(d) === dow(r.date) : r.date === d)
@@ -1095,6 +1113,7 @@ function formHtml() {
   if (!F) return '';
   const cancel = `<button class="ghost" data-act="fcancel">إلغاء</button>`;
   const del = F.id ? `<button class="ghost" style="color:var(--danger)" data-act="fdel">احذف</button>` : '';
+  const skip = F.kind === 'task' && F.id && F.weekly && F.date ? `<button class="ghost" data-act="fskip">تخطّاها ${fmtDate(F.date)} بس</button>` : '';
   if (F.kind === 'task') return `<div class="card form fade" id="theForm">
     <div class="name">${F.id ? 'تعديل مهمة' : 'مهمة جديدة'}</div>
     <input id="fTitle" class="txt" placeholder="المهمة، مثلًا: أراجع درس الفيزياء" value="${esc(F.title)}">
@@ -1102,7 +1121,7 @@ function formHtml() {
     <div class="two"><div><label>اليوم</label><input id="fDate" type="date" value="${F.date}"></div><div><label>الوقت (اختياري)</label><input id="fTime" type="time" value="${F.time || ''}"></div></div>
     <label class="check"><input id="fWeekly" type="checkbox" ${F.weekly ? 'checked' : ''}> تتكرر كل أسبوع في نفس اليوم</label>
     ${preChips(F.pre, 'لو ما حطيت وقت، نحسب موعدها ٩ الصبح')}
-    <div class="btns"><button class="pri grow" data-act="fsave">احفظ</button>${cancel}${calBtn(F)}${del}</div></div>`;
+    <div class="btns"><button class="pri grow" data-act="fsave">احفظ</button>${cancel}${calBtn(F)}${del}</div>${skip ? `<div class="btns" style="margin-top:0">${skip}</div>` : ''}</div>`;
   if (F.kind === 'long') return `<div class="card form fade" id="theForm">
     <div class="name">${F.id ? 'تعديل مهمة بعيدة' : 'مهمة بعيدة المدى'}</div>
     <input id="fTitle" class="txt" placeholder="مثلًا: أخلّص حفظ جزء عمّ" value="${esc(F.title)}">
@@ -1443,7 +1462,7 @@ function viewHome() {
   const d = S ? gymDay() : null;
   {
     const hr = new Date().getHours(), hi = hr < 12 ? 'صباح الخير ☀️' : hr < 18 ? 'مساء الخير 🌤️' : 'مساء الخير 🌙';
-    const nm = (USER.displayName || '').trim().split(/\s+/)[0] || 'هلا فيك';
+    const nm = (SET().name || '').trim() || (USER.displayName || '').trim().split(/\s+/)[0] || 'هلا فيك';
     const tl = tasksOn(TODAY), left = tl.filter(t => !isDone(t, TODAY)).length, st = S ? gymStreak() : 0;
     const gl = d ? dayEx(d).filter(e => item(e.id).step !== 'done').length : 0;
     const line = !tl.length && !d ? 'يومك فاضي، استمتع فيه'
@@ -1497,6 +1516,7 @@ function viewSet() {
       <label>زيادات الوزن السريعة (كجم)، افصل بينها بفاصلة</label><input class="txt" data-f="cfg.wsteps" value="${SET().wsteps.join('، ')}" placeholder="٢٫٥، ٥، ١٠">
       <label>خطوة زرّي + و − في الوزن (كجم)</label><input type="number" inputmode="decimal" step="any" min="0.25" data-f="cfg.wstep" value="${SET().wstep}">
       <label>مدد الراحة (دقيقة:ثانية)، افصل بينها بفاصلة</label><input class="txt" data-f="cfg.rests" value="${SET().rests.map(mmss).join('، ')}" placeholder="1:00، 1:30، 2:00">
+      <label>اسمك في التحية</label><input class="txt" data-f="cfg.name" value="${esc(SET().name || '')}" placeholder="${esc((USER.displayName || '').trim().split(/\s+/)[0] || 'اسمك')}">
       <label>الأنشطة (كورة، مشي…)، افصل بينها بفاصلة</label><input class="txt" data-f="cfg.acts" value="${esc(SET().acts.join('، '))}" placeholder="كورة، مشي، جري">
       <div class="sub">ينحفظ أول ما تطلع من الخانة</div></div>
     <div class="card">
@@ -1742,7 +1762,7 @@ document.addEventListener('click', ev => {
   if (!S || !Y) return;
   const it = id && L.sess && L.sess.items[id];
   switch (act) {
-    case 'go': if (L.tab !== v) fx.page = true; L.chart = null; L.logEdit = null; L.act = null; L.tab = v; L.form = null; L.edit = null; L.adding = false; L.showAlerts = false; window.scrollTo(0, 0); break;
+    case 'go': if (L.tab !== v) fx.page = true; L.chart = null; L.logEdit = null; L.act = null; L.past = null; L.tab = v; L.form = null; L.edit = null; L.adding = false; L.showAlerts = false; window.scrollTo(0, 0); break;
     case 'alerts': L.showAlerts = !L.showAlerts; break;
     case 'gv': if (L.gv !== v) fx.page = true; L.chart = null; L.gv = v; L.adding = false; L.edit = null; window.scrollTo(0, 0); break;
     case 'pushOn': enablePush(); return;
@@ -1846,6 +1866,36 @@ document.addEventListener('click', ev => {
       if (logsByDate[d]?.acts) delete logsByDate[d].acts[v];
       DB.delAct(d, v); syncPush(); break;
     }
+    case 'fskip': {
+      const F = L.form, t = Y.tasks.find(x => x.id === F.id);
+      t.skip = { ...(t.skip || {}), [F.date]: 1 };
+      L.form = null; saveY(); toast(`✓ تخطّيتها ${fmtDate(F.date)}، والأسابيع الثانية باقية`); break;
+    }
+    case 'pastOpen': L.past = { date: v || addD(TODAY, -1), kind: 'ex', id: S.ex[0]?.id, sets: [{ reps: 10, weight: 0 }, { reps: 10, weight: 0 }, { reps: 10, weight: 0 }] }; L.tab = 'gym'; L.gv = 'hist'; L.hist = 'days'; window.scrollTo(0, 0); break;
+    case 'pastClose': L.past = null; break;
+    case 'pastKind': L.past.date = document.getElementById('pDate').value || L.past.date; if (document.getElementById('pEx')) L.past.id = document.getElementById('pEx').value; L.past.kind = v; break;
+    case 'ppAddSet': L.past.date = document.getElementById('pDate').value || L.past.date; L.past.id = document.getElementById('pEx').value; L.past.sets.push({ ...(L.past.sets[L.past.sets.length - 1] || { reps: 10, weight: 0 }) }); break;
+    case 'ppDelSet': L.past.date = document.getElementById('pDate').value || L.past.date; L.past.id = document.getElementById('pEx').value; if (L.past.sets.length > 1) L.past.sets.splice(+b.dataset.i, 1); break;
+    case 'pastSave': {
+      const P = L.past, date = document.getElementById('pDate').value;
+      if (!date || date > TODAY) return toast('اختر يوم اليوم أو قبله', true);
+      const rec = logsByDate[date] = logsByDate[date] || { items: {} };
+      rec.items = rec.items || {};
+      if (P.kind === 'act') {
+        const name = document.getElementById('pAct').value, min = Math.max(0, Math.round(+document.getElementById('pMin').value || 0));
+        rec.acts = { ...(rec.acts || {}), [name]: min };
+        DB.saveAct(date, name, min);
+      } else {
+        const id = document.getElementById('pEx').value, sets = copy(P.sets).filter(x => x.reps > 0);
+        if (!id) return toast('اختر التمرين', true);
+        if (!sets.length) return toast('اكتب العدّات أول', true);
+        rec.items[id] = sets;
+        DB.saveLog(date, id, sets);
+        if (date === TODAY && L.sess) L.sess.items[id] = { step: 'done', sets, mode: exById(id).mode || 'one' };
+      }
+      S.logs = buildLogs(); syncPush();
+      L.past = null; toast(`✓ انحفظ في ${fmtDate(date)}`); break;
+    }
     case 'leOpen': L.logEdit = { date: v, id, sets: copy(logsByDate[v].items[id]) }; break;
     case 'leCancel': L.logEdit = null; break;
     case 'leAddSet': L.logEdit.sets.push({ ...(L.logEdit.sets[L.logEdit.sets.length - 1] || { reps: 10, weight: 0 }) }); break;
@@ -1916,6 +1966,10 @@ document.addEventListener('click', ev => {
     }
     case 'step': {
       const inp = b.parentElement.querySelector('input');
+      if (b.dataset.f.startsWith('pp.')) {
+        const nv = Math.max(0, Math.round(((+inp.value || 0) + +b.dataset.d) * 100) / 100);
+        inp.value = nv; if (L.past) L.past.sets[+b.dataset.i][b.dataset.f.slice(3)] = nv; return;
+      }
       if (b.dataset.f.startsWith('le.')) {
         const nv = Math.max(0, Math.round(((+inp.value || 0) + +b.dataset.d) * 100) / 100);
         inp.value = nv; if (L.logEdit) L.logEdit.sets[+b.dataset.i][b.dataset.f.slice(3)] = nv; return;
@@ -1995,6 +2049,7 @@ document.addEventListener('input', ev => {
   if (f === 'draft.name') { if (L.edit) L.edit.name = t.value; return; }
   if (f === 'set.gymTime') { if (t.value) { Y.set.gymTime = t.value; saveY(); } return; }
   if (f.startsWith('cfg.')) return;
+  if (f === 'pp.reps' || f === 'pp.weight') { if (L.past) L.past.sets[+t.dataset.i][f.slice(3)] = t.value; return; }
   if (f === 'le.reps' || f === 'le.weight') { if (L.logEdit) L.logEdit.sets[+t.dataset.i][f.slice(3)] = t.value; return; }
   if (!L.sess) return;
   setField(L.sess.items[t.dataset.id], f, t.dataset.i, t.value);
@@ -2015,6 +2070,7 @@ document.addEventListener('change', ev => {
     const a = nums(t.value).map(x => x.includes(':') ? (+x.split(':')[0]) * 60 + (+x.split(':')[1] || 0) : +x * (+x < 10 ? 60 : 1)).filter(x => x >= 5 && x <= 1800);
     if (!a.length) return toast('اكتب مدة وحدة على الأقل، مثل 1:30', true); Y.set.rests = [...new Set(a)].slice(0, 6);
   }
+  else if (k === 'name') Y.set.name = String(t.value).trim().slice(0, 30);
   else if (k === 'acts') { const a = String(t.value).split(/[،,]+/).map(x => x.trim()).filter(Boolean); if (!a.length) return toast('اكتب نشاط واحد على الأقل', true); Y.set.acts = [...new Set(a)].slice(0, 12); }
   else return;
   saveY(); toast('✓ انحفظ'); render();
