@@ -419,7 +419,10 @@ async function initDB() {
       login() { }, logout() { localStorage.removeItem(K); location.reload(); },
       listen(u, h) { if (localStorage.getItem('yawmi.demoHang')) return []; setTimeout(() => { h.profile(D.profile || null, false); h.logs({ ...D.logs }); h.y(D.y || null, false); h.img({ ...D.img }); }, 50); return []; },
       saveProfile: p => { D.profile = p; put(); },
-      saveLog: (date, id, sets, day) => { const r = D.logs[date] = D.logs[date] || { items: {} }; r.items[id] = sets; if (day) r.day = day; put(); },
+      saveLog: (date, id, sets, day) => { const r = D.logs[date] = D.logs[date] || { items: {} }; r.items = r.items || {}; r.items[id] = sets; if (day) r.day = day; put(); },
+      delLog: (date, id) => { const r = D.logs[date]; if (r && r.items) delete r.items[id]; put(); },
+      saveAct: (date, name, min) => { const r = D.logs[date] = D.logs[date] || { items: {} }; r.acts = r.acts || {}; r.acts[name] = min; put(); },
+      delAct: (date, name) => { const r = D.logs[date]; if (r && r.acts) delete r.acts[name]; put(); },
       saveY: y => { D.y = y; put(); },
       saveImg: (id, d) => { D.img[id] = d; put(); },
       delImg: id => { delete D.img[id]; put(); },
@@ -471,6 +474,11 @@ async function initDB() {
     // شكل الحساب نفسه اللي يكتبه موقع النادي، فالموقعان يشتغلان على البيانات نفسها
     saveProfile: p => F.setDoc(F.doc(db, 'users', U()), p).catch(fail),
     saveLog: (date, id, sets, day) => F.setDoc(F.doc(db, 'users', U(), 'logs', date), { items: { [id]: sets }, ...(day ? { day } : {}) }, { merge: true }).catch(fail),
+    // الحذف بمسار الحقل نفسه: يشيل التمرين أو النشاط ويخلّي باقي اليوم
+    delLog: (date, id) => F.updateDoc(F.doc(db, 'users', U(), 'logs', date), new F.FieldPath('items', id), F.deleteField()).catch(fail),
+    // النشاط (كورة، مشي…) في نفس مستند اليوم تحت acts، و«النادي» القديم ما يقرأه ولا يمسحه
+    saveAct: (date, name, min) => F.setDoc(F.doc(db, 'users', U(), 'logs', date), { acts: { [name]: min } }, { merge: true }).catch(fail),
+    delAct: (date, name) => F.updateDoc(F.doc(db, 'users', U(), 'logs', date), new F.FieldPath('acts', name), F.deleteField()).catch(fail),
     saveY: y => F.setDoc(F.doc(db, 'users', U(), 'yawmi', 'main'), y).catch(fail),
     // الصورة في مستندٍ لحالها: مستند الحساب يقرؤه موقع النادي القديم ويكتبه كاملًا، فلا نثقّله
     saveImg: (id, d) => F.setDoc(F.doc(db, 'users', U(), 'img', id), { d }).catch(fail),
@@ -520,7 +528,11 @@ function toast(msg, bad) {
 function fail(e) { console.error(e); toast('ما انحفظ: ' + (e.code || e.message), true); }
 const saveProfile = () => { DB.saveProfile({ v: 2, system: S.system, ex: S.ex, plans: S.plans }); syncPush(); };
 const saveY = () => { DB.saveY(Y); syncPush(); };
-const emptyY = () => ({ v: 1, tasks: [], longs: [], rems: [], set: { gymTime: '21:00' } });
+// كل رقم كان ثابت صار إعداد تعدّله: زيادات الوزن، وخطوة الوزن، ومدد الراحة، والأنشطة، والجدول
+const DEF_SET = { gymTime: '21:00', wsteps: [2.5, 5], wstep: 2.5, rests: [60, 90, 120, 180], acts: ['كورة', 'مشي', 'جري', 'سباحة', 'دراجة'], autoDay: true };
+const emptyY = () => ({ v: 1, tasks: [], longs: [], rems: [], set: { ...DEF_SET } });
+const SET = () => ({ ...DEF_SET, ...(Y && Y.set || {}) });
+const manual = () => SET().autoDay === false;
 
 /* ───────── النادي (منطق موقع النادي كما هو) ───────── */
 const LIB = [
@@ -564,7 +576,8 @@ const todayLog = id => (S.logs[id] || []).find(l => l.date === TODAY) || null;
 const copy = sets => sets.map(s => ({ reps: +s.reps || 0, weight: +s.weight || 0 }));
 const volume = sets => sets.reduce((a, s) => a + (+s.reps || 0) * Math.max(1, +s.weight || 0), 0);
 const same = sets => sets.length && sets.every(s => s.reps == sets[0].reps && s.weight == sets[0].weight);
-const loggedOn = d => Object.keys(logsByDate[d]?.items || {}).length > 0;
+const actsOn = d => logsByDate[d]?.acts || {};
+const loggedOn = d => Object.keys(logsByDate[d]?.items || {}).length > 0 || Object.keys(actsOn(d)).length > 0;
 
 function summary(sets) {
   if (!sets || !sets.length) return '';
@@ -591,9 +604,11 @@ function statBoxes(sets, before) {
 
 function session() {
   TODAY = iso(new Date());
-  const sd = schedOf(new Date().getDay());
+  // يدوي: ما نختار عنك، يبقى «ما اخترت» (null) لين تختار
+  const sd = manual() ? null : schedOf(new Date().getDay());
   if (!L.sess || L.sess.date !== TODAY) L.sess = { date: TODAY, part: sd, items: {} };
-  if (L.sess.part !== 'off' && !dayById(L.sess.part)) { L.sess.part = sd; L.sess.open = undefined; }
+  if (L.sess.part && L.sess.part !== 'off' && !dayById(L.sess.part)) { L.sess.part = sd; L.sess.open = undefined; }
+  if (!manual() && L.sess.part == null) L.sess.part = sd;
   return L.sess;
 }
 function item(id) {
@@ -641,7 +656,7 @@ function gymStreak() {
   for (let i = 0; i < 400; i++) {
     const d = addD(TODAY, -i);
     if (loggedOn(d)) { k++; continue; }
-    if (i === 0 || schedOf(dow(d)) === 'off') continue;
+    if (i === 0 || (!manual() && schedOf(dow(d)) === 'off')) continue;
     break;
   }
   return k;
@@ -666,8 +681,8 @@ function exBody(e, it, l) {
     <div class="q">تبي تزود اليوم؟</div>
     <div class="btns"><button class="pri grow" data-act="yes" ${A}>إيه، بزود 💪</button><button class="grow" data-act="no" ${A}>لا، نفس الشي</button></div>`;
   if (it.step === 'inc') return h + `<div class="q" style="margin-top:4px">كم تزود؟</div>
-    <div class="fgrid2" style="margin-top:10px">${cell('العدّات', stepper('inc.reps', it.inc.reps, 1, A))}${cell('الوزن (كجم)', stepper('inc.weight', it.inc.weight, 0.5, A))}</div>
-    <div class="quick"><button data-act="quick" data-r="1" data-w="0" ${A}>+١ عدّة</button><button data-act="quick" data-r="0" data-w="2.5" ${A}>+٢٫٥ كجم</button><button data-act="quick" data-r="0" data-w="5" ${A}>+٥ كجم</button></div>
+    <div class="fgrid2" style="margin-top:10px">${cell('العدّات', stepper('inc.reps', it.inc.reps, 1, A))}${cell('الوزن (كجم)', stepper('inc.weight', it.inc.weight, SET().wstep, A))}</div>
+    <div class="quick"><button data-act="quick" data-r="1" data-w="0" ${A}>+١ عدّة</button>${SET().wsteps.map(w => `<button data-act="quick" data-r="0" data-w="${w}" ${A}>+${n(w)} كجم</button>`).join('')}<button style="color:var(--mute);border-color:var(--line);background:transparent" data-act="go" data-v="set">✎</button></div>
     <div class="lbl">هدف اليوم</div><div id="prev-${e.id}">${statBoxes(incTarget(e.id, it), l.sets)}</div>
     <div class="btns"><button class="pri grow" data-act="applyInc" ${A}>اعتمد الهدف</button><button class="ghost" data-act="back" ${A}>رجوع</button></div>`;
   if (it.step === 'log') {
@@ -677,12 +692,12 @@ function exBody(e, it, l) {
       <button class="${it.mode === 'sets' ? 'on' : ''}" data-act="mode" data-v="sets" ${A}>كل جولة لحالها</button></div>`;
     if (it.mode === 'one') {
       const s = it.sets[0] || { reps: 0, weight: 0 };
-      h += `<div class="fgrid" style="margin-top:12px">${cell('الجولات', stepper('one.k', it.sets.length, 1, A), ps?.length)}${cell('العدّات', stepper('one.reps', s.reps, 1, A), ps?.[0].reps)}${cell('الوزن', stepper('one.weight', s.weight, 2.5, A), ps ? Math.max(...ps.map(x => +x.weight || 0)) : undefined)}</div>`;
+      h += `<div class="fgrid" style="margin-top:12px">${cell('الجولات', stepper('one.k', it.sets.length, 1, A), ps?.length)}${cell('العدّات', stepper('one.reps', s.reps, 1, A), ps?.[0].reps)}${cell('الوزن', stepper('one.weight', s.weight, SET().wstep, A), ps ? Math.max(...ps.map(x => +x.weight || 0)) : undefined)}</div>`;
     } else {
       h += `<div class="setrow" style="margin-top:12px"><span class="no"></span><span class="grow sub" style="text-align:center">العدّات</span><span class="grow sub" style="text-align:center">الوزن (كجم)</span><span style="width:32px"></span></div>`;
       it.sets.forEach((s, i) => {
         const B = `${A} data-i="${i}"`, p = ps?.[i];
-        h += `<div class="setrow"><span class="no">${n(i + 1)}</span>${stepper('set.reps', s.reps, 1, B)}${stepper('set.weight', s.weight, 2.5, B)}
+        h += `<div class="setrow"><span class="no">${n(i + 1)}</span>${stepper('set.reps', s.reps, 1, B)}${stepper('set.weight', s.weight, SET().wstep, B)}
           <button class="x" data-act="delSet" ${B} aria-label="احذف الجولة">✕</button></div>`;
         if (p) h += `<div class="setprev"><span><span class="pv">السابق ${n(p.reps)}</span></span><span><span class="pv">السابق ${n(p.weight)}</span></span><span style="width:32px;flex:none"></span></div>`;
       });
@@ -716,7 +731,7 @@ function weekStrip() {
     let c = colorOf(schedOf(wd)), miss = '';
     if (past) {
       if (loggedOn(d)) c = logDay(d).color;
-      else { if (schedOf(wd) !== 'off') miss = '<span class="miss">✕</span>'; c = OFF; }
+      else { if (!manual() && schedOf(wd) !== 'off') miss = '<span class="miss">✕</span>'; c = OFF; }
     }
     return `<div class="wd ${d === TODAY ? 'today' : ''}" data-act="gv" data-v="sched">${miss}${SHORT[wd]}<i style="background:${c}"></i></div>`;
   }).join('')}</div>`;
@@ -727,6 +742,9 @@ function viewGymDay() {
   if (!days.length) return `<div class="card rest"><div class="big">✏️</div><div class="name" style="margin-top:8px">«تقسيمي» لسا فاضي</div>
     <div class="sub" style="margin-top:6px">سوّ أول يوم، مثل «صدر وباي»، وحط فيه تمارينك</div>
     <div class="btns" style="justify-content:center"><button class="pri" data-act="newDay">+ سوّ أول يوم</button></div></div>`;
+  const pick = `<div class="chips">${[...days.map(x => [x.id, x.name]), ['off', 'أوف']].map(([id, name]) => `<button class="${s.part === id ? 'on' : ''}" data-act="todayPart" data-v="${id}">${esc(name)}</button>`).join('')}</div>`;
+  if (s.part == null) return `<div class="hero"><div class="sub">${DAYS[wd]} ${dm(TODAY)}</div><div class="big" style="font-size:28px">وش تمرين اليوم؟</div>
+    <div class="sub">اختر يومك، أو سجّل نشاط تحت</div>${pick}</div>` + actsCard() + weekStrip();
   const d = dayById(s.part), list = dayEx(d), col = d ? d.color : OFF;
   const done = list.filter(e => item(e.id).step === 'done').length;
   let h = `<div class="hero" style="--pc:${col}"><div class="row between">
@@ -735,13 +753,13 @@ function viewGymDay() {
       <div class="sub">${d ? `${n(list.length)} ${say(list.length, 'تمرين', 'تمرينين', 'تمارين')}` : 'يوم أوف'}</div></div>
     ${d && list.length ? ring('gym', done, list.length) : ''}</div>
     ${d && !loggedOn(TODAY) ? `<div class="warnline">لو ما سجّلت ولا عدّة قبل ١١:٥٩ م، ينحسب اليوم أوف</div>` : ''}
-    ${L.showPart ? `<div class="chips fade">${[...days.map(x => [x.id, x.name]), ['off', 'أوف']].map(([id, name]) => `<button class="${s.part === id ? 'on' : ''}" data-act="todayPart" data-v="${id}">${esc(name)}</button>`).join('')}</div>`
+    ${L.showPart ? `<div class="fade">${pick}</div>`
       : `<div style="margin-top:8px"><button class="link" data-act="showPart">غيّر يوم اليوم</button></div>`}</div>`;
   h += weekStrip();
   if (!d) {
-    const nx = nextTraining();
-    return h + `<div class="card rest"><div class="big">😴</div><div class="name" style="margin-top:8px">اليوم راحة، العضلة تكبر وأنت مرتاح</div>
-      <div class="sub" style="margin-top:6px">${nx ? `التمرين الجاي: ${nx.day} ${pill(nameOf(nx.id), colorOf(nx.id))}` : 'ما فيه تمرين في جدولك'}</div></div>`;
+    const nx = manual() ? null : nextTraining(), acted = Object.keys(actsOn(TODAY)).length;
+    return h + actsCard() + (acted ? '' : `<div class="card rest"><div class="big">😴</div><div class="name" style="margin-top:8px">اليوم راحة، العضلة تكبر وأنت مرتاح</div>
+      <div class="sub" style="margin-top:6px">${nx ? `التمرين الجاي: ${nx.day} ${pill(nameOf(nx.id), colorOf(nx.id))}` : manual() ? 'لعبت كورة أو مشيت؟ سجّله فوق وما ينحسب أوف' : 'ما فيه تمرين في جدولك'}</div></div>`);
   }
   if (!list.length) return h + `<div class="card rest"><div class="sub">ما فيه تمارين في «${esc(d.name)}»</div>
     <div class="btns" style="justify-content:center"><button class="pri" data-act="editDay" data-id="${d.id}">أضف تمارين</button></div></div>`;
@@ -752,16 +770,31 @@ function viewGymDay() {
   }
   let openId = s.open;
   if (openId === undefined || (openId && !list.some(e => e.id === openId))) openId = list.find(e => item(e.id).step !== 'done')?.id || '';
-  return h + `<div style="display:contents;--pc:${col}">${list.map((e, i) => exCard(e, i, openId)).join('')}</div>`;
+  return h + `<div style="display:contents;--pc:${col}">${list.map((e, i) => exCard(e, i, openId)).join('')}</div>` + actsCard();
 }
 
+// نشاط ثاني اليوم (كورة، مشي…): ينحسب يوم تمرين، فما يصير أوف ولا يقطع السلسلة
+function actsCard() {
+  const now = actsOn(TODAY), names = SET().acts, A = L.act;
+  return `<div class="card"><div class="row between"><div class="name" style="font-size:15px">⚽ نشاط ثاني اليوم؟</div><button class="sm ghost" data-act="go" data-v="set">تعديل القائمة</button></div>
+    <div class="sub">يحسب يوم تمرين، فما ينحسب اليوم أوف</div>
+    ${Object.keys(now).length ? `<div class="chips">${Object.entries(now).map(([k, m]) => `<span class="pill" style="background:${tint(ACT_C)};color:${ACT_C};font-size:13px;padding:5px 12px">✓ ${esc(k)}${m ? ` · ${n(m)} د` : ''} <button class="x" style="padding:0 0 0 2px" data-act="actDel" data-v="${esc(k)}" aria-label="احذف">✕</button></span>`).join('')}</div>` : ''}
+    <div class="opts" style="margin-top:10px">${names.map(k => `<button class="${A === k ? 'on' : ''}" style="--c:${ACT_C}" data-act="actPick" data-v="${esc(k)}">${esc(k)}</button>`).join('')}<button style="--c:var(--mute)" data-act="actPick" data-v="__new">+ غيره</button></div>
+    ${A ? `<div class="form fade" style="margin-top:10px">${A === '__new' ? '<input id="actName" class="txt" placeholder="اسم النشاط، مثلًا: بادل">' : ''}
+      <div class="two"><input id="actMin" type="number" inputmode="numeric" min="0" placeholder="كم دقيقة؟ (اختياري)"><button class="okb" data-act="actSave">✓ سجّل</button></div></div>` : ''}</div>`;
+}
+
+const autoCard = () => `<div class="card"><div class="name" style="font-size:15px">تمرين اليوم</div>
+  <div class="seg"><button class="${!manual() ? 'on' : ''}" data-act="autoDay" data-v="1">تلقائي من الجدول</button><button class="${manual() ? 'on' : ''}" data-act="autoDay" data-v="0">أختاره بنفسي كل يوم</button></div>
+  <div class="sub" style="margin-top:8px">${manual() ? 'كل يوم تختار تمرينك، أو تسجّل نشاط مثل الكورة. وما فيه «ما رحت النادي» لأن ما فيه جدول، بس بعد يومين بلا ولا شي يقول لك: لازم تروح.' : 'كل يوم ينفتح على تمرينه من الجدول تحت، وتقدر تغيّره من «غيّر يوم اليوم».'}</div></div>`;
 function viewSched() {
   const days = plan().days;
+  if (manual()) return autoCard() + `<div class="card"><div class="sub">الجدول متوقف لأنك تختار بنفسك. رجّعه «تلقائي» فوق إذا تبيه.</div></div>`;
   if (!days.length) return `<div class="card rest"><div class="sub">سوّ أيامك أول من «التمارين»، وبعدها وزّعها هنا على الأسبوع</div>
     <div class="btns" style="justify-content:center"><button class="pri" data-act="newDay">+ سوّ أول يوم</button></div></div>`;
   const opts = [...days.map(x => [x.id, x.name, x.color]), ['off', 'أوف', OFF]];
   const c = id => WEEK.filter(d => schedOf(d) === id).length;
-  return `<div class="sum">${opts.map(([id, name, col]) => `<div><b style="color:${col}">${n(c(id))}</b><span>${esc(name)}</span></div>`).join('')}</div>
+  return autoCard() + `<div class="sum">${opts.map(([id, name, col]) => `<div><b style="color:${col}">${n(c(id))}</b><span>${esc(name)}</span></div>`).join('')}</div>
     <div class="card sched">` + WEEK.map(d => `<div class="r"><b>${DAYS[d]}${d === new Date().getDay() ? ` ${pill('اليوم', OFF)}` : ''}</b>
       <div class="opts">${opts.map(([id, name, col]) => `<button class="${schedOf(d) === id ? 'on' : ''}" style="--c:${col}" data-act="sched" data-d="${d}" data-v="${id}">${esc(name)}</button>`).join('')}</div></div>`).join('') + '</div>';
 }
@@ -778,9 +811,8 @@ function dayCardView(d) {
 function viewEditor() {
   const D = L.edit, fixed = D.fixed;
   return `<div class="card" style="--pc:${D.color}">
-      ${fixed ? `<div class="name" style="font-size:20px;color:${D.color}">${esc(D.name)}</div><div class="sub">أيام علوي وسفلي ثابتة الاسم، وتقدر تغيّر تمارينها</div>`
-      : `<div class="lbl" style="margin-top:0">اسم اليوم</div><input class="txt" data-f="draft.name" value="${esc(D.name)}" placeholder="مثلًا: صدر وباي">
-      <div class="lbl">اللون</div><div class="colors">${COLORS.map(c => `<button class="${c === D.color ? 'on' : ''}" style="background:${c}" data-act="dcolor" data-v="${c}" aria-label="لون"></button>`).join('')}</div>`}</div>
+      <div class="lbl" style="margin-top:0">اسم اليوم</div><input class="txt" data-f="draft.name" value="${esc(D.name)}" placeholder="مثلًا: صدر وباي">
+      <div class="lbl">اللون</div><div class="colors">${COLORS.map(c => `<button class="${c === D.color ? 'on' : ''}" style="background:${c}" data-act="dcolor" data-v="${c}" aria-label="لون"></button>`).join('')}</div></div>
     <h2>تمارين هذا اليوم · اضغط عشان تختار</h2>
     <div class="card list" style="--pc:${D.color}">${S.ex.map(e => { const on = D.ex.includes(e.id);
       return `<div class="item pick" data-act="dtoggle" data-id="${e.id}">${badge(e)}<div class="grow"><div class="name" style="font-size:15px">${esc(e.name)}</div><div class="meta">${esc(e.muscle)}</div></div>
@@ -788,7 +820,7 @@ function viewEditor() {
     <button class="ghost" data-act="dnewex">+ تمرين جديد</button>
     <div class="btns" style="margin-top:0;--pc:${D.color}"><button class="pri grow" data-act="dsave">احفظ</button>
       <button class="ghost" data-act="dcancel">إلغاء</button>
-      ${!fixed && D.id ? `<button class="ghost" style="color:var(--danger)" data-act="ddel">احذف</button>` : ''}</div>`;
+      ${D.id ? `<button class="ghost" style="color:var(--danger)" data-act="ddel">احذف</button>` : ''}</div>`;
 }
 
 function viewEx() {
@@ -798,7 +830,7 @@ function viewEx() {
     <div class="seg" style="margin-top:0"><button class="${L.exv !== 'all' ? 'on' : ''}" data-act="exv" data-v="days">أيامي</button><button class="${L.exv === 'all' ? 'on' : ''}" data-act="exv" data-v="all">كل التمارين</button></div>`;
   if (L.exv !== 'all') {
     h += plan().days.map(dayCardView).join('') || '<div class="empty">ما سوّيت أيام للحين</div>';
-    if (S.system === 'custom') h += `<button class="pri" data-act="newDay">+ أضف يوم</button>`;
+    h += `<button class="pri" data-act="newDay">+ أضف يوم</button>`;
     return h;
   }
   h += `<div class="card list">${S.ex.map(e => `<div class="item">${badge(e)}
@@ -822,9 +854,12 @@ function spark(vals, c) {
   const last = pts[pts.length - 1];
   return `<svg class="spark" style="--pc:${c}" viewBox="0 0 ${W} ${H}"><polyline points="${pts.map(p => p.join(',')).join(' ')}"/><circle cx="${last[0]}" cy="${last[1]}" r="3.5"/></svg>`;
 }
+const ACT_C = '#16a34a';
 function logDay(d) {
   const L0 = logsByDate[d];
   if (L0.day && L0.day.name) return L0.day;
+  // يوم فيه نشاط بس (كورة…): اسمه اسم النشاط
+  if (!Object.keys(L0.items || {}).length && Object.keys(L0.acts || {}).length) return { name: Object.keys(L0.acts).join(' و'), color: ACT_C };
   const ids = Object.keys(L0.items || {});
   for (const sys of ['ul', 'custom']) {
     const x = S.plans[sys].days.find(dd => ids.some(id => dd.ex.includes(id)));
@@ -861,9 +896,16 @@ function viewHist() {
   for (const d of all) {
     if (!loggedOn(d)) { offRun.push(d); continue; }
     out += flush();
-    const items = logsByDate[d].items, dd = logDay(d);
+    const items = logsByDate[d].items || {}, acts = actsOn(d), dd = logDay(d), LE = L.logEdit;
     out += `<div class="card day" style="--pc:${dd.color}"><div class="row between" style="margin-bottom:4px"><b>${fmtDate(d)}</b>${pill(dd.name, dd.color)}</div>` +
-      Object.keys(items).map(id => { const e = exById(id); return `<div class="exl"><span>${e ? esc(e.name) : '<span class="sub">تمرين محذوف</span>'}</span><span>${summary(items[id])}</span></div>`; }).join('') + '</div>';
+      Object.keys(items).map(id => {
+        const e = exById(id), nm = e ? esc(e.name) : '<span class="sub">تمرين محذوف</span>';
+        if (LE && LE.date === d && LE.id === id) return `<div class="exl" style="display:block"><b>${nm}</b>
+          ${LE.sets.map((st, i) => `<div class="setrow"><span class="no">${n(i + 1)}</span>${stepper('le.reps', st.reps, 1, `data-i="${i}"`)}${stepper('le.weight', st.weight, SET().wstep, `data-i="${i}"`)}<button class="x" data-act="leDelSet" data-i="${i}">✕</button></div>`).join('')}
+          <div class="btns"><button class="sm ghost" data-act="leAddSet">+ جولة</button><button class="sm okb" data-act="leSave">احفظ</button><button class="sm ghost" data-act="leCancel">إلغاء</button><button class="sm ghost" style="color:var(--danger)" data-act="leDel">احذف التمرين</button></div></div>`;
+        return `<div class="exl"><span>${nm}</span><span class="row" style="gap:4px">${summary(items[id])}<button class="ic" data-act="leOpen" data-v="${d}" data-id="${esc(id)}" aria-label="تعديل">✎</button></span></div>`;
+      }).join('') +
+      Object.entries(acts).map(([k, m]) => `<div class="exl"><span>⚽ ${esc(k)}</span><span class="row" style="gap:4px">${m ? `${n(m)} دقيقة` : 'نشاط'}<button class="x" data-act="actDel" data-v="${esc(k)}" data-d="${d}" aria-label="احذف">✕</button></span></div>`).join('') + '</div>';
   }
   return h + out + flush();
 }
@@ -924,7 +966,7 @@ function drawRest() {
   el.querySelector('.fg').setAttribute('stroke-dashoffset', C * (1 - f));
 }
 setInterval(() => { if (REST) drawRest(); }, 250);
-const restRow = () => `<div class="restrow"><span class="l">⏱️ راحة</span>${RESTS.map(x => `<button data-act="restGo" data-v="${x}">${mmss(x)}</button>`).join('')}</div>`;
+const restRow = () => `<div class="restrow"><span class="l">⏱️ راحة</span>${SET().rests.map(x => `<button data-act="restGo" data-v="${x}">${mmss(x)}</button>`).join('')}</div>`;
 
 /* ───────── رسم تقدّم التمرين ───────── */
 // لكل مرة: أعلى وزن (أو أعلى عدّات للتمرين اللي بلا وزن). والرقم القياسي نقطة ذهبية
@@ -978,8 +1020,8 @@ function viewChart() {
 // أسبوع من السبت للجمعة: النادي، والمهام، والأرقام القياسية، ومقارنة بالأسبوع اللي قبله
 function weekStats(ws) {
   const days = Array.from({ length: 7 }, (_, i) => addD(ws, i)), upto = days.filter(d => d <= TODAY);
-  const gym = days.map(d => loggedOn(d) ? 'on' : d < TODAY && S && schedOf(dow(d)) !== 'off' ? 'miss' : '');
-  const planned = upto.filter(d => S && schedOf(dow(d)) !== 'off').length;
+  const gym = days.map(d => loggedOn(d) ? 'on' : d < TODAY && S && !manual() && schedOf(dow(d)) !== 'off' ? 'miss' : '');
+  const planned = manual() ? 0 : upto.filter(d => S && schedOf(dow(d)) !== 'off').length;
   const went = days.filter(loggedOn).length;
   let kg = 0, prs = 0;
   for (const d of days) if (loggedOn(d)) for (const [id, sets] of Object.entries(logsByDate[d].items)) {
@@ -1248,7 +1290,7 @@ function schedule() {
     }
     for (const r of remsOn(d)) { add(at(d, r.time), `r:${r.id}:${d}`, '🔔 ' + r.title, hm(r.time), 'rem'); pres(r, d, r.time, '🔔 ' + r.title, 'rem'); }
     // يوم تمرين ما انسجّل فيه شي: «ترا ما رحت النادي». ولو سجّلت، المزامنة تشيله
-    if (S && plan().days.length && schedOf(dow(d)) !== 'off' && !loggedOn(d))
+    if (S && !manual() && plan().days.length && schedOf(dow(d)) !== 'off' && !loggedOn(d))
       add(at(d, Y.set.gymTime || '21:00'), `g:${d}`, 'ترا ما رحت النادي اليوم', `اليوم ${nameOf(schedOf(dow(d)))}، ولو ما سجّلت شي قبل ١١:٥٩ م ينحسب أوف`, 'gym');
     if (dow(d) === 6) { const b = weekBrief(d); if (b) add(at(d, '08:00'), `w:${d}`, 'مهام هذا الأسبوع', b, 'week'); }
   }
@@ -1421,7 +1463,8 @@ function viewHome() {
   const nr = Y.rems.map(r => ({ r, d: nextOcc(r) })).filter(x => x.d).sort((a, b) => (a.d + a.r.time) < (b.d + b.r.time) ? -1 : 1)[0];
   let gsub = 'جدول التمارين';
   if (S && d) { const list = dayEx(d), dn = list.filter(e => item(e.id).step === 'done').length; gsub = `${d.name} · ${n(dn)}/${n(list.length)}`; }
-  else if (S) gsub = 'اليوم أوف';
+  else if (S && manual() && session().part == null) gsub = loggedOn(TODAY) ? Object.keys(actsOn(TODAY)).join(' و') || 'سجّلت اليوم' : 'اختر تمرين اليوم';
+  else if (S) gsub = Object.keys(actsOn(TODAY)).join(' و') || 'اليوم أوف';
   const lateGym = al.some(a => a.tab === 'gym');
   const bar = (f, c) => f == null ? '' : `<div class="tbar ${c || (f >= 1 ? 'full' : '')}"><i style="width:${Math.round(Math.min(1, f) * 100)}%"></i></div>`;
   const tile = (k, title, sub, dot, f, c) => `<div class="tile" data-act="go" data-v="${k}">${dot ? `<span class="dot">${dot}</span>` : ''}<div class="icb">${ICONS[k]}</div><div class="tt">${title}</div><div class="ts">${esc(sub)}</div>${bar(f, c)}</div>`;
@@ -1449,6 +1492,13 @@ function viewSet() {
     ` + `<div class="card form"><div class="name" style="font-size:15px">تنبيه «ما رحت النادي»</div>
     <div class="sub">في يوم التمرين، لو ما سجّلت شي لين هالساعة يذكّرك. ولو ما سجّلت لين ١١:٥٩ م ينحسب اليوم أوف، وبعد يومين أوف ورا بعض يقول لك: لازم تروح.</div>
     <input type="time" data-f="set.gymTime" value="${Y.set.gymTime || '21:00'}"></div>
+    ${autoCard()}
+    <div class="card form"><div class="name" style="font-size:15px">النادي: أرقامك</div>
+      <label>زيادات الوزن السريعة (كجم)، افصل بينها بفاصلة</label><input class="txt" data-f="cfg.wsteps" value="${SET().wsteps.join('، ')}" placeholder="٢٫٥، ٥، ١٠">
+      <label>خطوة زرّي + و − في الوزن (كجم)</label><input type="number" inputmode="decimal" step="any" min="0.25" data-f="cfg.wstep" value="${SET().wstep}">
+      <label>مدد الراحة (دقيقة:ثانية)، افصل بينها بفاصلة</label><input class="txt" data-f="cfg.rests" value="${SET().rests.map(mmss).join('، ')}" placeholder="1:00، 1:30، 2:00">
+      <label>الأنشطة (كورة، مشي…)، افصل بينها بفاصلة</label><input class="txt" data-f="cfg.acts" value="${esc(SET().acts.join('، '))}" placeholder="كورة، مشي، جري">
+      <div class="sub">ينحفظ أول ما تطلع من الخانة</div></div>
     <div class="card">
     <div class="row">${USER.photoURL ? `<img class="avatar" src="${esc(USER.photoURL)}" alt="" referrerpolicy="no-referrer">` : ''}
     <div class="grow"><div class="name" style="font-size:15px">${esc(USER.displayName || '')}</div><div class="meta">${esc(USER.email || '')}</div></div></div>
@@ -1566,7 +1616,7 @@ function listen(u) {
       if (!d && fromCache) return;
       if (mine && Y) return;
       const e = emptyY();
-      Y = d ? { ...e, ...d, set: { ...e.set, ...(d.set || {}) } } : e;
+      Y = d ? { ...e, ...d, tasks: d.tasks || [], longs: d.longs || [], rems: d.rems || [], set: { ...e.set, ...(d.set || {}) } } : e;
       ready(); if (!profile && choosing) render();
     },
     img(o) {
@@ -1692,7 +1742,7 @@ document.addEventListener('click', ev => {
   if (!S || !Y) return;
   const it = id && L.sess && L.sess.items[id];
   switch (act) {
-    case 'go': if (L.tab !== v) fx.page = true; L.chart = null; L.tab = v; L.form = null; L.edit = null; L.adding = false; L.showAlerts = false; window.scrollTo(0, 0); break;
+    case 'go': if (L.tab !== v) fx.page = true; L.chart = null; L.logEdit = null; L.act = null; L.tab = v; L.form = null; L.edit = null; L.adding = false; L.showAlerts = false; window.scrollTo(0, 0); break;
     case 'alerts': L.showAlerts = !L.showAlerts; break;
     case 'gv': if (L.gv !== v) fx.page = true; L.chart = null; L.gv = v; L.adding = false; L.edit = null; window.scrollTo(0, 0); break;
     case 'pushOn': enablePush(); return;
@@ -1777,6 +1827,46 @@ document.addEventListener('click', ev => {
     // النادي
     case 'showPart': L.showPart = true; break;
     case 'todayPart': session().part = v; session().open = undefined; L.showPart = false; break;
+    case 'autoDay': Y.set.autoDay = v === '1'; if (L.sess) { L.sess.part = manual() ? null : schedOf(new Date().getDay()); L.sess.open = undefined; } saveY(); toast(manual() ? '✓ صرت تختار تمرينك بنفسك' : '✓ رجع الجدول التلقائي'); break;
+    case 'actPick': L.act = L.act === v ? null : v; render(); document.getElementById(v === '__new' ? 'actName' : 'actMin')?.focus(); return;
+    case 'actSave': {
+      const name = (L.act === '__new' ? document.getElementById('actName').value : L.act || '').trim();
+      if (!name) return toast('اكتب اسم النشاط', true);
+      const min = Math.max(0, Math.round(+document.getElementById('actMin').value || 0));
+      const rec = logsByDate[TODAY] = logsByDate[TODAY] || { items: {} };
+      rec.acts = { ...(rec.acts || {}), [name]: min };
+      // النشاط الجديد ينضاف للقائمة عشان المرة الجاية بضغطة
+      if (!SET().acts.includes(name)) { Y.set.acts = [...SET().acts, name]; saveY(); }
+      DB.saveAct(TODAY, name, min); S.logs = buildLogs(); syncPush();
+      L.act = null; buzz(15); toast(`✓ ${name}، وما ينحسب اليوم أوف`); break;
+    }
+    case 'actDel': {
+      const d = b.dataset.d || TODAY;
+      if (!confirm(`تحذف «${v}»؟`)) return;
+      if (logsByDate[d]?.acts) delete logsByDate[d].acts[v];
+      DB.delAct(d, v); syncPush(); break;
+    }
+    case 'leOpen': L.logEdit = { date: v, id, sets: copy(logsByDate[v].items[id]) }; break;
+    case 'leCancel': L.logEdit = null; break;
+    case 'leAddSet': L.logEdit.sets.push({ ...(L.logEdit.sets[L.logEdit.sets.length - 1] || { reps: 10, weight: 0 }) }); break;
+    case 'leDelSet': if (L.logEdit.sets.length > 1) L.logEdit.sets.splice(+b.dataset.i, 1); break;
+    case 'leSave': {
+      const E = L.logEdit, sets = copy(E.sets).filter(x => x.reps > 0);
+      if (!sets.length) return toast('اكتب العدّات أول', true);
+      logsByDate[E.date].items[E.id] = sets; S.logs = buildLogs();
+      DB.saveLog(E.date, E.id, sets);
+      // تعديل اليوم يحدّث بطاقة التمرين في «اليوم» بعد
+      if (E.date === TODAY && L.sess && L.sess.items[E.id]) L.sess.items[E.id] = { step: 'done', sets, mode: L.sess.items[E.id].mode };
+      L.logEdit = null; toast('✓ انحفظ التعديل'); break;
+    }
+    case 'leDel': {
+      const E = L.logEdit;
+      if (!confirm('تحذف هالتمرين من هاليوم؟')) return;
+      delete logsByDate[E.date].items[E.id]; S.logs = buildLogs();
+      DB.delLog(E.date, E.id); syncPush();
+      if (E.date === TODAY && L.sess) delete L.sess.items[E.id];
+      L.logEdit = null; toast('انحذف'); break;
+    }
     case 'open': { const s = session(); s.open = s.open === id ? '' : id; break; }
     case 'sched': {
       plan().sched[b.dataset.d] = v;
@@ -1826,6 +1916,10 @@ document.addEventListener('click', ev => {
     }
     case 'step': {
       const inp = b.parentElement.querySelector('input');
+      if (b.dataset.f.startsWith('le.')) {
+        const nv = Math.max(0, Math.round(((+inp.value || 0) + +b.dataset.d) * 100) / 100);
+        inp.value = nv; if (L.logEdit) L.logEdit.sets[+b.dataset.i][b.dataset.f.slice(3)] = nv; return;
+      }
       const nv = Math.max(0, Math.round(((+inp.value || 0) + +b.dataset.d) * 100) / 100);
       inp.value = nv; setField(it, b.dataset.f, b.dataset.i, nv);
       if (b.dataset.f.startsWith('inc.')) updPrev(id);
@@ -1900,10 +1994,30 @@ document.addEventListener('input', ev => {
   if (!f) return;
   if (f === 'draft.name') { if (L.edit) L.edit.name = t.value; return; }
   if (f === 'set.gymTime') { if (t.value) { Y.set.gymTime = t.value; saveY(); } return; }
+  if (f.startsWith('cfg.')) return;
+  if (f === 'le.reps' || f === 'le.weight') { if (L.logEdit) L.logEdit.sets[+t.dataset.i][f.slice(3)] = t.value; return; }
   if (!L.sess) return;
   setField(L.sess.items[t.dataset.id], f, t.dataset.i, t.value);
   if (f.startsWith('inc.')) updPrev(t.dataset.id);
   saveLocal();
+});
+
+// الأرقام تُكتب بأي شكل: «٢٫٥، ٥» أو «2.5, 5»، و«1:30» أو «90»
+const toLatin = v => String(v).replace(/[٠-٩]/g, d => '٠١٢٣٤٥٦٧٨٩'.indexOf(d)).replace(/[٫]/g, '.');
+const nums = v => toLatin(v).split(/[،,\s]+/).map(x => x.trim()).filter(Boolean);
+document.addEventListener('change', ev => {
+  const t = ev.target, f = t.dataset && t.dataset.f;
+  if (!f || !f.startsWith('cfg.') || !Y) return;
+  const k = f.slice(4);
+  if (k === 'wsteps') { const a = nums(t.value).map(Number).filter(x => x > 0); if (!a.length) return toast('اكتب رقم واحد على الأقل', true); Y.set.wsteps = [...new Set(a)].slice(0, 6); }
+  else if (k === 'wstep') { const x = +toLatin(t.value); if (!(x > 0)) return toast('اكتب رقم أكبر من صفر', true); Y.set.wstep = x; }
+  else if (k === 'rests') {
+    const a = nums(t.value).map(x => x.includes(':') ? (+x.split(':')[0]) * 60 + (+x.split(':')[1] || 0) : +x * (+x < 10 ? 60 : 1)).filter(x => x >= 5 && x <= 1800);
+    if (!a.length) return toast('اكتب مدة وحدة على الأقل، مثل 1:30', true); Y.set.rests = [...new Set(a)].slice(0, 6);
+  }
+  else if (k === 'acts') { const a = String(t.value).split(/[،,]+/).map(x => x.trim()).filter(Boolean); if (!a.length) return toast('اكتب نشاط واحد على الأقل', true); Y.set.acts = [...new Set(a)].slice(0, 12); }
+  else return;
+  saveY(); toast('✓ انحفظ'); render();
 });
 
 initDB().then(() => DB.onAuth(u => {
