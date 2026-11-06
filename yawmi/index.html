@@ -1336,6 +1336,7 @@ let pushT = null, lastPush = '';
 try { lastPush = localStorage.getItem('yawmi.pushsig') || ''; } catch (e) { }
 // بعد كل حفظ بثانيتين، ومرة وحدة لكل تغيير: النقرات المتتالية ترسل مرة
 function syncPush(force) {
+  widgetSync();
   if (!pushOn || !pushOK() || !S || !Y) return;
   clearTimeout(pushT);
   pushT = setTimeout(async () => {
@@ -1350,6 +1351,67 @@ function syncPush(force) {
       if (r.ok) { lastPush = sig; localStorage.setItem('yawmi.pushsig', sig); localStorage.setItem('yawmi.pushat', String(Date.now())); }
     } catch (e) { console.error('push sync', e); }
   }, force ? 0 : 2000);
+}
+/* ───────── ويدجت الشاشة الرئيسية (تطبيق Scriptable) ─────────
+   آيفون ما يسمح للمواقع تسوي ويدجت، فالويدجت سكربت في Scriptable يقرأ ملخّص يومك من خادم
+   «مصروف» برمزٍ سرّي. و«يومي» يرفع الملخّص كلما تغيّر شي. الرمز في الحساب (Y.set.wtok)
+   فكل أجهزتك ترفع لنفس الويدجت */
+function widgetData() {
+  const days = {}, now = Date.now();
+  for (let i = 0; i <= 2; i++) {
+    const d = addD(TODAY, i);
+    days[d] = { tasks: tasksOn(d).map(t => ({ t: t.title, time: t.time || '', done: isDone(t, d) })) };
+  }
+  if (S) {
+    const g = gymDay(), acts = Object.keys(actsOn(TODAY));
+    if (g) { const list = dayEx(g); days[TODAY].gym = { name: g.name, done: list.filter(e => item(e.id).step === 'done').length, total: list.length }; }
+    else if (acts.length) days[TODAY].gym = { name: '⚽ ' + acts.join(' و'), done: 0, total: 0 };
+    else if (session().part === 'off') days[TODAY].gym = { name: 'النادي: أوف', done: 0, total: 0 };
+  }
+  const rems = [];
+  for (let i = 0; i <= 8 && rems.length < 8; i++) {
+    const d = addD(TODAY, i);
+    for (const r of remsOn(d)) { const at = new Date(d + 'T' + r.time).getTime(); if (at > now) rems.push({ t: r.title, at }); }
+  }
+  rems.sort((a, b) => a.at - b.at);
+  const longs = Y.longs.filter(l => !l.done).sort((a, b) => a.due < b.due ? -1 : 1).slice(0, 3).map(l => ({ t: l.title, due: l.due }));
+  return { v: 1, days, rems: rems.slice(0, 6), longs, streak: S ? gymStreak() : 0 };
+}
+let widT = null;
+function widgetSync(force) {
+  const tok = Y && Y.set && Y.set.wtok;
+  if (!tok || !PUSH || !S) return;
+  clearTimeout(widT);
+  widT = setTimeout(async () => {
+    try {
+      const data = widgetData(), sig = JSON.stringify(data);
+      if (!force && sig === localStorage.getItem('yawmi.widsig')) return;
+      const r = await api('widget', { token: tok, data });
+      if (r.ok) localStorage.setItem('yawmi.widsig', sig);
+    } catch (e) { console.error('widget sync', e); }
+  }, force ? 0 : 1500);
+}
+// السكربت يُجلب أول ما تنفتح الإعدادات: الآيفون يسمح بالنسخ بس في لحظة الضغطة، فما ننتظر النت وقتها
+let widSrc = '';
+const widCode = () => widSrc.replace('__TOKEN__', (Y.set && Y.set.wtok) || '');
+function loadWidSrc() { if (!widSrc) fetch('widget.js', { cache: 'no-store' }).then(r => r.text()).then(t => { widSrc = t; }).catch(() => { }); }
+function widgetCard() {
+  loadWidSrc();
+  const tok = Y.set.wtok;
+  if (!PUSH) return '';
+  if (!tok) return `<div class="card"><div class="name" style="font-size:15px">📱 ويدجت الشاشة الرئيسية</div>
+    <div class="sub" style="margin-top:4px">مهام اليوم، ونسبة الإنجاز، والباقي، وأقرب التذكيرات، على شاشة الآيفون. يشتغل بتطبيق Scriptable المجاني.</div>
+    <div class="btns"><button class="pri" data-act="widOn">فعّل الويدجت</button></div></div>`;
+  return `<div class="card"><div class="name" style="font-size:15px">📱 ويدجت الشاشة الرئيسية ✓</div>
+    <div class="sub" style="margin-top:6px;line-height:1.9">
+      ١. نزّل تطبيق <b>Scriptable</b> من App Store (مجاني)<br>
+      ٢. اضغط «انسخ كود الويدجت» تحت<br>
+      ٣. في Scriptable: زر <b>+</b> فوق ← الصق الكود ← سمّه «يومي» فوق ← Done<br>
+      ٤. الشاشة الرئيسية: اضغط مطوّل على مكان فاضي ← <b>+</b> فوق ← Scriptable ← اختر الحجم ← Add Widget<br>
+      ٥. اضغط على الويدجت وهو يهتز ← Script ← «يومي»</div>
+    <div class="btns"><button class="pri" data-act="widCopy">📋 انسخ كود الويدجت</button><button class="ghost" data-act="widPush">↻ حدّثه الحين</button><button class="ghost" style="color:var(--danger)" data-act="widOff">أوقفه</button></div>
+    <div class="sub" style="margin-top:8px">يتحدّث لحاله كل ما تغيّر شي في «يومي»، والآيفون يعيد رسمه كل ربع ساعة تقريبًا. والضغط عليه يفتح «يومي».</div>
+    ${L.widShow ? `<textarea id="widTxt" readonly style="margin-top:10px;min-height:140px;font-family:monospace;font-size:11px;direction:ltr;text-align:left">${esc(widCode())}</textarea><div class="sub">النسخ ما زبط، فحدّد النص كله وانسخه بيدك</div>` : ''}</div>`;
 }
 async function enablePush() {
   if (isIOS && !standalone()) return toast('أضف التطبيق للشاشة الرئيسية أول، وافتحه من أيقونته', true);
@@ -1504,7 +1566,7 @@ function viewHome() {
 
 function viewSet() {
   const standalone = navigator.standalone || matchMedia('(display-mode: standalone)').matches;
-  return notifCard(true) + `<div class="card"><div class="name" style="font-size:15px">أيقونة التطبيق</div>
+  return notifCard(true) + widgetCard() + `<div class="card"><div class="name" style="font-size:15px">أيقونة التطبيق</div>
     <div class="row" style="margin-top:10px"><img src="${myIcon || DEF_ICON}" alt="" style="width:72px;height:72px;border-radius:18px;object-fit:cover;flex:none;background:var(--card2)">
     <div class="grow"><div class="sub">${myIcon ? 'صورتك هي الأيقونة' : 'الأيقونة الأصلية'}</div>
     <div class="btns" style="margin-top:8px"><button class="sm pri" data-act="pickImg" data-id="_icon">📷 اختر صورتك</button>${myIcon ? '<button class="sm ghost" data-act="resetIcon">رجّع الأصلية</button>' : ''}</div></div></div>
@@ -1767,6 +1829,27 @@ document.addEventListener('click', ev => {
     case 'alerts': L.showAlerts = !L.showAlerts; break;
     case 'gv': if (L.gv !== v) fx.page = true; L.chart = null; L.gv = v; L.adding = false; L.edit = null; window.scrollTo(0, 0); break;
     case 'pushOn': enablePush(); return;
+    case 'widOn': {
+      // رمزٌ عشوائي طويل: هو اللي يربط الويدجت بملخّصك، وما يقدر أحد يخمّنه
+      const b8 = crypto.getRandomValues(new Uint8Array(24));
+      Y.set.wtok = Array.from(b8, x => x.toString(16).padStart(2, '0')).join('');
+      saveY(); widgetSync(true); toast('✓ تفعّل، كمّل الخطوات تحت'); break;
+    }
+    case 'widCopy': {
+      if (!widSrc) { loadWidSrc(); return toast('ثانية، جاري تجهيز الكود… اضغط مرة ثانية', true); }
+      const code = widCode();
+      (navigator.clipboard ? navigator.clipboard.writeText(code) : Promise.reject())
+        .then(() => toast('✓ انسخ الكود، الصقه في Scriptable'))
+        .catch(() => { L.widShow = true; render(); const t = document.getElementById('widTxt'); t && (t.focus(), t.select()); });
+      return;
+    }
+    case 'widPush': widgetSync(true); toast('✓ انرسل آخر ملخّص للويدجت'); return;
+    case 'widOff': {
+      if (!confirm('توقف الويدجت؟ الملخّص ينمسح من الخادم، والويدجت يقول «افتح يومي».')) return;
+      const tok = Y.set.wtok; delete Y.set.wtok; L.widShow = false;
+      api('widget', { token: tok, data: null }).catch(() => { });
+      localStorage.removeItem('yawmi.widsig'); saveY(); toast('وقف الويدجت'); break;
+    }
     case 'pushOff': if (confirm('توقف الإشعارات؟')) disablePush(); return;
     case 'pushTest': getSub().then(sub => sub && api('test', { sub: sub.toJSON() })).then(r => toast(r && r.ok ? '✓ انرسل، شوف الإشعار' : 'ما وصل: ' + (r && r.error), !(r && r.ok))).catch(e => toast('ما وصل: ' + e.message, true)); return;
     case 'perm':
