@@ -531,7 +531,7 @@ const saveY = () => { DB.saveY(Y); syncPush(); };
 // كل رقم كان ثابت صار إعداد تعدّله: زيادات الوزن، وخطوة الوزن، ومدد الراحة، والأنشطة، والجدول
 // والجدول يدوي من الأصل: كل يوم صاحبه يختار تمرينه، والتلقائي اختيار في صفحة الجدول
 const DEF_SET = { gymTime: '21:00', weekTime: '21:00', wsteps: [2.5, 5], wstep: 2.5, rests: [60, 90, 120, 180], acts: ['كورة', 'مشي', 'جري', 'سباحة', 'دراجة'], autoDay: false };
-const emptyY = () => ({ v: 1, tasks: [], longs: [], rems: [], set: { ...DEF_SET } });
+const emptyY = () => ({ v: 1, tasks: [], longs: [], rems: [], set: {} });
 const SET = () => ({ ...DEF_SET, ...(Y && Y.set || {}) });
 const manual = () => SET().autoDay === false;
 
@@ -1729,9 +1729,22 @@ setInterval(() => { if (pending && !typing()) render(); }, 1500);
 
 /* ───────── التحميل ───────── */
 let profile = null, gotLogs = false;
+// مرة وحدة لكل حساب: النسخ القديمة حفظت «على أيام الأسبوع» افتراضيًّا مع أول حفظ، فما وصل
+// الحساب الترتيب لما صار هو الافتراضي. فيتحوّل للترتيب، وينحفظ علوي ← سفلي ← أوف صراحةً.
+// وبعدها اختيار صاحبه يبقى، لأن rotMig ينحفظ ولا يرجع يشتغل
+function migrateRotation() {
+  if (!Y || Y.set.rotMig) return;
+  Y.set.autoDay = false;
+  if (!Array.isArray(Y.set.cycle) || !Y.set.cycle.length) Y.set.cycle = [...plan().days.map(d => d.id), 'off'];
+  Y.set.rotMig = 1;
+  if (L.sess && L.sess.date === TODAY && !loggedOn(TODAY)) { L.sess.part = null; L.sess.open = undefined; }
+  projCache = null;
+  saveY();
+}
 function ready() {
   if (!profile || !gotLogs || !Y) return;
   S = { ...normalize(profile), logs: buildLogs() };
+  migrateRotation();
   try { checkNotify(); syncPush(); } catch (e) { console.error(e); }
   refresh();
 }
@@ -2022,7 +2035,7 @@ document.addEventListener('click', ev => {
       if (act === 'cyAdd') c.push(v);
       Y.set.cycle = c; delete Y.set.cptr; projCache = null; saveY(); break;
     }
-    case 'autoDay': Y.set.autoDay = v === '1'; if (L.sess) { L.sess.part = manual() ? null : schedOf(new Date().getDay()); L.sess.open = undefined; } saveY(); toast(manual() ? '✓ صرت تختار تمرينك بنفسك' : '✓ رجع الجدول التلقائي'); break;
+    case 'autoDay': Y.set.autoDay = v === '1'; Y.set.rotMig = 1; if (L.sess) { L.sess.part = manual() ? null : schedOf(new Date().getDay()); L.sess.open = undefined; } saveY(); toast(manual() ? '✓ صرت تختار تمرينك بنفسك' : '✓ رجع الجدول التلقائي'); break;
     case 'actPick': L.act = L.act === v ? null : v; render(); document.getElementById(v === '__new' ? 'actName' : 'actMin')?.focus(); return;
     case 'actSave': {
       const name = (L.act === '__new' ? document.getElementById('actName').value : L.act || '').trim();
