@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>مشروع الحمادي</title>
-<meta name="theme-color" content="#1f3a5f">
+<meta name="theme-color" content="#13294b">
 <meta name="color-scheme" content="light dark">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
@@ -18,15 +18,15 @@
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=Noto+Naskh+Arabic:wght@400;700&display=swap" rel="stylesheet">
 <style>
 :root{
-  /* ألوان هادية: كحلي باهت ورمادي دافئ، والحالات بدرجاتٍ ناعمة لا فاقعة */
-  --bg:#f6f5f2;--card:#fff;--card2:#efede8;--line:#e9e6df;--text:#2a3342;--mute:#7b8190;
-  --navy:#34495e;--navy2:#2c3e50;--gold:#b9a37c;--on-navy:#fff;
-  --g:#4f7a5c;--gbg:#e9f1ea;--a:#93733a;--abg:#f5efe2;--r:#a5524b;--rbg:#f6eae8;--b:#4a6787;--bbg:#e9eef4;--n:#5f6672;--nbg:#eef0f3;
-  --shadow:0 1px 2px rgba(0,0,0,.03),0 3px 10px rgba(0,0,0,.035);
+  /* كحلي غامق وذهب: هوية مكتب محاماة. والحالات صريحة تُقرأ من بعيد؛ الباهت كان يثقّل الموقع */
+  --bg:#f5f5f2;--card:#fff;--card2:#efede7;--line:#e7e4dc;--text:#1c2433;--mute:#6b7280;
+  --navy:#13294b;--navy2:#0e1f3a;--gold:#c9a227;--gold2:#e8c95a;--on-navy:#fff;--hero:#13294b;--hero2:#1e3a6b;--goldbg:#f6ecc9;
+  --g:#15803d;--gbg:#dcfce7;--a:#b7791f;--abg:#fdf3d7;--r:#c0392b;--rbg:#fde4e1;--b:#1e4e8c;--bbg:#e0eaf7;--n:#4b5563;--nbg:#f1f2f4;
+  --shadow:0 2px 4px rgba(19,41,75,.04),0 6px 16px rgba(19,41,75,.06);
 }
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
   --bg:#15181d;--card:#1d2128;--card2:#252a32;--line:#2e343d;--text:#e4e6ea;--mute:#9aa1ac;
-  --navy:#8fa7c0;--navy2:#2c3e50;--gold:#b9a37c;
+  --navy:#a9bfdc;--navy2:#2c3e50;--gold:#d4b13f;--gold2:#e8c95a;--hero:#0f1b30;--hero2:#24406e;--goldbg:rgba(212,177,63,.18);
   --g:#8fbf9c;--gbg:#1f2b23;--a:#d1b27a;--abg:#2d271b;--r:#d99891;--rbg:#2f2120;--b:#9fb6d1;--bbg:#1f2733;--n:#b8bec8;--nbg:#262b33;
   --shadow:none;
 }}
@@ -236,6 +236,7 @@ mark{background:color-mix(in srgb,var(--gold) 38%,transparent);color:inherit;bor
 .klpn{position:absolute;bottom:6px;left:8px;font-size:11px;color:#999;z-index:2}
 .libsetup{margin:14px;background:var(--card);border:1px dashed color-mix(in srgb,var(--a) 45%,var(--line));border-radius:14px;padding:12px 14px;font-size:13.5px;line-height:1.8}
 
+
 /* ───── الرئيسية والتنقّل ───── */
 .wrap.wide{max-width:1180px}
 .hello{padding:16px 16px 0}.hello h1{font-size:21px;font-weight:700;color:var(--navy)}.hello small{color:var(--mute);font-size:12.5px}
@@ -295,6 +296,24 @@ mark{background:color-mix(in srgb,var(--gold) 38%,transparent);color:inherit;bor
   .side .grp{font-size:11.5px;color:var(--mute);font-weight:600;padding:8px 10px 4px}
   .side .sep{height:1px;background:var(--line);margin:6px 8px}
 }
+
+/* ───── الكحلي والذهبي ───── */
+.top{background:var(--hero);border-bottom:0}
+.top .bar1 b,.top .ttl{color:#fff}
+.top .bar1 small,.top .st{color:#c8d3e6}
+.top .link{color:var(--gold2)}
+.top .av{color:var(--hero)}
+.hello{background:linear-gradient(135deg,var(--hero),var(--hero2));padding:18px 16px 52px}
+.hello h1{color:#fff}.hello small{color:#d6dff0}
+.hello + .tiles,.hello + .box{margin-top:-38px;position:relative}
+.tile{border-top:0;border-radius:18px;box-shadow:0 6px 18px rgba(19,41,75,.12);position:relative;overflow:hidden}
+.tile::before{content:"";position:absolute;inset:0 0 auto 0;height:4px;background:linear-gradient(90deg,var(--gold),var(--gold2))}
+.tile b{color:var(--navy)}
+.box,.pp,.cal{border-radius:18px;box-shadow:var(--shadow)}
+.bnav button.on{color:var(--navy)}.bnav button.on i{background:var(--goldbg)}
+.fab{background:var(--hero)}
+.sd.on{background:var(--hero2)}.wd.td .dh b{background:var(--hero2)}
+@media (min-width:1000px){.hello{border-radius:0 0 22px 22px;margin:0 14px}}
 </style>
 </head>
 <body>
