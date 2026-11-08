@@ -784,26 +784,48 @@ function archiveHtml() {
    ومذكراتنا لا تمرّ بالمستودع أبدًا (فيها أسماء مرضى وقضايا): سكربت الشيت يجمع نصوصها في جدولٍ
    داخل درايف المكتب، والموقع يقرؤه بإذن الداخل كما يقرأ جدول القضايا. وكل شيءٍ يُبحث فيه معًا */
 const REGV = 4;
-async function loadLib(force) {
+/* المذكرات بعد معالجتها تُحفظ في الجهاز (IndexedDB)، فالمكتبة تفتح منها فورًا ولو انتهى إذن درايف.
+   كانت تُجلب كاملةً (عدة ميغابايت) وتُعالج (ثوانٍ في الجوال) مع كل فتحةٍ للموقع، وهذا كان البطء */
+const IDB = {
+  open() { return this.p || (this.p = new Promise((res, rej) => { const r = indexedDB.open('hammadi', 1); r.onupgradeneeded = () => r.result.createObjectStore('kv'); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); })); },
+  async get(k) { try { const db = await this.open(); return await new Promise(res => { const q = db.transaction('kv').objectStore('kv').get(k); q.onsuccess = () => res(q.result || null); q.onerror = () => res(null); }); } catch (e) { return null; } },
+  async set(k, v) { try { const db = await this.open(); db.transaction('kv', 'readwrite').objectStore('kv').put(v, k); } catch (e) { console.error('idb', e); } },
+};
+const MEMO_KEY = () => 'libmemos:' + (S.cfg.sheetId || '');
+const MEMO_FRESH = 2 * 3600e3;
+const libPaint = () => { if (S.view !== 'lib') return; document.activeElement?.id === 'lq' ? libResUpdate() : render(); };
+function libIndex() {
+  const L = S.lib;
+  L.rows = libRows(); L.idx = new Map(L.rows.map((r, i) => [r, i]));
+  // اختيارٌ قديم لنظامٍ خرج من المكتبة لا يبقى يحجب النتائج
+  for (const id of [...L.sel]) if (!L.regs.some(d => d.id === id)) L.sel.delete(id);
+}
+// force: من زر «تحديث»؛ interactive: الضغطة تسمح بنافذة تجديد الإذن؛ quiet: تحميلٌ مسبق في الخلفية بلا رسم
+async function loadLib(force, interactive, quiet) {
   const L = S.lib;
   if (L.loading) return;
-  L.loading = true; L.err = ''; render();
+  L.loading = true; L.err = ''; if (!quiet) render();
   try {
     if (!L.regs) {
       const r = await fetch('regs.json?v=' + REGV);
       if (!r.ok) throw new Error('ما تحمّلت الأنظمة (' + r.status + ')');
       L.regs = (await r.json()).docs;
     }
-    if (!L.memos || force) {
-      try { L.memos = memosFrom(await DB.readLib(S.cfg.sheetId)); L.memoErr = ''; }
-      catch (e) { console.error(e); L.memos = L.memos || null; L.memoErr = e.message || String(e); }
+    if (!L.memos) { const c = await IDB.get(MEMO_KEY()); if (c && c.memos) { L.memos = c.memos; L.memosAt = c.at; } }
+    libIndex(); libPaint();
+    // من النسخة المحفوظة تظهر النتائج أولًا، ثم يُجلب الجديد إن كانت أقدم من ساعتين (والتحميل المسبق لا يجلب)
+    const stale = !L.memosAt || Date.now() - L.memosAt > MEMO_FRESH;
+    if (force || (!quiet && stale)) {
+      await new Promise(r => setTimeout(r, 30));
+      try {
+        const res = await DB.readLib(S.cfg.sheetId, interactive);
+        L.memos = memosFrom(res); L.memosAt = Date.now(); L.memoErr = '';
+        if (L.memos) IDB.set(MEMO_KEY(), { at: L.memosAt, memos: L.memos });
+        libIndex();
+      } catch (e) { console.error(e); L.memoErr = e.message || String(e); }
     }
-    L.rows = libRows();
-    L.idx = new Map(L.rows.map((r, i) => [r, i]));
-    // اختيارٌ قديم لنظامٍ خرج من المكتبة لا يبقى يحجب النتائج
-    for (const id of [...L.sel]) if (!L.regs.some(d => d.id === id)) L.sel.delete(id);
   } catch (e) { console.error(e); L.err = e.message || String(e); }
-  L.loading = false; render();
+  L.loading = false; libPaint();
 }
 // صفوف جدول المكتبة ← مذكراتنا وحدها، بلا تكرار: المذكرة الواحدة تُحفظ مستندًا ووورد وPDF
 function memosFrom(res) {
@@ -926,7 +948,8 @@ function libResult(r, words, i, more) {
 }
 function libHtml() {
   const L = S.lib;
-  if (!L.regs && !L.loading && !L.err) setTimeout(() => loadLib(), 0);
+  // أول دخولٍ للمكتبة في الجلسة: إن حُمّلت مسبقًا في الخلفية، يُجلب الجديد الآن إن كانت النسخة قديمة
+  if (!L.loading && !L.err && (!L.regs || (!L.checked && (!L.memosAt || Date.now() - L.memosAt > MEMO_FRESH)))) { L.checked = true; setTimeout(() => loadLib(), 0); }
   const nRegs = (L.regs || []).filter(d => !d.ax).length, nAx = (L.regs || []).filter(d => d.ax).length;
   const nSel = L.sel.size;
   return `<div class="h1">المكتبة القانونية</div><div class="sub">${L.regs ? `${cnt(nRegs, 'نظام', 'نظامان', 'أنظمة', 'نظامًا')} ولائحة وتعميم · ${cnt(nAx, 'مرفق', 'مرفقان', 'مرفقات', 'مرفقًا')}${L.memos ? ` · ${cnt(ourMemos().length, 'مذكرة واحدة', 'مذكرتان', 'مذكرات', 'مذكرة')} من مذكراتنا` : ''}` : 'الأنظمة الصحية ومذكراتنا في بحثٍ واحد'}</div>
@@ -946,7 +969,8 @@ function libBody() {
   const L = S.lib;
   if (L.err) return `<div class="banner bad"><span>${esc(L.err)}</span><button class="sm" data-act="libload">إعادة</button></div>`;
   if (!L.regs) return '<div class="empty">⏳ جاري تحميل المكتبة…</div>';
-  const memoNote = L.memos ? '' : L.memoErr ? `<div class="libsetup">مذكراتنا ما انقرت: ${esc(L.memoErr)} <button class="link" data-act="libload" data-v="1">إعادة</button></div>`
+  const memoNote = L.memos ? (L.memoErr ? `<div class="hint" style="margin:6px 18px 0">مذكراتنا من النسخة المحفوظة${L.memosAt ? ' (' + hijri(iso(new Date(L.memosAt))) + ')' : ''}. <button class="link" data-act="libload" data-v="2">تحديثها</button></div>` : '')
+    : L.memoErr ? `<div class="libsetup">مذكراتنا تحتاج تجديد إذن درايف. <button class="sm pri" data-act="libload" data-v="2">تجديد الإذن</button></div>`
     : L.loading ? '' : `<div class="libsetup"><b>مذكراتنا تنضاف هنا</b> بعد تشغيل سكربت الشيت (نفس سكربت التنبيهات): يجمع كل «مذكرة رد» و«مذكرة جوابية» كتبناها من درايف المكتب، ويتحدّث كل ساعة وحده. <button class="link" data-act="menu">افتح الإعدادات ←</button></div>`;
   const exN = (L.memos || []).length - ourMemos().length;
   const exLink = exN ? `<div class="libsetup" style="border-style:solid;border-color:var(--line)">استُبعدت ${cnt(exN, 'مذكرة واحدة', 'مذكرتان', 'مذكرات', 'مذكرة')} (للخصم، أو صحائف دعوى). <button class="link" data-act="memoex">راجعها ←</button></div>` : '';
@@ -1889,7 +1913,7 @@ document.addEventListener('click', async e => {
     case 'libdup': { const E = S.lib.exp = S.lib.exp || new Set(); E.has(v) ? E.delete(v) : E.add(v); return libResUpdate(); }
     case 'liblaw': S.back = []; S.open = { type: 'law', k: v }; return renderSheet();
     case 'libax': S.lib.axOpen = true; return render();
-    case 'libload': S.lib.err = ''; return loadLib(v === '1');
+    case 'libload': S.lib.err = ''; return loadLib(v === '1' || v === '2', v === '2');
     // من نافذةٍ مفتوحة يُحفظ ما قبلها، فيرجع ✕ خطوةً لا يُغلق الكل؛ والتنقّل بين المواد يستبدل ولا يُكدّس
     case 'libart': case 'libreg': case 'libmemo': case 'libcite': {
       const nx = a === 'libart' ? { type: 'art', i: +v } : a === 'libreg' ? { type: 'reg', id: v } : a === 'libmemo' ? { type: 'memo', id: v, sec: t.dataset.i != null ? +t.dataset.i : -1 } : { type: 'cite', k: v };
@@ -2088,8 +2112,8 @@ async function initDB() {
       saveCfg: p => { for (const [k, v] of Object.entries(p)) { if (v && typeof v === 'object' && !Array.isArray(v)) { D.cfg[k] = { ...(D.cfg[k] || {}), ...v }; for (const [a, b] of Object.entries(v)) if (b == null) delete D.cfg[k][a]; } else D.cfg[k] = v; } save(); },
       saveTask: (k, d) => { D.tasks[k] = d; save(); },
       patchTask: (k, p, entry) => { D.tasks[k] = applyPatch(D.tasks[k] || {}, p, entry); save(); },
-      // ?demo&nosheet: كأن إذن الشيت انتهى، لفحص العرض من الملخّص المحفوظ
-      readLib: async () => { await new Promise(r => setTimeout(r, 200)); if (/nolib/.test(location.search)) return null; return { rows: demoMemos() }; },
+      // ?demo&nosheet: كأن إذن الشيت انتهى، لفحص العرض من الملخّص المحفوظ؛ و&libexpired كأن إذن درايف انتهى في المكتبة
+      readLib: async () => { await new Promise(r => setTimeout(r, 200)); if (/nolib/.test(location.search)) return null; if (/libexpired/.test(location.search)) throw new Error('إذن قراءة درايف انتهى'); return { rows: demoMemos() }; },
       readSheet: async () => { await new Promise(r => setTimeout(r, 250)); if (/nosheet/.test(location.search)) return null; return demoSheet().map(([t, rows]) => [t, rows, [], rows.map(r => r[0] === '4870000107' ? 'https://drive.google.com/drive/folders/demo-4870000107' : '')]); },
     };
     return;
@@ -2200,9 +2224,10 @@ async function initDB() {
     },
     // جدول المكتبة: سكربت الشيت ينشئه في مجلد الحمادي ويعلّق رقمه على جدول القضايا (بياناتٍ مخفية
     // للمطوّر، لا خلية ولا تبويب). فيُقرأ الرقم من هناك، ثم المذكرات — بالإذن نفسه، بلا نافذة دخول
-    async readLib(id) {
-      const t = token();
-      if (!t) throw new Error('إذن قراءة درايف انتهى — اضغط «تحديث» فوق ثم ارجع للمكتبة');
+    async readLib(id, interactive) {
+      let t = token();
+      if (!t && interactive) { const c = await popup(() => A.reauthenticateWithPopup(auth.currentUser, prov())); t = c && c.accessToken; }
+      if (!t) throw new Error('إذن قراءة درايف انتهى');
       const get = async u => { const r = await fetch(u, { headers: { Authorization: 'Bearer ' + t } }); if (r.status === 401) { localStorage.removeItem(TK); throw new Error('انتهت الجلسة — اضغط «تحديث» فوق'); } if (!r.ok) throw new Error('ما وصلت لجدول المكتبة (' + r.status + ')'); return r.json(); };
       const meta = await get(`https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(id)}?fields=developerMetadata(metadataKey,metadataValue)`);
       const lib = (meta.developerMetadata || []).find(m => m.metadataKey === 'hammadi_lib');
@@ -2466,7 +2491,7 @@ DB.onAuth(u => {
   render();
   let first = true;
   DB.listen({
-    cfg: c => { S.cfg = c || {}; S.cfgReady = true; const was = !!S.sheet.cachedAt; hydrate(); render(); if (first && me()) { first = false; loadSheet(false); } if (!was && S.sheet.cachedAt) syncPush(); },
+    cfg: c => { S.cfg = c || {}; S.cfgReady = true; const was = !!S.sheet.cachedAt; hydrate(); render(); if (first && me()) { first = false; loadSheet(false); setTimeout(() => { if (!S.lib.regs && !S.lib.loading) loadLib(false, false, true); }, 2500); } if (!was && S.sheet.cachedAt) syncPush(); },
     tasks: o => { const first = !S.docsReady; S.docs = o; S.docsReady = true; render(); if (first) syncPush(); },
     reqs: o => { const n = Object.keys(o).length, was = Object.keys(S.reqs).length; S.reqs = o; if (n > was) toast(`طلب دخول جديد — من الإعدادات`); if (S.open?.type === 'menu') renderSheet(); render(); },
     denied: () => { S.denied = true; render(); },
