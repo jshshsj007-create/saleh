@@ -790,7 +790,8 @@ function weekStrip() {
     let c = colorOf(planOn(d)), miss = '';
     if (past) {
       if (loggedOn(d)) c = logDay(d).color;
-      else { const pp = manual() ? plannedPast(d) : schedOf(wd); if (pp && pp !== 'off') miss = '<span class="miss">✕</span>'; c = OFF; }
+      // ✕ «فاتك» بس للأيام بعد أول تسجيل: قبلها ما نعرف وش كان عليه الدور
+      else { const pp = manual() ? plannedPast(d) : schedOf(wd), first = Object.keys(logsByDate).filter(loggedOn).sort()[0]; if (pp && pp !== 'off' && first && d > first) miss = '<span class="miss">✕</span>'; c = OFF; }
     }
     return `<div class="wd ${d === TODAY ? 'today' : ''}" data-act="gv" data-v="sched">${miss}${SHORT[wd]}<i style="background:${c}"></i></div>`;
   }).join('')}</div>`;
