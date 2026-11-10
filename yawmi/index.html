@@ -530,7 +530,7 @@ const saveProfile = () => { DB.saveProfile({ v: 2, system: S.system, ex: S.ex, p
 const saveY = () => { DB.saveY(Y); syncPush(); };
 // كل رقم كان ثابت صار إعداد تعدّله: زيادات الوزن، وخطوة الوزن، ومدد الراحة، والأنشطة، والجدول
 // والجدول يدوي من الأصل: كل يوم صاحبه يختار تمرينه، والتلقائي اختيار في صفحة الجدول
-const DEF_SET = { gymTime: '21:00', weekTime: '21:00', wsteps: [2.5, 5], wstep: 2.5, rests: [60, 90, 120, 180], acts: ['كورة', 'مشي', 'جري', 'سباحة', 'دراجة'], autoDay: false };
+const DEF_SET = { gymTime: '21:00', weekTime: '21:00', wsteps: [2.5, 5], wstep: 2.5, rests: [60, 90, 120, 180], acts: ['كورة', 'علاج طبيعي', 'مشي', 'جري', 'سباحة'], autoDay: false };
 const emptyY = () => ({ v: 1, tasks: [], longs: [], rems: [], set: {} });
 const SET = () => ({ ...DEF_SET, ...(Y && Y.set || {}) });
 const manual = () => SET().autoDay === false;
@@ -625,52 +625,45 @@ function item(id) {
 }
 const incTarget = (id, it) => lastLog(id).sets.map(s => ({ reps: Math.max(0, +s.reps + (+it.inc.reps || 0)), weight: Math.max(0, +s.weight + (+it.inc.weight || 0)) }));
 /* ───────── الجدول بالترتيب ─────────
-   الترتيب (مثل علوي ← سفلي ← أوف) يتكرّر، وكل يوم يكمل من آخر تمرين سوّيته، لا من اسم اليوم.
-   فلو أخذت أوف في يوم تمرين، التمرين ينتقل لبكرة والباقي يتأخر يوم. ولو اخترت غير
-   المقترح، اللي بعده يكمل من اختيارك */
+   الترتيب علوي ← سفلي ← أوف. وكل يوم يُحسب من اللي صار أمس:
+   - أمس تمرين من الترتيب: اليوم اللي بعده في الترتيب
+   - أمس أي شي ثاني (أوف من الترتيب أو من راسك، كورة، علاج طبيعي، أو يوم ما سجّلت فيه):
+     يرجع من أول الترتيب (علوي)
+   واختيارك لليوم غير المقترح، الأيام اللي بعده تكمل منه */
 const cycle = () => {
   const c = (SET().cycle || []).filter(x => x === 'off' || dayById(x));
   return c.length ? c : [...plan().days.map(d => d.id), 'off'];
 };
-// أقرب مكان لهالتمرين في الترتيب بعد المكان الحالي (الترتيب ممكن يتكرر فيه التمرين نفسه)
-const nextIdx = (c, i, id) => { for (let k = 1; k <= c.length; k++) { const j = ((i + k) % c.length + c.length) % c.length; if (c[j] === id) return j; } return i; };
-// آخر مكانٍ وصلت له في الترتيب قبل اليوم: من المحفوظ لو تدرّبت فعلًا ذاك اليوم، وإلا من آخر تمرين بالسجل
-function cycleBase() {
-  const c = cycle(), ptr = SET().cptr;
-  const ld = Object.keys(logsByDate).filter(d => d < TODAY && logsByDate[d].day?.id && c.includes(logsByDate[d].day.id)).sort().pop();
-  if (ptr && ptr.d < TODAY && loggedOn(ptr.d) && (!ld || ptr.d >= ld) && ptr.i < c.length) return ptr.i;
-  return ld ? c.indexOf(logsByDate[ld].day.id) : -1;
+// اللي بعد يوم معيّن: بعد تمرين من الترتيب يكمل الترتيب، وبعد أي شي ثاني يرجع لأوله
+function nextAfter(prev) {
+  const c = cycle();
+  if (prev && prev !== 'off' && prev !== 'act') { const i = c.indexOf(prev); if (i >= 0) return c[(i + 1) % c.length]; }
+  return c.find(x => x !== 'off') || c[0];
 }
-// تمرين كل يوم من اليوم لقدّام، والمقترح لليوم لو ما اخترت
+// وش صار فعلًا في يوم: تمرين من النادي باسم يومه، أو نشاط ثاني (act)، أو ولا شي (off)
+function actualOn(d) {
+  const r = logsByDate[d];
+  if (r && Object.keys(r.items || {}).length) { const id = r.day?.id; return id && dayById(id) ? id : 'act'; }
+  return loggedOn(d) ? 'act' : 'off';
+}
+// تمرين كل يوم من اليوم لقدّام
 function projection(n = 16) {
-  const c = cycle(), out = {};
-  let i = cycleBase();
-  const pick = L.sess && L.sess.date === TODAY ? L.sess.part : null;
-  const doneId = logsByDate[TODAY]?.day?.id;
-  for (let k = 0; k < n; k++) {
-    const d = addD(TODAY, k);
-    if (k === 0) {
-      const id = pick ?? (doneId && c.includes(doneId) ? doneId : null);
-      if (id === 'off') {
-        // أوف مخطّط ينحسب، وأوف بدال تمرين ما ينحسب: التمرين يتأجل لبكرة
-        if (c[(i + 1) % c.length] === 'off') i = (i + 1) % c.length;
-        out[d] = 'off'; continue;
-      }
-      if (id) { i = nextIdx(c, i, id); out[d] = id; continue; }
-    }
-    i = (i + 1) % c.length; out[d] = c[i];
-  }
+  const out = {}, pick = L.sess && L.sess.date === TODAY ? L.sess.part : null;
+  // اليوم: اللي سجّلته، وإلا اللي اخترته، وإلا المقترح من أمس
+  const did = actualOn(TODAY);
+  let cur = did !== 'off' ? (did === 'act' && pick && pick !== 'off' ? pick : did) : (pick ?? nextAfter(actualOn(addD(TODAY, -1))));
+  out[TODAY] = cur;
+  for (let k = 1; k < n; k++) { cur = nextAfter(cur); out[addD(TODAY, k)] = cur; }
   return out;
 }
 let projCache = null;
 // تمرين يوم معيّن: اللي صار للأيام اللي فاتت، والمتوقّع لليوم وقدّام
 function planOn(d) {
   if (!S || !plan().days.length) return null;
-  if (d < TODAY) { const r = logsByDate[d]; return r?.day?.id || (loggedOn(d) ? 'act' : 'off'); }
+  if (d < TODAY) return actualOn(d);
   if (!manual()) return d === TODAY ? (session().part ?? schedOf(dow(d))) : schedOf(dow(d));
-  if (!projCache || projCache.key !== TODAY + JSON.stringify([L.sess?.part, SET().cycle, SET().cptr, Object.keys(logsByDate).length, logsByDate[TODAY]?.day?.id])) {
-    projCache = { key: TODAY + JSON.stringify([L.sess?.part, SET().cycle, SET().cptr, Object.keys(logsByDate).length, logsByDate[TODAY]?.day?.id]), p: projection() };
-  }
+  const key = TODAY + JSON.stringify([L.sess?.part, SET().cycle, actualOn(TODAY), actualOn(addD(TODAY, -1))]);
+  if (!projCache || projCache.key !== key) projCache = { key, p: projection() };
   return projCache.p[d] ?? null;
 }
 function nextTraining() {
@@ -793,6 +786,13 @@ function viewGymDay() {
   const pick = `<div class="chips">${[...days.map(x => [x.id, x.name]), ['off', 'أوف']].map(([id, name]) => `<button class="${s.part === id ? 'on' : ''}" data-act="todayPart" data-v="${id}">${esc(name)}</button>`).join('')}</div>`;
   if (s.part == null) {
     const sug = planOn(TODAY), sd = dayById(sug);
+    // سجّل نشاط اليوم (كورة، علاج طبيعي): تمرّن بطريقة ثانية، وبكرة يرجع من أول الترتيب
+    if (sug === 'act') {
+      const tm = dayById(planOn(addD(TODAY, 1)));
+      return `<div class="hero" style="--pc:${ACT_C}"><div class="sub">${DAYS[wd]} ${dm(TODAY)}</div><div class="big" style="font-size:26px">✓ تمرّنت اليوم: ${esc(Object.keys(actsOn(TODAY)).join(' و'))}</div>
+        <div class="sub">ما ينحسب أوف، وبكرة يرجع من أول الترتيب: <b style="color:var(--text)">${tm ? esc(tm.name) : 'أوف'}</b></div>
+        <div class="sub" style="margin-top:10px">رحت النادي بعد؟ اختر تمرينك:</div>${pick}</div>` + actsCard() + weekStrip() + upNext();
+    }
     return `<div class="hero" style="--pc:${sd ? sd.color : OFF}"><div class="sub">${DAYS[wd]} ${dm(TODAY)}</div><div class="big" style="font-size:28px">وش تمرين اليوم؟</div>
       ${sug ? `<div class="sub">على ترتيبك، اليوم دور: <b style="color:var(--text)">${sd ? esc(sd.name) : 'أوف'}</b></div>
         <div class="btns"><button class="pri" data-act="todayPart" data-v="${sug}">${sd ? `ابدأ ${esc(sd.name)}` : 'خذ أوف'}</button></div>
@@ -839,7 +839,7 @@ function actsCard() {
 
 const autoCard = () => `<div class="card"><div class="name" style="font-size:15px">الجدول يمشي</div>
   <div class="seg"><button class="${manual() ? 'on' : ''}" data-act="autoDay" data-v="0">بالترتيب</button><button class="${!manual() ? 'on' : ''}" data-act="autoDay" data-v="1">على أيام الأسبوع</button></div>
-  <div class="sub" style="margin-top:8px">${manual() ? 'كل يوم يقترح عليك التمرين اللي عليه الدور، وأنت تختار. لو أخذت أوف، التمرين يتأجل لبكرة والأيام اللي بعده تتأخر معه. ولو اخترت غيره، الباقي يكمل من اختيارك.' : 'كل يوم من أيام الأسبوع له تمرينه الثابت تحت، وتقدر تغيّره من «غيّر يوم اليوم».'}</div></div>`;
+  <div class="sub" style="margin-top:8px">${manual() ? 'كل يوم يقترح عليك اللي عليه الدور. وبعد أي أوف، أو كورة، أو علاج طبيعي، أو يوم ما سجّلت فيه، يرجع من أول الترتيب. ولو اخترت غير المقترح، الأيام اللي بعده تكمل منه.' : 'كل يوم من أيام الأسبوع له تمرينه الثابت تحت، وتقدر تغيّره من «غيّر يوم اليوم».'}</div></div>`;
 // الأيام الجاية على الترتيب، تشوفها وتعرف وش ينتظرك
 function upNext() {
   const ds = Array.from({ length: 7 }, (_, i) => addD(TODAY, i + 1));
@@ -848,7 +848,7 @@ function upNext() {
 }
 function cycleCard() {
   const c = cycle(), opts = [...plan().days.map(x => [x.id, x.name, x.color]), ['off', 'أوف', OFF]];
-  return `<div class="card"><div class="name" style="font-size:15px">ترتيبك</div><div class="sub">يتكرّر من أوله لما يخلص</div>
+  return `<div class="card"><div class="name" style="font-size:15px">ترتيبك</div><div class="sub">يتكرّر من أوله، ويرجع لأوله بعد أي يوم مو من الترتيب</div>
     <div class="list" style="margin-top:6px">${c.map((id, i) => { const dd = dayById(id); return `<div class="item"><span class="no">${n(i + 1)}</span><div class="grow">${pill(dd ? dd.name : 'أوف', dd ? dd.color : OFF)}</div>
       <button class="ic" data-act="cyUp" data-i="${i}" ${i ? '' : 'disabled style="opacity:.3"'} aria-label="فوق">▲</button><button class="ic" data-act="cyDown" data-i="${i}" ${i < c.length - 1 ? '' : 'disabled style="opacity:.3"'} aria-label="تحت">▼</button>
       <button class="x" data-act="cyDel" data-i="${i}" ${c.length > 1 ? '' : 'disabled style="opacity:.3"'} aria-label="احذف">✕</button></div>`; }).join('')}</div>
@@ -2024,7 +2024,7 @@ document.addEventListener('click', ev => {
     case 'todayPart': {
       session().part = v; session().open = undefined; L.showPart = false;
       // مكان اختيارك في الترتيب ينحفظ، فبكرة يكمل منه (لو تدرّبت فعلًا)
-      if (manual() && v !== 'off') { projCache = null; const c = cycle(); Y.set.cptr = { d: TODAY, i: nextIdx(c, cycleBase(), v) }; saveY(); }
+      projCache = null;
       break;
     }
     case 'cyUp': case 'cyDown': case 'cyDel': case 'cyAdd': {
@@ -2033,7 +2033,7 @@ document.addEventListener('click', ev => {
       if (act === 'cyDown' && i < c.length - 1) [c[i + 1], c[i]] = [c[i], c[i + 1]];
       if (act === 'cyDel' && c.length > 1) c.splice(i, 1);
       if (act === 'cyAdd') c.push(v);
-      Y.set.cycle = c; delete Y.set.cptr; projCache = null; saveY(); break;
+      Y.set.cycle = c; projCache = null; saveY(); break;
     }
     case 'autoDay': Y.set.autoDay = v === '1'; Y.set.rotMig = 1; if (L.sess) { L.sess.part = manual() ? null : schedOf(new Date().getDay()); L.sess.open = undefined; } saveY(); toast(manual() ? '✓ صرت تختار تمرينك بنفسك' : '✓ رجع الجدول التلقائي'); break;
     case 'actPick': L.act = L.act === v ? null : v; render(); document.getElementById(v === '__new' ? 'actName' : 'actMin')?.focus(); return;
