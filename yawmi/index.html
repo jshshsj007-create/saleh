@@ -625,20 +625,31 @@ function item(id) {
 }
 const incTarget = (id, it) => lastLog(id).sets.map(s => ({ reps: Math.max(0, +s.reps + (+it.inc.reps || 0)), weight: Math.max(0, +s.weight + (+it.inc.weight || 0)) }));
 /* ───────── الجدول بالترتيب ─────────
-   الترتيب علوي ← سفلي ← أوف. وكل يوم يُحسب من اللي صار أمس:
-   - أمس تمرين من الترتيب: اليوم اللي بعده في الترتيب
-   - أمس أي شي ثاني (أوف من الترتيب أو من راسك، كورة، علاج طبيعي، أو يوم ما سجّلت فيه):
-     يرجع من أول الترتيب (علوي)
+   الترتيب علوي ← سفلي ← أوف، وكل يوم يُحسب من اللي صار قبله:
+   - تمرين من الترتيب: بكرة اللي بعده في الترتيب (بعد سفلي أوف)
+   - أوف (من الترتيب، أو من راسك، أو يوم ما رحت فيه): يرجع لآخر تمرين قبل الأوف ويكمل من
+     بعده. علوي ← أوف ← سفلي، وسفلي ← أوف ← علوي، مهما كثرت الأوفات
+   - كورة أو علاج طبيعي: بكرة علوي
    واختيارك لليوم غير المقترح، الأيام اللي بعده تكمل منه */
 const cycle = () => {
   const c = (SET().cycle || []).filter(x => x === 'off' || dayById(x));
   return c.length ? c : [...plan().days.map(d => d.id), 'off'];
 };
-// اللي بعد يوم معيّن: بعد تمرين من الترتيب يكمل الترتيب، وبعد أي شي ثاني يرجع لأوله
-function nextAfter(prev) {
-  const c = cycle();
-  if (prev && prev !== 'off' && prev !== 'act') { const i = c.indexOf(prev); if (i >= 0) return c[(i + 1) % c.length]; }
-  return c.find(x => x !== 'off') || c[0];
+const cycleStart = () => cycle().find(x => x !== 'off') || cycle()[0];
+// اللي بعد عنصر في الترتيب كما هو (بعد سفلي يجي الأوف)
+function nextAfter(x) { const c = cycle(), i = c.indexOf(x); return i >= 0 ? c[(i + 1) % c.length] : cycleStart(); }
+// أول تمرين بعده في الترتيب، نتعدّى الأوف
+function nextGym(x) {
+  const c = cycle(), i = c.indexOf(x);
+  if (i < 0) return cycleStart();
+  for (let k = 1; k <= c.length; k++) { const y = c[(i + k) % c.length]; if (y !== 'off') return y; }
+  return cycleStart();
+}
+// بعد يوم: وش اللي بعده، وآخر شي سوّيته (تمرين أو نشاط) عشان الأوف يرجع له
+function after(day, last) {
+  if (day === 'act') return [cycleStart(), 'act'];
+  if (day === 'off') return [last && last !== 'act' ? nextGym(last) : cycleStart(), last];
+  return [nextAfter(day), day];
 }
 // وش صار فعلًا في يوم: تمرين من النادي باسم يومه، أو نشاط ثاني (act)، أو ولا شي (off)
 function actualOn(d) {
@@ -646,14 +657,19 @@ function actualOn(d) {
   if (r && Object.keys(r.items || {}).length) { const id = r.day?.id; return id && dayById(id) ? id : 'act'; }
   return loggedOn(d) ? 'act' : 'off';
 }
-// تمرين كل يوم من اليوم لقدّام
+// نمشي من ٣ أسابيع فاتت لين اليوم: كل يوم وش كان عليه الدور، ووش آخر تمرين قبله
+const WALK = 21;
 function projection(n = 16) {
-  const out = {}, pick = L.sess && L.sess.date === TODAY ? L.sess.part : null;
-  // اليوم: اللي سجّلته، وإلا اللي اخترته، وإلا المقترح من أمس
-  const did = actualOn(TODAY);
-  let cur = did !== 'off' ? (did === 'act' && pick && pick !== 'off' ? pick : did) : (pick ?? nextAfter(actualOn(addD(TODAY, -1))));
-  out[TODAY] = cur;
-  for (let k = 1; k < n; k++) { cur = nextAfter(cur); out[addD(TODAY, k)] = cur; }
+  const out = { past: {} };
+  let sug = cycleStart(), last = null;
+  for (let k = WALK; k >= 1; k--) { const d = addD(TODAY, -k); out.past[d] = sug; [sug, last] = after(actualOn(d), last); }
+  const pick = L.sess && L.sess.date === TODAY ? L.sess.part : null, did = actualOn(TODAY);
+  // اليوم: اللي سجّلته، وإلا اللي اخترته، وإلا اللي عليه الدور
+  const today = did === 'off' ? (pick ?? sug) : did === 'act' && pick && pick !== 'off' ? pick : did;
+  out[TODAY] = today; out.sug = sug;
+  // وقدّام: نفترض إنك بتسوي كل يوم اللي عليه الدور
+  let [cur, l2] = after(today, last);
+  for (let k = 1; k < n; k++) { out[addD(TODAY, k)] = cur; [cur, l2] = after(cur, l2); }
   return out;
 }
 let projCache = null;
@@ -662,10 +678,12 @@ function planOn(d) {
   if (!S || !plan().days.length) return null;
   if (d < TODAY) return actualOn(d);
   if (!manual()) return d === TODAY ? (session().part ?? schedOf(dow(d))) : schedOf(dow(d));
-  const key = TODAY + JSON.stringify([L.sess?.part, SET().cycle, actualOn(TODAY), actualOn(addD(TODAY, -1))]);
+  const key = TODAY + JSON.stringify([L.sess?.part, SET().cycle, Array.from({ length: WALK + 1 }, (_, k) => actualOn(addD(TODAY, -k)))]);
   if (!projCache || projCache.key !== key) projCache = { key, p: projection() };
   return projCache.p[d] ?? null;
 }
+const plannedSug = () => { planOn(TODAY); return projCache?.p.sug ?? null; };
+const plannedPast = d => { planOn(TODAY); return projCache?.p.past?.[d] ?? null; };
 function nextTraining() {
   for (let i = 1; i <= 14; i++) {
     const d = addD(TODAY, i), p = planOn(d);
@@ -772,7 +790,7 @@ function weekStrip() {
     let c = colorOf(planOn(d)), miss = '';
     if (past) {
       if (loggedOn(d)) c = logDay(d).color;
-      else { if (!manual() && schedOf(wd) !== 'off') miss = '<span class="miss">✕</span>'; c = OFF; }
+      else { const pp = manual() ? plannedPast(d) : schedOf(wd); if (pp && pp !== 'off') miss = '<span class="miss">✕</span>'; c = OFF; }
     }
     return `<div class="wd ${d === TODAY ? 'today' : ''}" data-act="gv" data-v="sched">${miss}${SHORT[wd]}<i style="background:${c}"></i></div>`;
   }).join('')}</div>`;
@@ -839,7 +857,7 @@ function actsCard() {
 
 const autoCard = () => `<div class="card"><div class="name" style="font-size:15px">الجدول يمشي</div>
   <div class="seg"><button class="${manual() ? 'on' : ''}" data-act="autoDay" data-v="0">بالترتيب</button><button class="${!manual() ? 'on' : ''}" data-act="autoDay" data-v="1">على أيام الأسبوع</button></div>
-  <div class="sub" style="margin-top:8px">${manual() ? 'كل يوم يقترح عليك اللي عليه الدور. وبعد أي أوف، أو كورة، أو علاج طبيعي، أو يوم ما سجّلت فيه، يرجع من أول الترتيب. ولو اخترت غير المقترح، الأيام اللي بعده تكمل منه.' : 'كل يوم من أيام الأسبوع له تمرينه الثابت تحت، وتقدر تغيّره من «غيّر يوم اليوم».'}</div></div>`;
+  <div class="sub" style="margin-top:8px">${manual() ? 'كل يوم يقترح عليك اللي عليه الدور. بعد أي أوف (من الترتيب، أو من راسك، أو يوم ما رحت فيه) يرجع لآخر تمرين قبل الأوف ويكمل من بعده. وبعد الكورة أو العلاج الطبيعي: علوي. ولو اخترت غير المقترح، الأيام اللي بعده تكمل منه.' : 'كل يوم من أيام الأسبوع له تمرينه الثابت تحت، وتقدر تغيّره من «غيّر يوم اليوم».'}</div></div>`;
 // الأيام الجاية على الترتيب، تشوفها وتعرف وش ينتظرك
 function upNext() {
   const ds = Array.from({ length: 7 }, (_, i) => addD(TODAY, i + 1));
@@ -848,7 +866,7 @@ function upNext() {
 }
 function cycleCard() {
   const c = cycle(), opts = [...plan().days.map(x => [x.id, x.name, x.color]), ['off', 'أوف', OFF]];
-  return `<div class="card"><div class="name" style="font-size:15px">ترتيبك</div><div class="sub">يتكرّر من أوله، ويرجع لأوله بعد أي يوم مو من الترتيب</div>
+  return `<div class="card"><div class="name" style="font-size:15px">ترتيبك</div><div class="sub">يتكرّر من أوله، وبعد أي أوف يكمل من آخر تمرين قبله</div>
     <div class="list" style="margin-top:6px">${c.map((id, i) => { const dd = dayById(id); return `<div class="item"><span class="no">${n(i + 1)}</span><div class="grow">${pill(dd ? dd.name : 'أوف', dd ? dd.color : OFF)}</div>
       <button class="ic" data-act="cyUp" data-i="${i}" ${i ? '' : 'disabled style="opacity:.3"'} aria-label="فوق">▲</button><button class="ic" data-act="cyDown" data-i="${i}" ${i < c.length - 1 ? '' : 'disabled style="opacity:.3"'} aria-label="تحت">▼</button>
       <button class="x" data-act="cyDel" data-i="${i}" ${c.length > 1 ? '' : 'disabled style="opacity:.3"'} aria-label="احذف">✕</button></div>`; }).join('')}</div>
