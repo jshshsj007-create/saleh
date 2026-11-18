@@ -810,7 +810,7 @@ function pastSessions() {
   const T = TODAY(), by = new Map(), fix = S.cfg.sesWho || {};
   // الأضعف أولًا: نسخ الجدول القديمة، ثم سجلّ الموقع يغلبها، ثم الضبوط، ثم تصحيح الفريق
   for (const z of S.dabt.past || []) { const w = matchTeam(z.lawyer) || z.lawyer; by.set(sesKey(z.caseNo, z.d), { c: z.caseNo, d: z.d, where: z.where, who: w ? [w] : [], src: 'copy' }); }
-  for (const [k, v] of Object.entries(S.cfg.sesLog || {})) { const [c, d] = k.split('_'); if (d > T) continue; const [w, t, where] = String(v).split('|'); by.set(k, { c, d, t, where, who: w ? [w] : [], src: 'log' }); }
+  for (const [k, v] of Object.entries(S.cfg.sesLog || {})) { const [c, d] = k.split('_'); if (d > T) continue; const [w, t, where, h] = String(v).split('|'); by.set(k, { c, d, t, where, who: w ? [w] : [], src: h === 'hand' ? 'hand' : 'log' }); }
   for (const z of S.dabt.list || []) { const k = sesKey(z.caseNo, z.d), o = by.get(k) || { c: z.caseNo, d: z.d, where: '' }; by.set(k, { ...o, who: z.who, struck: z.struck, src: 'dabt' }); }
   for (const [k, o] of by) if (fix[k] != null) { o.who = fix[k] ? [fix[k]] : []; o.fixed = true; }
   return [...by.values()].sort((a, b) => b.d.localeCompare(a.d));
@@ -878,6 +878,15 @@ function statsHtml(all) {
       ${sr('حُضرت في الفترة', `<b class="big">${ar(ses.length - miss.length)}</b>`)}
       ${nAll ? sr('كل جلسات قضايانا <small style="color:var(--mute);font-weight:400">من عمود «عدد الجلسات»</small>', `<b class="big">${ar(nAll)}</b>`) : ''}
       ${miss.length ? sr('<b style="color:var(--r)">ما حضرها أحد منّا</b>', `<b class="big" style="color:var(--r)">${ar(miss.length)}</b>`, 'background:var(--rbg)') + miss.slice(0, 5).map(o => `<button class="row1" data-act="calopen" data-v="${esc('ses:' + o.c + ':' + o.d)}"><span class="t"><b>القضية ${esc(o.c)}</b><small>${hLong(o.d)}هـ${o.struck ? ' · شُطبت الدعوى' : ''}</small></span><span class="cv" style="color:var(--mute)">‹</span></button>`).join('') : ''}
+      ${(() => { const mine = ses.filter(o => o.who.includes(me())); return `<button class="sr" data-act="sesmine"><span class="nm" style="width:auto;flex:1">جلساتك المحسوبة في الفترة</span><b class="big">${ar(mine.length)}</b><span class="cv" style="color:var(--mute)">${S.sesMine ? '⌃' : '⌄'}</span></button>`
+        + (S.sesMine ? (mine.length ? mine.slice(0, 30).map(o => `<button class="row1" data-act="calopen" data-v="${esc('ses:' + o.c + ':' + o.d)}"><span class="t"><b>القضية ${esc(o.c)}</b><small>${DAYN[P(o.d).getDay()]} ${hLong(o.d)}هـ${o.where ? ' · ' + esc(o.where) : ''}${o.src === 'copy' ? ' · من نسخة قديمة' : o.src === 'dabt' ? ' · من الضبط' : o.src === 'hand' ? ' · سجّلتها يدويًا' : ''}</small></span></button>`).join('') : '<div class="meta" style="padding:8px 14px">ما فيه جلسات محسوبة لك في هذه الفترة.</div>') : ''); })()}
+      ${S.sesAdd ? `<div style="padding:10px 14px;border-top:1px solid var(--line);display:grid;gap:8px">
+          <div style="display:flex;gap:8px;flex-wrap:wrap"><input id="sesd" type="date" value="${esc(S.sesAdd.d || T)}" max="${T}" style="flex:1;min-width:140px"><input id="sesc" inputmode="numeric" placeholder="رقم القضية" list="sescl" style="flex:1;min-width:140px" value="${esc(S.sesAdd.c || '')}"></div>
+          <datalist id="sescl">${[...new Set((S.sheet.cases || []).map(r => r.caseNo))].slice(0, 400).map(c => `<option value="${esc(c)}">`).join('')}</datalist>
+          <select id="sesw">${team.map(t => `<option ${t === me() ? 'selected' : ''}>${esc(t)}</option>`).join('')}</select>
+          <div class="btns" style="margin:0"><button class="pri" data-act="sesaddsave">حفظ الجلسة</button><button data-act="sesadd" data-v="0">إلغاء</button></div>
+          <div class="meta">تقدر تسجّل كذا جلسة ورا بعض: يبقى التاريخ نفسه وتغيّر الرقم.</div></div>`
+        : `<button class="sr" data-act="sesadd" data-v="1" style="color:var(--navy);font-weight:700">＋ سجّل جلسة حضرتها وما انحسبت</button>`}
       ${circ ? sr('أكثر دائرة في القادم', `<span class="chip n">${esc(circ[0])} · ${ar(circ[1])}</span>`) : ''}
       ${Z.loading ? '<div class="meta" style="padding:8px 14px">⏳ قراءة الضبوط…</div>' : ''}</div>
   </div></div>${note}`;
@@ -2113,6 +2122,19 @@ document.addEventListener('click', async e => {
     case 'navclose': S.navSheet = ''; return render();
     case 'homeday': S.homeDay = v; return render();
     case 'statper': S.statPer = v; return render();
+    case 'sesmine': S.sesMine = !S.sesMine; return render();
+    case 'sesadd': S.sesAdd = v === '1' ? { d: TODAY() } : null; return render();
+    // جلسةٌ فاتت الموقع (قبل السجل، ولا ضبط لها): تُضاف للسجل المشترك بمن حضرها، فتُحسب للفريق كله
+    case 'sesaddsave': {
+      const d = document.getElementById('sesd').value, c = (document.getElementById('sesc').value || '').replace(/[٠-٩]/g, x => AR.indexOf(x)).replace(/\D/g, ''), w = document.getElementById('sesw').value;
+      if (!d || d > TODAY()) return toast('اختر تاريخ الجلسة (اليوم أو قبله)', true);
+      if (c.length < 5) return toast('اكتب رقم القضية', true);
+      const k = sesKey(c, d), r = (S.sheet.cases || []).find(x => x.caseNo === c), where = r ? [r.court, r.circuit && 'ج' + r.circuit].filter(Boolean).join(' · ') : '';
+      const v2 = [w, '', where, 'hand'].join('|');
+      S.cfg.sesLog = { ...(S.cfg.sesLog || {}), [k]: v2 }; S.cfg.sesWho = { ...(S.cfg.sesWho || {}), [k]: w };
+      DB.saveCfg({ sesLog: { [k]: v2 }, sesWho: { [k]: w } });
+      S.sesAdd = { d }; toast('✓ انحسبت الجلسة — ' + w); return render();
+    }
     case 'dabtload': S.dabt.err = ''; return loadDabt(true);
     case 'view': S.view = v; S.ddOpen = false; S.navSheet = ''; try { localStorage.setItem('hammadi.view', v); } catch (e2) { } scrollTo(0, 0); return render();
     case 'sec': S.view = 'sec'; S.tab = v; S.seg = 'mine'; S.archN = 30; S.ddOpen = false; S.navSheet = ''; try { localStorage.setItem('hammadi.view', 'sec'); localStorage.setItem('hammadi.tab', v); } catch (e2) { } render(); const h = document.querySelector('.h1'); if (h) scrollTo({ top: h.getBoundingClientRect().top + scrollY - (document.querySelector('.top')?.offsetHeight || 0) - 8, behavior: 'smooth' }); return;
