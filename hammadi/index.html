@@ -449,7 +449,7 @@ const HEAD = {
   caseNo: /رقم القضي/, lawyer: /^(المحامي|المسؤول)/, memo: /نوع المذكر/, req: /^المطلوب/,
   session: /(تاريخ|موعد) الجلس|تار+يخ انتها/, court: /^المحكمة/, circuit: /^الدائرة/,
   plaintiff: /اسم المدعي/, defendant: /المدعى عليه|اسم المدعى/, type: /نوع القضي/,
-  last: /[اآ]خر (اجراء|إجراء)/, status: /^حالة/, remain: /^المتبقي/, deadline: /عداد المه/, note: /^ملاحظ/,
+  last: /[اآ]خر (اجراء|إجراء)/, nSes: /^عدد الجلسات/, status: /^حالة/, remain: /^المتبقي/, deadline: /عداد المه/, note: /^ملاحظ/,
 };
 // تبويب «لوائح الاستئناف» منسوخٌ من تبويبات المحاكم وأغلب عناوينه «العمود ٢…»؛ فما لم يُسمَّ يؤخذ بموضعه هناك
 const STD = { caseNo: 0, lawyer: 3, court: 4, circuit: 5, plaintiff: 6, defendant: 7, type: 10, session: 11, last: 15 };
@@ -808,6 +808,8 @@ function logSessions() {
 // كل جلسةٍ مضت: من السجل والضبوط، بلا تكرار. who فارغٌ إن لم يحضرها أحدٌ منّا
 function pastSessions() {
   const T = TODAY(), by = new Map(), fix = S.cfg.sesWho || {};
+  // الأضعف أولًا: نسخ الجدول القديمة، ثم سجلّ الموقع يغلبها، ثم الضبوط، ثم تصحيح الفريق
+  for (const z of S.dabt.past || []) { const w = matchTeam(z.lawyer) || z.lawyer; by.set(sesKey(z.caseNo, z.d), { c: z.caseNo, d: z.d, where: z.where, who: w ? [w] : [], src: 'copy' }); }
   for (const [k, v] of Object.entries(S.cfg.sesLog || {})) { const [c, d] = k.split('_'); if (d > T) continue; const [w, t, where] = String(v).split('|'); by.set(k, { c, d, t, where, who: w ? [w] : [], src: 'log' }); }
   for (const z of S.dabt.list || []) { const k = sesKey(z.caseNo, z.d), o = by.get(k) || { c: z.caseNo, d: z.d, where: '' }; by.set(k, { ...o, who: z.who, struck: z.struck, src: 'dabt' }); }
   for (const [k, o] of by) if (fix[k] != null) { o.who = fix[k] ? [fix[k]] : []; o.fixed = true; }
@@ -817,14 +819,18 @@ async function loadDabt(interactive) {
   const Z = S.dabt; if (Z.loading) return;
   Z.loading = true; Z.err = '';
   try {
-    if (!Z.list) { const c = await IDB.get('dabt:' + (S.cfg.sheetId || '')); if (c) { Z.list = c.list; Z.at = c.at; } }
+    if (!Z.list) { const c = await IDB.get('dabt2:' + (S.cfg.sheetId || '')); if (c) { Z.list = c.list; Z.past = c.past || []; Z.at = c.at; } }
     if (interactive || !Z.at || Date.now() - Z.at > MEMO_FRESH) {
-      const res = await DB.readDabt(S.cfg.sheetId, interactive);
+      // من سكربت الشيت إن كان مربوطًا (بلا إذن)، وإلا بإذن قوقل
+      const tab = async name => { if (webOn()) { try { const r = await DB.readWeb(S.cfg.webUrl, S.cfg.hookSecret, '', name); return r.rows ? { rows: r.rows } : null; } catch (e) { console.error('web tab', e); } } return DB.readDabt(S.cfg.sheetId, interactive, name); };
+      const [res, pr] = await Promise.all([tab('ضبوط').catch(e => { Z.err = e.message || String(e); return null; }), tab('جلسات سابقة').catch(e => (console.error(e), null))]);
+      const T = TODAY(); Z.past = ((pr && pr.rows) || []).map(r => { const d = pickDate(r[1]); return d && d < T && r[0] ? { caseNo: String(r[0]).trim(), d, lawyer: String(r[2] || '').trim(), where: [r[3], r[4] && 'ج' + r[4]].filter(Boolean).join(' · ') } : null; }).filter(Boolean);
       if (res) {
         const team = S.cfg.team || [];
         Z.list = res.rows.map(r => { const z = LIB.parseDabt(r[8], team); if (!z.caseNo || !z.h) return null; const d = fromHijri(z.h[0], z.h[1], z.h[2]); return d ? { caseNo: z.caseNo, d, who: z.who, struck: z.struck } : null; }).filter(Boolean);
-        Z.at = Date.now(); Z.none = false; IDB.set('dabt:' + (S.cfg.sheetId || ''), { at: Z.at, list: Z.list });
-      } else Z.none = true;
+        Z.none = false;
+      } else { Z.none = !Z.err; Z.list = Z.list || []; }
+      if (res || Z.past.length) { Z.at = Date.now(); IDB.set('dabt2:' + (S.cfg.sheetId || ''), { at: Z.at, list: Z.list, past: Z.past }); }
     }
   } catch (e) { console.error(e); Z.err = e.message || String(e); }
   Z.loading = false; if (S.view === 'stats') render();
@@ -841,6 +847,7 @@ function statsHtml(all) {
   const onTime = L => { const w = L.filter(i => i.due); return w.length ? Math.round(w.filter(i => i.doc.doneDate <= i.due).length / w.length * 100) : null; };
   const pct = v => v == null ? '—' : ar(v) + '٪';
   const ses = pastSessions().filter(o => inP(o.d)), miss = ses.filter(o => !o.who.length);
+  const nTot = (S.cfg.sheetCache && S.cfg.sheetCache.n) || sesTotals(S.sheet.cases || []), nAll = Object.values(nTot).reduce((a, b) => a + b, 0);
   const perLbl = { m: 'هذا الشهر', 3: '٣ أشهر', y: 'السنة' };
   const kpi = (n, l, sub, c) => `<div class="kpi"${c ? ` style="--c:${c}"` : ''}><b>${n}</b><span>${l}</span><small>${sub}</small></div>`;
   const cntK = (L, k) => L.filter(i => i.kind === k).length;
@@ -863,12 +870,13 @@ function statsHtml(all) {
     <div class="box"><div class="bt">📈 المنجز شهريًّا <small>آخر ستة أشهر هجرية</small></div><div class="chart">${mCounts.map(v => `<div><b>${ar(v)}</b><i style="height:${Math.max(3, v / mMax * 100)}px"></i></div>`).join('')}</div>
       <div class="lab">${months.map(([a]) => `<span>${short(HMN[hParts(P(a))[1] - 1])}</span>`).join('')}</div></div>
   </div><div>
-    <div class="box"><div class="bt">👥 حسب الشخص <small>${perLbl[per]}</small></div><div class="tw"><table class="pt"><tr><th>الشخص</th><th>مفتوحة</th><th>أنجز</th><th>عاجلة</th><th>في الموعد</th><th>جلسات حضرها</th></tr>
+    <div class="box"><div class="bt">👥 حسب الشخص <small>${perLbl[per]}</small></div><div class="tw"><table class="pt"><tr><th>الشخص</th><th>مفتوحة</th><th>أنجز</th><th>عاجلة</th><th>في الموعد</th><th>جلسات حضرها</th><th title="من عمود «عدد الجلسات» في الشيت، لكل قضايا المحامي منذ بدايتها">كل جلساته</th></tr>
       ${team.map(t => { const o = open.filter(i => i.who === t), d = done.filter(i => i.who === t), u = o.filter(urg).length, n = ses.filter(x => x.who.includes(t)).length;
-        return `<tr><td><span class="who">${mini(t)}${esc(t)}${t === me() ? ' (أنا)' : ''}</span></td><td>${ar(o.length)}</td><td style="color:var(--g);font-weight:700">${ar(d.length)}</td><td>${u ? `<span class="chip r">${ar(u)}</span>` : '—'}</td><td>${pct(onTime(d))}</td><td style="font-weight:700">${ar(n)}</td></tr>`; }).join('')}</table></div></div>
+        return `<tr><td><span class="who">${mini(t)}${esc(t)}${t === me() ? ' (أنا)' : ''}</span></td><td>${ar(o.length)}</td><td style="color:var(--g);font-weight:700">${ar(d.length)}</td><td>${u ? `<span class="chip r">${ar(u)}</span>` : '—'}</td><td>${pct(onTime(d))}</td><td style="font-weight:700">${ar(n)}</td><td style="color:var(--mute)">${nTot[t] ? ar(nTot[t]) : '—'}</td></tr>`; }).join('')}</table></div></div>
     <div class="box"><div class="bt">⚖️ الجلسات</div>
       ${sr('هذا الشهر', `<b class="big">${ar(thisM)}</b>`)}${sr('الشهر الجاي', `<b class="big">${ar(up.filter(g => g.d >= nf && g.d <= nt).length)}</b>`)}
       ${sr('حُضرت في الفترة', `<b class="big">${ar(ses.length - miss.length)}</b>`)}
+      ${nAll ? sr('كل جلسات قضايانا <small style="color:var(--mute);font-weight:400">من عمود «عدد الجلسات»</small>', `<b class="big">${ar(nAll)}</b>`) : ''}
       ${miss.length ? sr('<b style="color:var(--r)">ما حضرها أحد منّا</b>', `<b class="big" style="color:var(--r)">${ar(miss.length)}</b>`, 'background:var(--rbg)') + miss.slice(0, 5).map(o => `<button class="row1" data-act="calopen" data-v="${esc('ses:' + o.c + ':' + o.d)}"><span class="t"><b>القضية ${esc(o.c)}</b><small>${hLong(o.d)}هـ${o.struck ? ' · شُطبت الدعوى' : ''}</small></span><span class="cv" style="color:var(--mute)">‹</span></button>`).join('') : ''}
       ${circ ? sr('أكثر دائرة في القادم', `<span class="chip n">${esc(circ[0])} · ${ar(circ[1])}</span>`) : ''}
       ${Z.loading ? '<div class="meta" style="padding:8px 14px">⏳ قراءة الضبوط…</div>' : ''}</div>
@@ -1571,11 +1579,17 @@ function sessionsFrom(rows, past) {
   }
   return [...m.values()].sort((a, b) => (a.d + (a.t || '')).localeCompare(b.d + (b.t || '')));
 }
+// مجموع «عدد الجلسات» لكل محامٍ (القضية في أكثر من تبويب تُحسب مرةً بأكبر رقم). يُحفظ في الملخّص المشترك
+function sesTotals(rows) {
+  const by = new Map();
+  for (const r of rows) { const n = parseInt(String(r.nSes || '').replace(/[٠-٩]/g, c => AR.indexOf(c)), 10); if (!(n > 0)) continue; const o = by.get(r.caseNo); if (!o || n > o.n) by.set(r.caseNo, { n, w: matchTeam(r.lawyer) || r.lawyer || '' }); }
+  const t = {}; for (const { n, w } of by.values()) t[w] = (t[w] || 0) + n; return t;
+}
 function saveSheetCache() {
-  const m = S.sheet.cases.filter(r => r.memo).map(slim), a = S.sheet.appeals.map(slim), ss = S.sheet.sessions || [];
-  const sig = JSON.stringify([m, a, ss]);
-  if (S.cfg.sheetCache && JSON.stringify([S.cfg.sheetCache.m, S.cfg.sheetCache.a, S.cfg.sheetCache.s || []]) === sig) return;
-  S.cfg.sheetCache = { at: Date.now(), m, a, s: ss }; S.sheet.mine = S.cfg.sheetCache.at;
+  const m = S.sheet.cases.filter(r => r.memo).map(slim), a = S.sheet.appeals.map(slim), ss = S.sheet.sessions || [], n = sesTotals(S.sheet.cases);
+  const sig = JSON.stringify([m, a, ss, n]);
+  if (S.cfg.sheetCache && JSON.stringify([S.cfg.sheetCache.m, S.cfg.sheetCache.a, S.cfg.sheetCache.s || [], S.cfg.sheetCache.n || {}]) === sig) return;
+  S.cfg.sheetCache = { at: Date.now(), m, a, s: ss, n }; S.sheet.mine = S.cfg.sheetCache.at;
   DB.saveCfg({ sheetCache: S.cfg.sheetCache });
 }
 /* الملخّص المشترك يُؤخذ متى كان أحدث مما عند الجهاز، لا في أول فتحة وحدها. كان الجهاز إذا قرأ الشيت مرةً
@@ -1586,7 +1600,7 @@ function hydrate() {
   if (!c || !c.at || c.at === sh.mine) return;
   if (c.at <= (sh.at ? +sh.at : sh.cachedAt || 0)) return;
   sh.cases = sh.at ? [...sh.cases.filter(r => !r.memo), ...(c.m || [])] : c.m || [];
-  sh.appeals = c.a || []; sh.sessions = c.s || [];
+  sh.appeals = c.a || []; sh.sessions = c.s || []; sh.nTot = c.n;
   if (sh.at) sh.at = new Date(c.at); else sh.cachedAt = c.at;
   if (S.open) renderSheet();
 }
@@ -1692,6 +1706,14 @@ function webMark() {
 function doGet(e) {
   const p = (e && e.parameter) || {}, out = o => ContentService.createTextOutput(JSON.stringify(o)).setMimeType(ContentService.MimeType.JSON);
   if (p.k !== SECRET) return out({ ok: false, error: 'bad secret' });
+  // تبويبٌ من جدول المكتبة (الضبوط، الجلسات السابقة): الموقع يقرؤه بلا إذن قوقل
+  if (p.tab) {
+    const md = SpreadsheetApp.getActive().getDeveloperMetadata().filter(m => m.getKey() === LIB_KEY)[0];
+    const sh = md && SpreadsheetApp.openById(md.getValue()).getSheetByName(p.tab);
+    if (!sh) return out({ ok: true, rows: null });
+    const n = sh.getLastRow() - 1;
+    return out({ ok: true, rows: n > 0 ? sh.getRange(2, 1, n, 9).getDisplayValues() : [] });
+  }
   const rev = webRev();
   if (p.rev === rev) return out({ ok: true, rev: rev, same: true });
   const ss = SpreadsheetApp.getActive(), tz = ss.getSpreadsheetTimeZone(), Z = Date.UTC(1899, 11, 30);
@@ -1740,9 +1762,42 @@ function libRun() {
     const ss = SpreadsheetApp.getActive(), lib = libSheet();
     const root = DriveApp.getFileById(ss.getId()).getParents().next().getId();
     // الضبوط في تبويبٍ وحدها: منها يعرف الموقع من حضر كل جلسة، ولا تختلط بالمذكرات في المكتبة
-    if (libSync(lib, 'مذكرات', libFind(), 'libPass', t0, root) && libSync(lib, 'ضبوط', dabtFind(), 'dabtPass', t0, root))
+    if (libSync(lib, 'مذكرات', libFind(), 'libPass', t0, root) && libSync(lib, 'ضبوط', dabtFind(), 'dabtPass', t0, root) && pastRun(lib, t0))
       ScriptApp.getProjectTriggers().filter(t => t.getHandlerFunction() === 'libRunMore').forEach(t => ScriptApp.deleteTrigger(t));
   } finally { lock.releaseLock(); }
+}
+// الشيت لا يحفظ إلا الجلسة القادمة، ونُسخه القديمة في درايف («نسخة من جدول قضايا الحمادي»…) تحفظ ما كان قادمًا يومها.
+// فتُجمع مواعيدها في تبويب «جلسات سابقة» مرةً لكل نسخة (وكلما تعدّلت)، ومعها الجدول الحالي في كل دورة
+function pastRun(lib, t0) {
+  const P = PropertiesService.getScriptProperties(), seen = JSON.parse(P.getProperty('pastSeen') || '{}');
+  const act = SpreadsheetApp.getActive(), tz = Session.getScriptTimeZone();
+  let sh = lib.getSheetByName('جلسات سابقة');
+  if (!sh) { sh = lib.insertSheet('جلسات سابقة'); sh.getRange(1, 1, 1, 6).setValues([['رقم القضية', 'تاريخ الجلسة', 'المحامي', 'المحكمة', 'الدائرة', 'من']]).setFontWeight('bold'); sh.setFrozenRows(1); }
+  const n = sh.getLastRow() - 1, have = new Set(n > 0 ? sh.getRange(2, 1, n, 2).getDisplayValues().map(r => r[0] + '|' + r[1]) : []), add = [];
+  const one = (ss, src) => ss.getSheets().forEach(s => {
+    const R = s.getDataRange(), disp = R.getDisplayValues(), raw = R.getValues();
+    const H = (disp[0] || []).map(h => String(h).replace(/[\u064B-\u0652\u0640]/g, '').trim()), f = re => H.findIndex(h => re.test(h));
+    const c = f(/رقم القضي/), l = f(/^(المحامي|المسؤول)/), d = f(/(تاريخ|موعد) الجلس/), co = f(/^المحكمة/), ci = f(/^الدائرة/);
+    if (c < 0 || d < 0) return;
+    for (let i = 1; i < disp.length; i++) {
+      const no = String(disp[i][c]).trim(), v = raw[i][d];
+      const ds = v instanceof Date ? Utilities.formatDate(v, tz, 'yyyy-MM-dd') : String(disp[i][d]).trim();
+      if (!no || !ds || have.has(no + '|' + ds)) continue;
+      have.add(no + '|' + ds); add.push([no, ds, l >= 0 ? disp[i][l] : '', co >= 0 ? disp[i][co] : '', ci >= 0 ? disp[i][ci] : '', src]);
+    }
+  });
+  one(act, 'الجدول');
+  const it = DriveApp.searchFiles("title contains 'قضايا الحمادي' and mimeType = 'application/vnd.google-apps.spreadsheet' and trashed = false");
+  let done = true;
+  while (it.hasNext()) {
+    const fl = it.next(), id = fl.getId(), v = String(fl.getLastUpdated().getTime());
+    if (id === act.getId() || seen[id] === v) continue;
+    if (Date.now() - t0 > 4.5 * 60e3) { done = false; break; }
+    try { one(SpreadsheetApp.openById(id), fl.getName()); seen[id] = v; } catch (e) { console.warn('نسخة ما انقرت: ' + fl.getName() + ' ' + e); seen[id] = v; }
+  }
+  if (add.length) sh.getRange(sh.getLastRow() + 1, 1, add.length, 6).setValues(add);
+  P.setProperty('pastSeen', JSON.stringify(seen));
+  return done;
 }
 function libTab(lib, name) {
   let sh = lib.getSheetByName(name);
@@ -1942,7 +1997,7 @@ function caseHtml(c) {
   ${/* رقم القضية في الشيت إن كان مربوطًا بمجلده فُتح المجلد، وإلا بحثٌ في درايف برقمها */''}<a class="drive" href="${esc(link || 'https://drive.google.com/drive/search?q=' + encodeURIComponent(c))}" target="_blank" rel="noopener">📁 ${link ? 'فتح مجلد القضية في درايف' : 'البحث عن مجلد القضية في درايف'}</a>
   ${kv.length ? `<dl class="kv">${kv.map(([a, b]) => `<div><dt>${a}</dt><dd>${esc(b)}</dd></div>`).join('')}</dl>` : ''}
   ${!kv.length ? '<div class="meta" style="margin-top:10px">تفاصيلها تظهر بعد «تحديث».</div>' : ''}
-  ${(past => past.length ? `<label>الجلسات الماضية ومن حضرها</label><div class="kv">${past.map(o => `<div><dt>${hLong(o.d)}هـ<small style="display:block;color:var(--mute);font-weight:400">${gLong(o.d)}م${o.src === 'dabt' ? ' · من الضبط' : ''}</small></dt><dd><select class="seswho" data-k="${esc(sesKey(o.c, o.d))}"><option value="">ما حضر أحد</option>${(S.cfg.team || []).map(t => `<option ${o.who.includes(t) ? 'selected' : ''}>${esc(t)}</option>`).join('')}</select></dd></div>`).join('')}</div>` : '')(pastSessions().filter(o => o.c === c).slice(0, 8))}`;
+  ${(past => past.length ? `<label>الجلسات الماضية ومن حضرها</label><div class="kv">${past.map(o => `<div><dt>${hLong(o.d)}هـ<small style="display:block;color:var(--mute);font-weight:400">${gLong(o.d)}م${o.src === 'dabt' ? ' · من الضبط' : o.src === 'copy' ? ' · من نسخة قديمة للجدول' : ''}</small></dt><dd><select class="seswho" data-k="${esc(sesKey(o.c, o.d))}"><option value="">ما حضر أحد</option>${(S.cfg.team || []).map(t => `<option ${o.who.includes(t) ? 'selected' : ''}>${esc(t)}</option>`).join('')}</select></dd></div>`).join('')}</div>` : '')(pastSessions().filter(o => o.c === c).slice(0, 8))}`;
 }
 
 /* ───────── تقويم الجوال (اشتراك) ─────────
@@ -2337,8 +2392,8 @@ async function initDB() {
       saveTask: (k, d) => { D.tasks[k] = d; save(); },
       patchTask: (k, p, entry) => { D.tasks[k] = applyPatch(D.tasks[k] || {}, p, entry); save(); },
       // ?demo&nosheet: كأن إذن الشيت انتهى، لفحص العرض من الملخّص المحفوظ؛ و&libexpired كأن إذن درايف انتهى في المكتبة
-      readDabt: async () => { await new Promise(r => setTimeout(r, 150)); return { rows: demoDabt() }; },
-      readWeb: async (u, k, rev) => { await new Promise(r => setTimeout(r, 120)); const R = 'demo|' + TODAY(); return rev === R ? { ok: true, rev: R, same: true } : { ok: true, rev: R, tabs: demoSheet().map(([t, rows]) => [t, rows, [], []]) }; },
+      readDabt: async (id, i, tab) => { await new Promise(r => setTimeout(r, 150)); return { rows: tab === 'جلسات سابقة' ? demoPast() : demoDabt() }; },
+      readWeb: async (u, k, rev, tab) => { await new Promise(r => setTimeout(r, 120)); if (tab) return { ok: true, rows: tab === 'جلسات سابقة' ? demoPast() : demoDabt() }; const R = 'demo|' + TODAY(); return rev === R ? { ok: true, rev: R, same: true } : { ok: true, rev: R, tabs: demoSheet().map(([t, rows]) => [t, rows, [], []]) }; },
       readLib: async () => { await new Promise(r => setTimeout(r, 200)); if (/nolib/.test(location.search)) return null; if (/libexpired/.test(location.search)) throw new Error('إذن قراءة درايف انتهى'); return { rows: demoMemos() }; },
       readSheet: async () => { await new Promise(r => setTimeout(r, 250)); if (/nosheet/.test(location.search)) return null; return demoSheet().map(([t, rows]) => [t, rows, [], rows.map(r => r[0] === '4870000107' ? 'https://drive.google.com/drive/folders/demo-4870000107' : '')]); },
     };
@@ -2464,16 +2519,16 @@ async function initDB() {
       return { rows: v.values || [] };
     },
     // الشيت من سكربته (تطبيق ويب) بلا إذن قوقل: لا ينتهي بعد ساعة، ولا يُرسل الجدول إلا إذا تغيّر
-    async readWeb(url, secret, rev) {
-      const c = new AbortController(), to = setTimeout(() => c.abort(), 25000);
+    async readWeb(url, secret, rev, tab) {
+      const c = new AbortController(), to = setTimeout(() => c.abort(), 40000);
       try {
-        const r = await fetch(`${url}?k=${encodeURIComponent(secret)}&rev=${encodeURIComponent(rev || '')}`, { signal: c.signal });
+        const r = await fetch(`${url}?k=${encodeURIComponent(secret)}&rev=${encodeURIComponent(rev || '')}${tab ? '&tab=' + encodeURIComponent(tab) : ''}`, { signal: c.signal });
         const j = await r.json(); if (!j.ok) throw new Error(j.error || 'رفض السكربت');
         return j;
       } finally { clearTimeout(to); }
     },
     // تبويب «ضبوط» في جدول المكتبة (تضيفه نسخة السكربت الجديدة). غيابه ليس خطأ: لا ضبوط بعد
-    async readDabt(id, interactive) {
+    async readDabt(id, interactive, tab = 'ضبوط') {
       let t = token();
       if (!t && interactive) { const c = await popup(() => A.reauthenticateWithPopup(auth.currentUser, prov())); t = c && c.accessToken; }
       if (!t) throw new Error('إذن قراءة درايف انتهى');
@@ -2481,12 +2536,18 @@ async function initDB() {
       const meta = await get(`https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(id)}?fields=developerMetadata(metadataKey,metadataValue)`);
       const lib = ((meta || {}).developerMetadata || []).find(m => m.metadataKey === 'hammadi_lib');
       if (!lib) return null;
-      const v = await get(`https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(lib.metadataValue)}/values/${encodeURIComponent("'ضبوط'!A2:I")}`);
+      const v = await get(`https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(lib.metadataValue)}/values/${encodeURIComponent(`'${tab}'!A2:I`)}`);
       return v ? { rows: v.values || [] } : null;
     },
   };
 }
 // ضبوطٌ مختلَقة بشكل تبويب «ضبوط»: [المعرّف، العنوان، النوع، آخر تعديل، المالك، الرابط، المجلد، داخل المجلد، النص]
+// جلساتٌ ماضية مختلَقة بشكل تبويب «جلسات سابقة»: [رقم القضية، التاريخ، المحامي، المحكمة، الدائرة، من]
+function demoPast() {
+  const d = k => iso(new Date(Date.now() - k * 864e5));
+  return [['4870000201', d(3), 'القاسم', 'العامة', '12', 'نسخة'], ['4870000202', d(5), 'الاحيدب', 'العامة', '3', 'نسخة'], ['4870000203', d(40), 'الشلعان', 'التجارية', '7', 'نسخة'],
+    ['4870000204', d(70), 'القاسم', 'العامة', '12', 'نسخة'], ['4870000205', d(120), 'باوزير', 'العمالية', '2', 'نسخة'], ['4870000201', d(3), 'القاسم', 'العامة', '12', 'نسخة أخرى']];
+}
 function demoDabt() {
   const P2 = 'application/pdf', t = (d, c, who) => `تاريخ الجلسة: ${d} رقم القضية: ${c}\nتاريخ الجلسة: ${d}\n` + (who ? `الاسم ${who} الصفة محامي التوقيع` : 'قررت شطب الدعوى');
   return [['dz1', 'ضبط تجريبي 1', P2, '1', '', '', '', '1', t('02/06/1448', '4870000101', 'القاسم')], ['dz2', 'ضبط تجريبي 2', P2, '1', '', '', '', '1', t('20/05/1448', '4870000102', 'الأحيدب')],
