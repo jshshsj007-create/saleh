@@ -601,3 +601,29 @@ export function klBlocks(text, opt = {}) {
   }
   return out;
 }
+
+/* ───── الضبوط: من حضر الجلسة ─────
+   ضبط ناجز يُقرأ نصّه آليًّا (حروفه أحيانًا بأشكال العرض ومقلوبة الترتيب). منه:
+   - تاريخ الجلسة: يتكرر في رأس كل صفحة، فالأكثر تكرارًا هو هو (لا تاريخ القيد ولا تواريخ المتن).
+   - رقم القضية: كذلك الأكثر تكرارًا من الأرقام العشرية التي تبدأ بـ47 أو 48.
+   - الحاضر من الفريق: من خانة التوقيع «الاسم … الصفة محامي/ممثل»، لا من «أطراف القضية» (فيها كل محامي
+     المكتب بوكالاتهم) ولا من الاسم المكرر على الصفحات (اسم من نزّل الملف من ناجز).
+   - شطب بلا حاضرٍ منّا: جلسةٌ لم يحضرها أحد */
+const DIG = s => String(s).replace(/[٠-٩]/g, d => d.charCodeAt(0) - 0x660).replace(/[۰-۹]/g, d => d.charCodeAt(0) - 0x6F0);
+const mode = arr => { const c = new Map(); for (const x of arr) c.set(x, (c.get(x) || 0) + 1); let b = null, n = 0; for (const [k, v] of c) if (v > n) { b = k; n = v; } return b; };
+export function parseDabt(text, team) {
+  const t = DIG(String(text || '').normalize('NFKC')).replace(/[ـً-ْ]/g, '').replace(/[أإآ]/g, 'ا').replace(/ى/g, 'ي');
+  const dates = [...t.matchAll(/(?<!\d)(\d{1,2})\/(\d{1,2})\/(14\d\d)(?!\d)/g)].filter(m => +m[1] >= 1 && +m[1] <= 30 && +m[2] >= 1 && +m[2] <= 12).map(m => `${m[3]}-${+m[2]}-${+m[1]}`);
+  const d = mode(dates), caseNo = mode([...t.matchAll(/(?<!\d)(4[78]\d{8})(?!\d)/g)].map(m => m[1]));
+  const cores = (team || []).map(n => [n, String(n).replace(/[أإآ]/g, 'ا').replace(/^ال/, '').replace(/^ا/, '')]).filter(([, c]) => c.length >= 3);
+  const who = new Set(), parts = t.split('الصفة');
+  for (let i = 1; i < parts.length; i++) {
+    const role = parts[i].slice(0, 20);
+    if (!/^\s*(محام|ممثل)/.test(role)) continue;
+    // الاسم قبل «الصفة» في الترتيب المنطقي، وبعد الصفة إن كان السطر مقلوبًا
+    const before = parts[i - 1].slice(-70), after = parts[i].slice(0, 70);
+    for (const [n, c] of cores) if (before.includes(c)) who.add(n);
+    if (![...who].length) for (const [n, c] of cores) if (after.includes(c)) who.add(n);
+  }
+  return { caseNo, h: d ? d.split('-').map(Number) : null, who: [...who], struck: !who.size && /شطب/.test(t) };
+}
