@@ -1571,13 +1571,20 @@ function saveSheetCache() {
   const m = S.sheet.cases.filter(r => r.memo).map(slim), a = S.sheet.appeals.map(slim), ss = S.sheet.sessions || [];
   const sig = JSON.stringify([m, a, ss]);
   if (S.cfg.sheetCache && JSON.stringify([S.cfg.sheetCache.m, S.cfg.sheetCache.a, S.cfg.sheetCache.s || []]) === sig) return;
-  S.cfg.sheetCache = { at: Date.now(), m, a, s: ss };
+  S.cfg.sheetCache = { at: Date.now(), m, a, s: ss }; S.sheet.mine = S.cfg.sheetCache.at;
   DB.saveCfg({ sheetCache: S.cfg.sheetCache });
 }
+/* الملخّص المشترك يُؤخذ متى كان أحدث مما عند الجهاز، لا في أول فتحة وحدها. كان الجهاز إذا قرأ الشيت مرةً
+   يتجاهل ما يقرؤه الزملاء بعده، فإذا انتهى إذن قوقل عنده (ساعة) بقيت المذكرة الجديدة غائبةً حتى «تحديث».
+   والقضايا التي ليست فيها مذكرة لا يحملها الملخّص، فتبقى من قراءة الجهاز بتفاصيلها */
 function hydrate() {
-  const c = S.cfg.sheetCache;
-  if (S.sheet.at || !c) return;
-  S.sheet.cases = c.m || []; S.sheet.appeals = c.a || []; S.sheet.sessions = c.s || []; S.sheet.cachedAt = c.at;
+  const c = S.cfg.sheetCache, sh = S.sheet;
+  if (!c || !c.at || c.at === sh.mine) return;
+  if (c.at <= (sh.at ? +sh.at : sh.cachedAt || 0)) return;
+  sh.cases = sh.at ? [...sh.cases.filter(r => !r.memo), ...(c.m || [])] : c.m || [];
+  sh.appeals = c.a || []; sh.sessions = c.s || [];
+  if (sh.at) sh.at = new Date(c.at); else sh.cachedAt = c.at;
+  if (S.open) renderSheet();
 }
 
 /* ───────── التنبيه اللحظي من الشيت ─────────
