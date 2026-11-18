@@ -810,6 +810,7 @@ function pastSessions() {
   const T = TODAY(), by = new Map(), fix = S.cfg.sesWho || {};
   // الأضعف أولًا: نسخ الجدول القديمة، ثم سجلّ الموقع يغلبها، ثم الضبوط، ثم تصحيح الفريق
   for (const z of S.dabt.past || []) { const w = matchTeam(z.lawyer) || z.lawyer; by.set(sesKey(z.caseNo, z.d), { c: z.caseNo, d: z.d, where: z.where, who: w ? [w] : [], src: 'copy' }); }
+  for (const z of S.dabt.week || []) { if (z.d > T) continue; const w = matchTeam(z.lawyer) || z.lawyer; by.set(sesKey(z.caseNo, z.d), { c: z.caseNo, d: z.d, t: z.t, where: z.where, who: w ? [w] : [], src: 'week' }); }
   for (const [k, v] of Object.entries(S.cfg.sesLog || {})) { const [c, d] = k.split('_'); if (d > T) continue; const [w, t, where, h] = String(v).split('|'); by.set(k, { c, d, t, where, who: w ? [w] : [], src: h === 'hand' ? 'hand' : 'log' }); }
   for (const z of S.dabt.list || []) { const k = sesKey(z.caseNo, z.d), o = by.get(k) || { c: z.caseNo, d: z.d, where: '' }; by.set(k, { ...o, who: z.who, struck: z.struck, src: 'dabt' }); }
   for (const [k, o] of by) if (fix[k] != null) { o.who = fix[k] ? [fix[k]] : []; o.fixed = true; }
@@ -819,18 +820,19 @@ async function loadDabt(interactive) {
   const Z = S.dabt; if (Z.loading) return;
   Z.loading = true; Z.err = '';
   try {
-    if (!Z.list) { const c = await IDB.get('dabt2:' + (S.cfg.sheetId || '')); if (c) { Z.list = c.list; Z.past = c.past || []; Z.at = c.at; } }
+    if (!Z.list) { const c = await IDB.get('dabt2:' + (S.cfg.sheetId || '')); if (c) { Z.list = c.list; Z.past = c.past || []; Z.week = c.week || []; Z.at = c.at; } }
     if (interactive || !Z.at || Date.now() - Z.at > MEMO_FRESH) {
       // من سكربت الشيت إن كان مربوطًا (بلا إذن)، وإلا بإذن قوقل
       const tab = async name => { if (webOn()) { try { const r = await DB.readWeb(S.cfg.webUrl, S.cfg.hookSecret, '', name); return r.rows ? { rows: r.rows } : null; } catch (e) { console.error('web tab', e); } } return DB.readDabt(S.cfg.sheetId, interactive, name); };
-      const [res, pr] = await Promise.all([tab('ضبوط').catch(e => { Z.err = e.message || String(e); return null; }), tab('جلسات سابقة').catch(e => (console.error(e), null))]);
+      const [res, pr, wk] = await Promise.all([tab('ضبوط').catch(e => { Z.err = e.message || String(e); return null; }), tab('جلسات سابقة').catch(e => (console.error(e), null)), tab('جلسات الأسبوع').catch(e => (console.error(e), null))]);
+      Z.week = ((wk && wk.rows) || []).map(r => { const d = pickDate(r[1]); return d && r[0] ? { caseNo: String(r[0]).trim(), d, lawyer: String(r[2] || '').trim(), where: [r[3], r[4] && 'ج' + r[4]].filter(Boolean).join(' · '), t: r[5] || '' } : null; }).filter(Boolean);
       const T = TODAY(); Z.past = ((pr && pr.rows) || []).map(r => { const d = pickDate(r[1]); return d && d < T && r[0] ? { caseNo: String(r[0]).trim(), d, lawyer: String(r[2] || '').trim(), where: [r[3], r[4] && 'ج' + r[4]].filter(Boolean).join(' · ') } : null; }).filter(Boolean);
       if (res) {
         const team = S.cfg.team || [];
         Z.list = res.rows.map(r => { const z = LIB.parseDabt(r[8], team); if (!z.caseNo || !z.h) return null; const d = fromHijri(z.h[0], z.h[1], z.h[2]); return d ? { caseNo: z.caseNo, d, who: z.who, struck: z.struck } : null; }).filter(Boolean);
         Z.none = false;
       } else { Z.none = !Z.err; Z.list = Z.list || []; }
-      if (res || Z.past.length) { Z.at = Date.now(); IDB.set('dabt2:' + (S.cfg.sheetId || ''), { at: Z.at, list: Z.list, past: Z.past }); }
+      if (res || Z.past.length || Z.week.length) { Z.at = Date.now(); IDB.set('dabt2:' + (S.cfg.sheetId || ''), { at: Z.at, list: Z.list, past: Z.past, week: Z.week }); }
     }
   } catch (e) { console.error(e); Z.err = e.message || String(e); }
   Z.loading = false; if (S.view === 'stats') render();
@@ -848,6 +850,12 @@ function statsHtml(all) {
   const pct = v => v == null ? '—' : ar(v) + '٪';
   const ses = pastSessions().filter(o => inP(o.d)), miss = ses.filter(o => !o.who.length);
   const nTot = (S.cfg.sheetCache && S.cfg.sheetCache.n) || sesTotals(S.sheet.cases || []), nAll = Object.values(nTot).reduce((a, b) => a + b, 0);
+  const stT = (S.cfg.sheetCache && S.cfg.sheetCache.st) || statusTotals(S.sheet.cases || []);
+  // الأسبوع من الأحد إلى الخميس (ويوم السبت: الأسبوع الجاي): ما مضى من السجل، وما بقي من الشيت
+  const wd = P(T).getDay(), wS = wd === 6 ? addD(T, 1) : addD(T, -wd), wE = addD(wS, 4);
+  const wk = new Map(); for (const o of pastSessions()) if (o.d >= wS && o.d <= wE) wk.set(sesKey(o.c, o.d), o.who);
+  for (const g of S.sheet.sessions || []) if (g.d >= wS && g.d <= wE && !wk.has(sesKey(g.caseNo, g.d))) wk.set(sesKey(g.caseNo, g.d), [matchTeam(g.lawyer) || g.lawyer]);
+  const wkN = t => [...wk.values()].filter(w => w.includes(t)).length;
   const perLbl = { m: 'هذا الشهر', 3: '٣ أشهر', y: 'السنة' };
   const kpi = (n, l, sub, c) => `<div class="kpi"${c ? ` style="--c:${c}"` : ''}><b>${n}</b><span>${l}</span><small>${sub}</small></div>`;
   const cntK = (L, k) => L.filter(i => i.kind === k).length;
@@ -869,6 +877,12 @@ function statsHtml(all) {
       return `<button class="sr" data-act="sec" data-v="${k}"><span class="nm"><i style="background:${SECC[k]}"></i>${TABN[k]}</span><span class="br"><em style="width:${o / secMax * 100}%;background:${SECC[k]}"></em><em style="width:${d / secMax * 100}%;background:color-mix(in srgb,${SECC[k]} 35%,white)"></em></span><span class="num">${ar(o)} مفتوحة · ${ar(d)} منجزة</span></button>`; }).join('')}</div>
     <div class="box"><div class="bt">📈 المنجز شهريًّا <small>آخر ستة أشهر هجرية</small></div><div class="chart">${mCounts.map(v => `<div><b>${ar(v)}</b><i style="height:${Math.max(3, v / mMax * 100)}px"></i></div>`).join('')}</div>
       <div class="lab">${months.map(([a]) => `<span>${short(HMN[hParts(P(a))[1] - 1])}</span>`).join('')}</div></div>
+    <div class="box"><div class="bt">📅 جلسات الأسبوع <small>${esc(hRange(wS, wE))} · الأحد–الخميس</small></div>
+      ${team.map(t => sr(`<span class="who">${mini(t)}${esc(t)}</span>`, `<b class="big">${ar(wkN(t))}</b>`)).join('')}
+      ${sr('<b>المجموع</b>', `<b class="big">${ar(wk.size)}</b>`)}</div>
+    <div class="box"><div class="bt">📂 حالة القضايا <small>من عمود «حالة القضية»</small></div><div class="tw"><table class="pt"><tr><th>الشخص</th><th>قيد النظر</th><th>لصالح الحمادي</th><th>ضد الحمادي</th></tr>
+      ${team.map(t => { const o = stT[t] || { o: 0, w: 0, l: 0 }; return `<tr><td><span class="who">${mini(t)}${esc(t)}</span></td><td style="font-weight:700">${ar(o.o)}</td><td style="color:var(--g);font-weight:700">${ar(o.w)}</td><td style="color:var(--r);font-weight:700">${ar(o.l)}</td></tr>`; }).join('')}
+      <tr><td><b>المجموع</b></td>${['o', 'w', 'l'].map(k => `<td><b>${ar(team.reduce((a, t) => a + ((stT[t] || {})[k] || 0), 0))}</b></td>`).join('')}</tr></table></div></div>
   </div><div>
     <div class="box"><div class="bt">👥 حسب الشخص <small>${perLbl[per]}</small></div><div class="tw"><table class="pt"><tr><th>الشخص</th><th>مفتوحة</th><th>أنجز</th><th>عاجلة</th><th>في الموعد</th><th>جلسات حضرها</th><th title="من عمود «عدد الجلسات» في الشيت، لكل قضايا المحامي منذ بدايتها">كل جلساته</th></tr>
       ${team.map(t => { const o = open.filter(i => i.who === t), d = done.filter(i => i.who === t), u = o.filter(urg).length, n = ses.filter(x => x.who.includes(t)).length;
@@ -879,7 +893,7 @@ function statsHtml(all) {
       ${nAll ? sr('كل جلسات قضايانا <small style="color:var(--mute);font-weight:400">من عمود «عدد الجلسات»</small>', `<b class="big">${ar(nAll)}</b>`) : ''}
       ${miss.length ? sr('<b style="color:var(--r)">ما حضرها أحد منّا</b>', `<b class="big" style="color:var(--r)">${ar(miss.length)}</b>`, 'background:var(--rbg)') + miss.slice(0, 5).map(o => `<button class="row1" data-act="calopen" data-v="${esc('ses:' + o.c + ':' + o.d)}"><span class="t"><b>القضية ${esc(o.c)}</b><small>${hLong(o.d)}هـ${o.struck ? ' · شُطبت الدعوى' : ''}</small></span><span class="cv" style="color:var(--mute)">‹</span></button>`).join('') : ''}
       ${(() => { const mine = ses.filter(o => o.who.includes(me())); return `<button class="sr" data-act="sesmine"><span class="nm" style="width:auto;flex:1">جلساتك المحسوبة في الفترة</span><b class="big">${ar(mine.length)}</b><span class="cv" style="color:var(--mute)">${S.sesMine ? '⌃' : '⌄'}</span></button>`
-        + (S.sesMine ? (mine.length ? mine.slice(0, 30).map(o => `<button class="row1" data-act="calopen" data-v="${esc('ses:' + o.c + ':' + o.d)}"><span class="t"><b>القضية ${esc(o.c)}</b><small>${DAYN[P(o.d).getDay()]} ${hLong(o.d)}هـ${o.where ? ' · ' + esc(o.where) : ''}${o.src === 'copy' ? ' · من نسخة قديمة' : o.src === 'dabt' ? ' · من الضبط' : o.src === 'hand' ? ' · سجّلتها يدويًا' : ''}</small></span></button>`).join('') : '<div class="meta" style="padding:8px 14px">ما فيه جلسات محسوبة لك في هذه الفترة.</div>') : ''); })()}
+        + (S.sesMine ? (mine.length ? mine.slice(0, 30).map(o => `<button class="row1" data-act="calopen" data-v="${esc('ses:' + o.c + ':' + o.d)}"><span class="t"><b>القضية ${esc(o.c)}</b><small>${DAYN[P(o.d).getDay()]} ${hLong(o.d)}هـ${o.where ? ' · ' + esc(o.where) : ''}${o.src === 'copy' ? ' · من نسخة قديمة' : o.src === 'week' ? ' · من جرد الأسبوع' : o.src === 'dabt' ? ' · من الضبط' : o.src === 'hand' ? ' · سجّلتها يدويًا' : ''}</small></span></button>`).join('') : '<div class="meta" style="padding:8px 14px">ما فيه جلسات محسوبة لك في هذه الفترة.</div>') : ''); })()}
       ${S.sesAdd ? `<div style="padding:10px 14px;border-top:1px solid var(--line);display:grid;gap:8px">
           <div style="display:flex;gap:8px;flex-wrap:wrap"><input id="sesd" type="date" value="${esc(S.sesAdd.d || T)}" max="${T}" style="flex:1;min-width:140px"><input id="sesc" inputmode="numeric" placeholder="رقم القضية" list="sescl" style="flex:1;min-width:140px" value="${esc(S.sesAdd.c || '')}"></div>
           <datalist id="sescl">${[...new Set((S.sheet.cases || []).map(r => r.caseNo))].slice(0, 400).map(c => `<option value="${esc(c)}">`).join('')}</datalist>
@@ -1594,11 +1608,19 @@ function sesTotals(rows) {
   for (const r of rows) { const n = parseInt(String(r.nSes || '').replace(/[٠-٩]/g, c => AR.indexOf(c)), 10); if (!(n > 0)) continue; const o = by.get(r.caseNo); if (!o || n > o.n) by.set(r.caseNo, { n, w: matchTeam(r.lawyer) || r.lawyer || '' }); }
   const t = {}; for (const { n, w } of by.values()) t[w] = (t[w] || 0) + n; return t;
 }
+// حالة القضايا لكل محامٍ: قيد النظر، حكم لصالح الحمادي، حكم ضده. القضية تُحسب مرة، من الصف الذي فيه محامٍ وحالة
+function statusTotals(rows) {
+  const by = new Map();
+  for (const r of rows) { const o = by.get(r.caseNo), sc = (r.lawyer ? 2 : 0) + (r.status ? 1 : 0); if (!o || sc > o.sc) by.set(r.caseNo, { sc, w: matchTeam(r.lawyer) || r.lawyer || '', st: r.status || '' }); }
+  const t = {};
+  for (const { w, st } of by.values()) { if (!w) continue; const k = /قيد النظر/.test(st) ? 'o' : /لصالح/.test(st) ? 'w' : /ضد/.test(st) ? 'l' : ''; if (!k) continue; (t[w] = t[w] || { o: 0, w: 0, l: 0 })[k]++; }
+  return t;
+}
 function saveSheetCache() {
-  const m = S.sheet.cases.filter(r => r.memo).map(slim), a = S.sheet.appeals.map(slim), ss = S.sheet.sessions || [], n = sesTotals(S.sheet.cases);
-  const sig = JSON.stringify([m, a, ss, n]);
-  if (S.cfg.sheetCache && JSON.stringify([S.cfg.sheetCache.m, S.cfg.sheetCache.a, S.cfg.sheetCache.s || [], S.cfg.sheetCache.n || {}]) === sig) return;
-  S.cfg.sheetCache = { at: Date.now(), m, a, s: ss, n }; S.sheet.mine = S.cfg.sheetCache.at;
+  const m = S.sheet.cases.filter(r => r.memo).map(slim), a = S.sheet.appeals.map(slim), ss = S.sheet.sessions || [], n = sesTotals(S.sheet.cases), st = statusTotals(S.sheet.cases);
+  const sig = JSON.stringify([m, a, ss, n, st]);
+  if (S.cfg.sheetCache && JSON.stringify([S.cfg.sheetCache.m, S.cfg.sheetCache.a, S.cfg.sheetCache.s || [], S.cfg.sheetCache.n || {}, S.cfg.sheetCache.st || {}]) === sig) return;
+  S.cfg.sheetCache = { at: Date.now(), m, a, s: ss, n, st }; S.sheet.mine = S.cfg.sheetCache.at;
   DB.saveCfg({ sheetCache: S.cfg.sheetCache });
 }
 /* الملخّص المشترك يُؤخذ متى كان أحدث مما عند الجهاز، لا في أول فتحة وحدها. كان الجهاز إذا قرأ الشيت مرةً
@@ -1635,6 +1657,7 @@ function setup() {
   send(ME, '✓ سكربت الشيت مربوط', 'أي تعديل في المحامي أو المهلة يوصل صاحبه على طول', 'm');
   libSetup();
   webMark();
+  weekSetup();
 }
 
 function onSheetEdit(e) {
@@ -1807,6 +1830,68 @@ function pastRun(lib, t0) {
   if (add.length) sh.getRange(sh.getLastRow() + 1, 1, add.length, 6).setValues(add);
   P.setProperty('pastSeen', JSON.stringify(seen));
   return done;
+}
+// ── جرد الأسبوع ── كل سبت تُسجَّل جلسات الأحد إلى الخميس من الشيت، ثم كل صباح يُحدَّث ما لم يأتِ يومه بعد:
+// ما مضى يومه يبقى (انعقدت)، وما تأجّل قبل يومه يُمحى. ويوم السبت يصل كل محامٍ عدد جلساته في أسبوعه
+function weekSetup() {
+  ScriptApp.getProjectTriggers().filter(t => t.getHandlerFunction() === 'weekRun').forEach(t => ScriptApp.deleteTrigger(t));
+  ScriptApp.newTrigger('weekRun').timeBased().everyDays(1).atHour(6).create();
+  weekRun();
+}
+// الهجري إلى الميلادي من تبويب «تقويم_أم_القرى» في الشيت نفسه (بداية كل شهر)
+function hijriMap(ss, tz) {
+  const sh = ss.getSheetByName('تقويم_أم_القرى'), m = {};
+  if (!sh) return m;
+  for (const r of sh.getDataRange().getValues().slice(1)) { const y = +r[0], mo = +r[1], st = r[4]; if (y && mo && st) m[y + '-' + mo] = st instanceof Date ? Utilities.formatDate(st, tz, 'yyyy-MM-dd') : String(st).slice(0, 10); }
+  return m;
+}
+function toIso(v, disp, H, tz) {
+  if (v instanceof Date) return Utilities.formatDate(v, tz, 'yyyy-MM-dd');
+  const s = String(disp || '').replace(/[٠-٩]/g, c => '٠١٢٣٤٥٦٧٨٩'.indexOf(c));
+  let m = s.match(/(\d{4})[\/-](\d{1,2})[\/-](\d{1,2})/), y, mo, d;
+  if (m) { y = +m[1]; mo = +m[2]; d = +m[3]; if (mo > 12 && d <= 12) { const t = mo; mo = d; d = t; } }
+  else if ((m = s.match(/(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})/))) { y = +m[3]; mo = +m[2]; d = +m[1]; }
+  else return '';
+  if (y > 1900) return y + '-' + ('0' + mo).slice(-2) + '-' + ('0' + d).slice(-2);
+  const st = H[y + '-' + mo]; if (!st) return '';
+  const t = new Date(st + 'T12:00:00Z'); t.setUTCDate(t.getUTCDate() + d - 1); return t.toISOString().slice(0, 10);
+}
+function weekRun() {
+  const ss = SpreadsheetApp.getActive(), tz = Session.getScriptTimeZone(), H = hijriMap(ss, tz), lib = libSheet(), now = new Date();
+  const today = Utilities.formatDate(now, tz, 'yyyy-MM-dd'), dw = +Utilities.formatDate(now, tz, 'u') % 7; // الأحد ٠ … السبت ٦
+  const plus = (iso, k) => { const t = new Date(iso + 'T12:00:00Z'); t.setUTCDate(t.getUTCDate() + k); return t.toISOString().slice(0, 10); };
+  const start = dw === 6 ? plus(today, 1) : plus(today, -dw), end = plus(start, 4), from = start > today ? start : today;
+  let sh = lib.getSheetByName('جلسات الأسبوع');
+  if (!sh) { sh = lib.insertSheet('جلسات الأسبوع'); sh.getRange(1, 1, 1, 7).setValues([['رقم القضية', 'التاريخ', 'المحامي', 'المحكمة', 'الدائرة', 'الوقت', 'سُجّلت']]).setFontWeight('bold'); sh.setFrozenRows(1); }
+  sh.getRange('A:G').setNumberFormat('@'); // نصًّا: لا يقلب التاريخ ولا الرقم
+  const n0 = sh.getLastRow() - 1, old = n0 > 0 ? sh.getRange(2, 1, n0, 7).getDisplayValues() : [];
+  const keep = old.filter(r => r[1] && r[1] < from), seen = new Set(keep.map(r => r[0] + '|' + r[1])), fresh = [];
+  ss.getSheets().forEach(s => {
+    if (SKIP.test(s.getName())) return;
+    const R = s.getDataRange(), disp = R.getDisplayValues(), raw = R.getValues();
+    const Hd = (disp[0] || []).map(h => String(h).replace(/[ً-ْـ]/g, '').trim()), f = re => Hd.findIndex(h => re.test(h));
+    const c = f(/رقم القضي/), l = f(/^(المحامي|المسؤول)/), d = f(/(تاريخ|موعد) الجلس/), co = f(/^المحكمة/), ci = f(/^الدائرة/);
+    if (c < 0 || d < 0) return;
+    for (let i = 1; i < disp.length; i++) {
+      const no = String(disp[i][c]).trim(), iso = no && toIso(raw[i][d], disp[i][d], H, tz);
+      if (!iso || iso < from || iso > end || seen.has(no + '|' + iso)) continue;
+      const tm = (String(disp[i][d]).match(/\d{1,2}:\d{2}(:\d{2})?\s*[صم]?/) || [''])[0];
+      seen.add(no + '|' + iso); fresh.push([no, iso, l >= 0 ? String(disp[i][l]).trim() : '', co >= 0 ? disp[i][co] : '', ci >= 0 ? disp[i][ci] : '', tm, today]);
+    }
+  });
+  if (n0 > 0) sh.getRange(2, 1, n0, 7).clearContent();
+  const all = keep.concat(fresh);
+  if (all.length) sh.getRange(2, 1, all.length, 7).setValues(all);
+  const P = PropertiesService.getScriptProperties();
+  if (dw === 6 && P.getProperty('weekSent') !== start) {
+    const DN = ['الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس'], by = {};
+    for (const r of fresh) if (r[2]) (by[r[2]] = by[r[2]] || []).push(r[1]);
+    for (const [who, ds] of Object.entries(by)) {
+      const per = DN.map((n, k) => [n, ds.filter(x => x === plus(start, k)).length]).filter(x => x[1]).map(x => x[0] + ' ' + x[1]).join(' · ');
+      send(who, '📅 جلساتك هذا الأسبوع: ' + ds.length, per, 'm', 'week:' + start);
+    }
+    P.setProperty('weekSent', start);
+  }
 }
 function libTab(lib, name) {
   let sh = lib.getSheetByName(name);
@@ -2006,7 +2091,7 @@ function caseHtml(c) {
   ${/* رقم القضية في الشيت إن كان مربوطًا بمجلده فُتح المجلد، وإلا بحثٌ في درايف برقمها */''}<a class="drive" href="${esc(link || 'https://drive.google.com/drive/search?q=' + encodeURIComponent(c))}" target="_blank" rel="noopener">📁 ${link ? 'فتح مجلد القضية في درايف' : 'البحث عن مجلد القضية في درايف'}</a>
   ${kv.length ? `<dl class="kv">${kv.map(([a, b]) => `<div><dt>${a}</dt><dd>${esc(b)}</dd></div>`).join('')}</dl>` : ''}
   ${!kv.length ? '<div class="meta" style="margin-top:10px">تفاصيلها تظهر بعد «تحديث».</div>' : ''}
-  ${(past => past.length ? `<label>الجلسات الماضية ومن حضرها</label><div class="kv">${past.map(o => `<div><dt>${hLong(o.d)}هـ<small style="display:block;color:var(--mute);font-weight:400">${gLong(o.d)}م${o.src === 'dabt' ? ' · من الضبط' : o.src === 'copy' ? ' · من نسخة قديمة للجدول' : ''}</small></dt><dd><select class="seswho" data-k="${esc(sesKey(o.c, o.d))}"><option value="">ما حضر أحد</option>${(S.cfg.team || []).map(t => `<option ${o.who.includes(t) ? 'selected' : ''}>${esc(t)}</option>`).join('')}</select></dd></div>`).join('')}</div>` : '')(pastSessions().filter(o => o.c === c).slice(0, 8))}`;
+  ${(past => past.length ? `<label>الجلسات الماضية ومن حضرها</label><div class="kv">${past.map(o => `<div><dt>${hLong(o.d)}هـ<small style="display:block;color:var(--mute);font-weight:400">${gLong(o.d)}م${o.src === 'dabt' ? ' · من الضبط' : o.src === 'copy' ? ' · من نسخة قديمة للجدول' : o.src === 'week' ? ' · من جرد الأسبوع' : ''}</small></dt><dd><select class="seswho" data-k="${esc(sesKey(o.c, o.d))}"><option value="">ما حضر أحد</option>${(S.cfg.team || []).map(t => `<option ${o.who.includes(t) ? 'selected' : ''}>${esc(t)}</option>`).join('')}</select></dd></div>`).join('')}</div>` : '')(pastSessions().filter(o => o.c === c).slice(0, 8))}`;
 }
 
 /* ───────── تقويم الجوال (اشتراك) ─────────
