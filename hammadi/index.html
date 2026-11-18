@@ -792,10 +792,14 @@ function calHtml(big) {
 const sesKey = (c, d) => `${c}_${d}`;
 function logSessions() {
   const log = S.cfg.sesLog || {}, T = TODAY(), now = new Set(), patch = {};
+  const val = g => [matchTeam(g.lawyer) || g.lawyer || '', g.t || '', [g.court, g.circuit && 'ج' + g.circuit].filter(Boolean).join(' · ')].join('|');
   for (const g of S.sheet.sessions || []) {
-    const k = sesKey(g.caseNo, g.d), v = [matchTeam(g.lawyer) || g.lawyer || '', g.t || '', [g.court, g.circuit && 'ج' + g.circuit].filter(Boolean).join(' · ')].join('|');
+    const k = sesKey(g.caseNo, g.d), v = val(g);
     now.add(k); if (log[k] !== v) patch[k] = v;
   }
+  // جلسةٌ مضى يومها وتاريخها باقٍ في الشيت (لم تُكتب القادمة بعد) انعقدت، فتُسجَّل لمحاميها إن لم تكن مسجّلة.
+  // فتظهر الجلسات الماضية في الإحصائيات من أول قراءة، لا مما رآه الموقع من يوم ركّب السجل وحده
+  for (const g of sessionsFrom(S.sheet.cases || [], true)) { const k = sesKey(g.caseNo, g.d); if (log[k] == null) patch[k] = val(g); }
   for (const k of Object.keys(log)) { const d = k.split('_')[1]; if (d > T && !now.has(k)) patch[k] = null; }
   if (!Object.keys(patch).length) return;
   const next = { ...log }; for (const [k, v] of Object.entries(patch)) v == null ? delete next[k] : next[k] = v;
@@ -1556,11 +1560,11 @@ function remHtml(it) {
 const slim = r => ({ tab: r.tab, caseNo: r.caseNo, memo: r.memo || '', lawyer: r.lawyer || '', court: r.court || '', ...(r.status ? { status: r.status } : {}), ...(r.link ? { link: r.link } : {}), ...(opp(r) ? { opp: opp(r) } : {}), _due: dueOf(r), _dueT: dueTimeOf(r), _src: dueSrc(r) });
 /* الجلسات القادمة لكل قضية فيها محامٍ، من عمود «تاريخ/موعد الجلسة» في تبويبات المحاكم.
    القضية تتكرّر بين «العام» وتبويب محكمتها، فتُجمع بالرقم والتاريخ، ويُفضَّل الصف الذي فيه الساعة */
-function sessionsFrom(rows) {
-  const m = new Map(), today = TODAY();
+function sessionsFrom(rows, past) {
+  const m = new Map(), today = TODAY(), from = addD(today, -400);
   for (const r of rows) {
     const d = pickDate(r._session) || pickDate(r.session);
-    if (!d || d < today || !r.lawyer) continue;
+    if (!d || !r.lawyer || (past ? d >= today || d < from : d < today)) continue;
     const t = timeFrom(r._session, r.session), k = r.caseNo + '|' + d, o = m.get(k);
     if (!o || (!o.t && t)) m.set(k, { caseNo: r.caseNo, lawyer: r.lawyer, court: r.court || '', circuit: r.circuit || '', opp: opp(r), d, t,
       ...Object.fromEntries(['type', 'last', 'req', 'status', 'link', 'session'].filter(f => r[f]).map(f => [f, r[f]])) });
@@ -1607,9 +1611,11 @@ function setup() {
   SpreadsheetApp.getActive().getSheets().forEach(sh => { if (!SKIP.test(sh.getName())) scan(sh, 2, sh.getLastRow(), P, true); });
   send(ME, '✓ سكربت الشيت مربوط', 'أي تعديل في المحامي أو المهلة يوصل صاحبه على طول', 'm');
   libSetup();
+  webMark();
 }
 
 function onSheetEdit(e) {
+  webBump();
   const sh = e.range.getSheet();
   if (SKIP.test(sh.getName())) return;
   scan(sh, Math.max(2, e.range.getRow()), e.range.getLastRow(), PropertiesService.getDocumentProperties(), false);
@@ -1669,6 +1675,40 @@ function LIBCODE() {
 const LIB_KEY = 'hammadi_lib';
 const LIB_COLS = ['المعرّف', 'العنوان', 'النوع', 'آخر تعديل', 'المالك', 'الرابط', 'المجلد', 'داخل مجلد الحمادي', 'النص', 'الدورة'];
 
+// ── قراءة الموقع بلا إذن قوقل ── الموقع يسأل كل دقيقة «تغيّر شيء؟» فيجيبه السكربت برقم آخر تعديل،
+// ولا يرسل الجدول إلا إذا تغيّر. والسرّ شرطٌ، فمن عنده الرابط وحده لا يقرأ شيئًا
+const WEB_KEY = 'hammadi_web';
+// اليوم داخلٌ في الرقم: المهلة تُحسب من التاريخ، فيُقرأ الجدول مرةً كل يوم ولو ما تعدّل
+function webRev() { return (PropertiesService.getScriptProperties().getProperty('rev') || '0') + '|' + Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd'); }
+function webBump() { PropertiesService.getScriptProperties().setProperty('rev', String(Date.now())); }
+// رابط «تطبيق الويب» يُعلَّق على جدول القضايا، فيأخذه الموقع بنفسه بلا نسخٍ ولصق
+function webMark() {
+  try {
+    const u = ScriptApp.getService().getUrl(); if (!u) return;
+    const ss = SpreadsheetApp.getActive(), md = ss.getDeveloperMetadata().filter(m => m.getKey() === WEB_KEY)[0];
+    if (!md) ss.addDeveloperMetadata(WEB_KEY, u); else if (md.getValue() !== u) md.setValue(u);
+  } catch (e) { console.warn('رابط الويب: ' + e); }
+}
+function doGet(e) {
+  const p = (e && e.parameter) || {}, out = o => ContentService.createTextOutput(JSON.stringify(o)).setMimeType(ContentService.MimeType.JSON);
+  if (p.k !== SECRET) return out({ ok: false, error: 'bad secret' });
+  const rev = webRev();
+  if (p.rev === rev) return out({ ok: true, rev: rev, same: true });
+  const ss = SpreadsheetApp.getActive(), tz = ss.getSpreadsheetTimeZone(), Z = Date.UTC(1899, 11, 30);
+  // التاريخ رقمًا كما تعطيه واجهة قوقل (UNFORMATTED/SERIAL_NUMBER)، فلا يتغيّر شيء في الموقع
+  const ser = v => v instanceof Date ? (Date.parse(Utilities.formatDate(v, tz, "yyyy-MM-dd'T'HH:mm:ss") + 'Z') - Z) / 864e5 : v;
+  const trim = rows => { const o = rows.map(r => { let n = r.length; while (n && (r[n - 1] === '' || r[n - 1] == null)) n--; return r.slice(0, n); }); let n = o.length; while (n && !o[n - 1].length) n--; return o.slice(0, n); };
+  const tabs = ss.getSheets().map(sh => {
+    const n = sh.getLastRow(), m = sh.getLastColumn();
+    if (!n || !m) return [sh.getName(), [], [], []];
+    const R = sh.getRange(1, 1, n, m), disp = R.getDisplayValues(), raw = R.getValues().map(r => r.map(ser));
+    const ci = (disp[0] || []).findIndex(h => /رقم القضي/.test(h));
+    const links = ci < 0 ? [] : sh.getRange(1, ci + 1, n, 1).getRichTextValues().map(r => { const t = r[0]; if (!t) return ''; return t.getLinkUrl() || t.getRuns().map(x => x.getLinkUrl()).filter(Boolean)[0] || ''; });
+    return [sh.getName(), trim(disp), trim(raw), links];
+  });
+  return out({ ok: true, rev: rev, tabs: tabs });
+}
+
 function libSetup() {
   libSheet();
   ScriptApp.getProjectTriggers().filter(t => /^libRun/.test(t.getHandlerFunction())).forEach(t => ScriptApp.deleteTrigger(t));
@@ -1694,6 +1734,7 @@ function libSheet() {
 function libRun() {
   const lock = LockService.getScriptLock();
   if (!lock.tryLock(2000)) return;
+  webMark();
   const t0 = Date.now();
   try {
     const ss = SpreadsheetApp.getActive(), lib = libSheet();
@@ -1855,7 +1896,17 @@ function hookHtml() {
     <textarea id="hookcode" readonly dir="ltr" style="margin-top:8px;height:110px;font-family:monospace;font-size:11px">${esc(hookScript(sec))}</textarea>
     <div class="btns"><button class="pri" data-act="hookcopy">📋 نسخ السكربت</button></div>
     <div class="btns">${S.cfg.hookOn ? '<button data-act="hookon" data-v="0">✓ السكربت شغّال — إيقاف الاعتماد عليه</button>' : '<button class="ok" data-act="hookon" data-v="1">وصلني «✓ سكربت الشيت مربوط»</button>'}</div>
-    <div class="meta">${S.cfg.hookOn ? 'الشيت يبلغ لحظيًا، والموقع يسجّل بلا تكرار.' : 'حتى تضغطه، يبقى الموقع يبلغ بنفسه لما يقرأ الشيت.'}</div>`}`;
+    <div class="meta">${S.cfg.hookOn ? 'الشيت يبلغ لحظيًا، والموقع يسجّل بلا تكرار.' : 'حتى تضغطه، يبقى الموقع يبلغ بنفسه لما يقرأ الشيت.'}</div>
+    <label>الشيت يوصل الموقع بلا «تحديث»</label>
+    ${S.cfg.webUrl ? `<div class="kv" style="padding:10px 12px;font-size:13.5px">${S.sheet.webErr ? `⚠️ السكربت ما ردّ: ${esc(S.sheet.webErr)}. تأكد أن النشر «Anyone» وأنه آخر نسخة.` : '✓ مربوط: أي تعديل في الشيت يظهر هنا خلال دقيقة، بلا إذن قوقل.'}</div>` : ''}
+    <div class="kv" style="padding:10px 12px;font-size:13.5px;line-height:1.9">
+      بعد ما تلصق السكربت وتحفظ، مرة وحدة من نفس صفحة Apps Script:<br>
+      ١. فوق يمين اضغط <b>Deploy</b> (نشر) ← <b>New deployment</b>.<br>
+      ٢. جنب «Select type» اضغط ⚙️ ← <b>Web app</b>.<br>
+      ٣. <b>Execute as</b>: Me — و<b>Who has access</b>: <b>Anyone</b>. ثم <b>Deploy</b> ووافق على الأذونات.<br>
+      ٤. انسخ رابط <b>Web app</b> والصقه هنا. (والموقع يلقاه بنفسه بعد ساعة لو نسيت)<br>
+      <span style="color:var(--mute)">إذا لصقت نسخة جديدة من السكربت بعدها: Deploy ← Manage deployments ← ✏️ ← Version: New version ← Deploy. والرابط ما يتغيّر.</span></div>
+    <div class="btns"><input id="weburl" dir="ltr" placeholder="https://script.google.com/macros/s/…/exec" value="${esc(S.cfg.webUrl || '')}" style="flex:1"><button class="pri" data-act="websave">حفظ</button></div>`}`;
 }
 
 /* ───────── فتح المهمة من الإشعار ─────────
@@ -2174,6 +2225,12 @@ document.addEventListener('click', async e => {
       S.cfg.hookSecret = secret; DB.saveCfg({ hookSecret: secret }); return renderSheet();
     }
     case 'hookcopy': { const ta = document.getElementById('hookcode'); ta.select(); try { await navigator.clipboard.writeText(ta.value); toast('✓ نُسخ السكربت'); } catch (e2) { document.execCommand('copy'); toast('✓ نُسخ'); } return; }
+    case 'websave': {
+      const u = (document.getElementById('weburl').value || '').trim();
+      if (u && !/^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec$/.test(u)) return toast('الرابط لازم يكون رابط Web app وينتهي بـ /exec', true);
+      S.cfg.webUrl = u; DB.saveCfg({ webUrl: u }); S.sheet.rev = ''; toast(u ? '✓ انحفظ — يقرأ الشيت الحين' : 'انشال الرابط');
+      if (u) { S.sheet.loading = false; await loadSheet(false); } return renderSheet();
+    }
     case 'hookon': S.cfg.hookOn = v === '1'; DB.saveCfg({ hookOn: S.cfg.hookOn }); toast(S.cfg.hookOn ? '✓ السكربت يبلغ لحظيًا، والموقع ما يكرّر' : 'رجع الموقع يبلغ بنفسه'); return renderSheet();
     case 'pushnow': { t.disabled = true; t.textContent = '⏳ جاري الإرسال…'; await syncAll({}, true); return renderSheet(); }
     case 'pushon': return enablePush();
@@ -2230,12 +2287,24 @@ document.addEventListener('input', e => {
   if (e.target.id === 'doneDate') { const h = document.getElementById('hd'); if (h) h.textContent = ' — ' + hijri(e.target.value || TODAY()); }
 });
 
-async function loadSheet(interactive) {
+/* القراءة من سكربت الشيت أولًا (بلا إذن، وكل دقيقة)، وإلا فبإذن قوقل كما كانت.
+   والسؤال الدوري صامت: لا «يحدّث…» ولا رسم من جديد إلا إذا تغيّر الشيت فعلًا */
+const webOn = () => !!(S.cfg.webUrl && S.cfg.hookSecret && (DEMO ? /web/.test(location.search) : true));
+async function loadSheet(interactive, quiet) {
   if (!S.cfg.sheetId || S.sheet.loading) return;
-  S.sheet.loading = true; S.sheet.err = ''; render();
+  S.sheet.loading = true; S.sheet.err = ''; if (!quiet) render();
   try {
-    const tabs = await DB.readSheet(S.cfg.sheetId, interactive);
+    let tabs = null;
+    if (webOn()) {
+      try {
+        const r = await DB.readWeb(S.cfg.webUrl, S.cfg.hookSecret, S.sheet.at && S.sheet.rev);
+        if (r.same) { S.sheet.at = new Date(); S.sheet.loading = false; S.sheet.webErr = ''; if (!quiet) render(); return; }
+        tabs = r.tabs; S.sheet.rev = r.rev; S.sheet.webErr = '';
+      } catch (e) { console.error('web', e); S.sheet.webErr = e.message || String(e); }
+    }
+    if (!tabs) tabs = await DB.readSheet(S.cfg.sheetId, interactive);
     if (!tabs) { S.sheet.loading = false; return render(); }
+    if (tabs.web && tabs.web !== S.cfg.webUrl) { S.cfg.webUrl = tabs.web; DB.saveCfg({ webUrl: tabs.web }); }
     Object.assign(S.sheet, ingest(tabs), { at: new Date(), err: '', cachedAt: null });
     S.sheet.sessions = sessionsFrom(S.sheet.cases);
     saveSheetCache();
@@ -2269,6 +2338,7 @@ async function initDB() {
       patchTask: (k, p, entry) => { D.tasks[k] = applyPatch(D.tasks[k] || {}, p, entry); save(); },
       // ?demo&nosheet: كأن إذن الشيت انتهى، لفحص العرض من الملخّص المحفوظ؛ و&libexpired كأن إذن درايف انتهى في المكتبة
       readDabt: async () => { await new Promise(r => setTimeout(r, 150)); return { rows: demoDabt() }; },
+      readWeb: async (u, k, rev) => { await new Promise(r => setTimeout(r, 120)); const R = 'demo|' + TODAY(); return rev === R ? { ok: true, rev: R, same: true } : { ok: true, rev: R, tabs: demoSheet().map(([t, rows]) => [t, rows, [], []]) }; },
       readLib: async () => { await new Promise(r => setTimeout(r, 200)); if (/nolib/.test(location.search)) return null; if (/libexpired/.test(location.search)) throw new Error('إذن قراءة درايف انتهى'); return { rows: demoMemos() }; },
       readSheet: async () => { await new Promise(r => setTimeout(r, 250)); if (/nosheet/.test(location.search)) return null; return demoSheet().map(([t, rows]) => [t, rows, [], rows.map(r => r[0] === '4870000107' ? 'https://drive.google.com/drive/folders/demo-4870000107' : '')]); },
     };
@@ -2352,8 +2422,9 @@ async function initDB() {
         return r.json();
       };
       const B = `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(id)}`;
-      const meta = await get(B + '?fields=sheets.properties.title');
+      const meta = await get(B + '?fields=' + encodeURIComponent('sheets.properties.title,developerMetadata(metadataKey,metadataValue)'));
       const titles = meta.sheets.map(s => s.properties.title);
+      const web = ((meta.developerMetadata || []).find(m => m.metadataKey === 'hammadi_web') || {}).metadataValue || '';
       const qs = titles.map(x => 'ranges=' + encodeURIComponent(`'${x.replace(/'/g, "''")}'`)).join('&');
       // مرتين: النص كما يُعرض، والقيمة الخام (التاريخ رقمًا) لنحسب منها المهلة بلا اعتمادٍ على تنسيق العرض
       const [vals, raws] = await Promise.all([
@@ -2376,6 +2447,7 @@ async function initDB() {
           }
         }
       } catch (e) { console.error('links', e); }
+      out.web = web;
       return out;
     },
     // جدول المكتبة: سكربت الشيت ينشئه في مجلد الحمادي ويعلّق رقمه على جدول القضايا (بياناتٍ مخفية
@@ -2390,6 +2462,15 @@ async function initDB() {
       if (!lib) return null;
       const v = await get(`https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(lib.metadataValue)}/values/${encodeURIComponent("'مذكرات'!A2:J")}`);
       return { rows: v.values || [] };
+    },
+    // الشيت من سكربته (تطبيق ويب) بلا إذن قوقل: لا ينتهي بعد ساعة، ولا يُرسل الجدول إلا إذا تغيّر
+    async readWeb(url, secret, rev) {
+      const c = new AbortController(), to = setTimeout(() => c.abort(), 25000);
+      try {
+        const r = await fetch(`${url}?k=${encodeURIComponent(secret)}&rev=${encodeURIComponent(rev || '')}`, { signal: c.signal });
+        const j = await r.json(); if (!j.ok) throw new Error(j.error || 'رفض السكربت');
+        return j;
+      } finally { clearTimeout(to); }
     },
     // تبويب «ضبوط» في جدول المكتبة (تضيفه نسخة السكربت الجديدة). غيابه ليس خطأ: لا ضبوط بعد
     async readDabt(id, interactive) {
@@ -2505,7 +2586,7 @@ const standalone = () => navigator.standalone === true || matchMedia('(display-m
 const pushOK = () => !DEMO && 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
 let swReg = null;
 if ('serviceWorker' in navigator && !DEMO) navigator.serviceWorker.register('sw.js').then(r => { swReg = r; }).catch(() => { });
-navigator.serviceWorker?.addEventListener('message', e => { if (e.data && e.data.tab) { S.tab = e.data.tab; if (e.data.open) S.pendingOpen = e.data.open; render(); } });
+navigator.serviceWorker?.addEventListener('message', e => { if (e.data && e.data.sheet) return autoRead(true); if (e.data && e.data.tab) { S.tab = e.data.tab; if (e.data.open) S.pendingOpen = e.data.open; render(); } });
 const b64 = s => { const p = '='.repeat((4 - s.length % 4) % 4), r = atob((s + p).replace(/-/g, '+').replace(/_/g, '/')); return Uint8Array.from(r, c => c.charCodeAt(0)); };
 // بمهلة ٢٠ ثانية: طلبٌ معلّق على شبكة الجوال كان يوقف الإرسال كله بلا كلمة
 const api = (path, body) => { const c = new AbortController(), t = setTimeout(() => c.abort(), 20000); return fetch(PUSH + path, { signal: c.signal, ...(body ? { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) } : {}) }).then(r => r.json()).finally(() => clearTimeout(t)); };
@@ -2622,8 +2703,9 @@ if (DEMO) { window.__sched = schedule; window.__fresh = freshAssignments; window
 document.addEventListener('visibilitychange', () => { if (!document.hidden && S.user && me()) syncPush(); });
 // الشيت يُقرأ من جديد كل ٥ دقائق والموقع مفتوح، وعند الرجوع إليه بعد دقيقتين: فيُلحظ تعديلٌ فيه
 // (مهمة جديدة أو مهلةٌ تغيّرت) خلال دقائق. وبلا إذنٍ صالح لا يفعل شيئًا، ولا يفتح نافذة دخول
-const autoRead = () => { if (!document.hidden && S.user && me() && S.cfg.sheetId && !S.sheet.loading && (!S.sheet.at || Date.now() - S.sheet.at > 2 * 60e3)) loadSheet(false); };
-setInterval(autoRead, 5 * 60e3);
+// ومع سكربت الشيت (تطبيق ويب) يُسأل كل دقيقة، والسؤال خفيف: رقم التعديل وحده ما لم يتغيّر
+const autoRead = force => { if (!document.hidden && S.user && me() && S.cfg.sheetId && !S.sheet.loading && (force === true || !S.sheet.at || Date.now() - S.sheet.at > (webOn() ? 50e3 : force && force.type === 'visibilitychange' ? 2 * 60e3 : 290e3))) loadSheet(false, true); };
+setInterval(autoRead, 60e3);
 document.addEventListener('visibilitychange', autoRead);
 function syncPush() { clearTimeout(pushT); pushT = setTimeout(() => syncAll(), 2500); }
 // إشعار فوري لعضو (أُسندت إليك…): يُضاف إلى قائمته ويُرسل الآن، فيصله خلال دقيقة

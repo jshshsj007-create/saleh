@@ -8,6 +8,8 @@ self.addEventListener('push', e => {
   let d = {};
   try { d = e.data ? e.data.json() : {}; } catch (x) { d = { title: e.data && e.data.text() }; }
   const icon = new URL('wael-icon-512.png?v=3', self.registration.scope).href;
+  // الموقع إن كان مفتوحًا يقرأ الشيت حالًا: الإشعار يعني أن فيه تعديلًا
+  e.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(L => L.forEach(c => c.postMessage({ sheet: 1 }))).catch(() => { }));
   e.waitUntil(self.registration.showNotification(d.title || 'مشروع الحمادي', {
     body: d.body || '', icon, badge: icon, dir: 'rtl', lang: 'ar',
     // بوسم الموعد نفسه: لو وصل مرتين ما يتكرّر على الشاشة
